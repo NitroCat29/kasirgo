@@ -1,0 +1,10 @@
+{
+  "name": "kasirgo",
+  "version": "1.0.0",
+  "description": "KasirGo - POS System with Zig WASM",
+  "type": "module",
+  "scripts": {
+    "build": "bun run build.js",
+    "dev": "bun run backend/server.ts"
+  }
+}
