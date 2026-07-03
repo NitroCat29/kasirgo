@@ -47,7 +47,7 @@ project  : "KasirGo"
 stack    : ["HTMX", "Alpine.js", "Tailwind CSS", "Bun", "SQLite", "Zig/WASM"]
 runtime  : "bun"
 os       : "Windows"
-repo     : "D:\\Coding\\htmx"
+repo     : "E:\\Coding\\KasirGO"
 updated  : "2026-06-30"
 ```
 
