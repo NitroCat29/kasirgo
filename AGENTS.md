@@ -56,10 +56,10 @@ updated  : "2026-06-30"
 ## 2. STATUS SEKARANG
 
 ```
-wip      : "SRI hashes + .env.example done — siap deploy"
-progress : 95%
+wip      : "Deployed to GitHub Pages"
+progress : 100%
 blocker  : "null"
-next     : "Deploy / production setup"
+next     : "Backend hosting (Railway/Fly.io) + connect frontend to backend URL"
 ```
 
 ---
@@ -82,7 +82,11 @@ next     : "Deploy / production setup"
   - [x] parseBody fix: return 400 kalau JSON invalid, bukan silent {}
   - [x] Env config: .env support untuk port, DB path, cookie settings, CORS origin
   - [x] SRI hashes: tambah integrity attribute ke semua CDN scripts
-- [ ] Deploy / production setup
+- [x] Deploy / production setup
+  - [x] Git init + .gitignore (exclude .env, sqlite*, .reasonix/, dist/, zig artifacts)
+  - [x] GitHub repo: https://github.com/NitroCat29/kasirgo
+  - [x] Build script (bun run build → dist/)
+  - [x] GitHub Pages: https://nitrocat29.github.io/kasirgo/ (gh-pages branch)
 - [x] Integrasi frontend (HTMX) ke backend API
 - [x] Static file serving dari Bun :3456 + clean URLs (/login → /login.html)
 - [x] Custom 404.html dengan glassmorphism design
@@ -167,7 +171,10 @@ Browser (index.html)
 | kasir.wasm                     | done   | Zig-compiled WASM (647KB) |
 | zig/                           | done   | Source Zig untuk WASM |
 | assets/kasirku_logo.svg        | done   | Logo favicon 4.5KB, linked di semua HTML |
-| AGENTS.md                      | done   | Updated sesi 2026-06-30 |
+| build.js                       | done   | Build script: minify JS, copy static, fix paths for GH Pages |
+| package.json                   | done   | Scripts: build (→ dist/), dev (backend) |
+| dist/                          | done   | Production build output, deployed to gh-pages branch |
+| AGENTS.md                      | done   | Updated sesi 2026-07-03 |
 ```
 
 `active_file: "AGENTS.md"`
