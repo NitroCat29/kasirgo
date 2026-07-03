@@ -1,0 +1,29 @@
+# Environment
+.env
+.env.local
+
+# Database
+backend/db/*.sqlite
+backend/db/*.sqlite-shm
+backend/db/*.sqlite-wal
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Editor / OS
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Zig build artifacts
+zig/*.o
+zig/*.a
+zig/*.wasm
+
+# Tooling config
+.reasonix/
+reasonix.toml

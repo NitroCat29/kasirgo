@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WASM vs JS Benchmark — KasirGo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .winner { @apply bg-green-500/20 border-green-500; }
+    .loser { @apply bg-red-500/20 border-red-500; }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen text-white p-8">
+  <div class="max-w-4xl mx-auto">
+    <h1 class="text-4xl font-bold mb-8">⚡ WASM vs JS Benchmark</h1>
+    
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div class="bg-white/10 backdrop-blur-lg rounded-lg p-4">
+        <h3 class="text-sm text-gray-400 mb-1">Test 1: Heavy Compute</h3>
+        <p class="text-xs text-gray-500">Nested loops, math ops, sorting</p>
+        <button onclick="runBenchmark1()" class="mt-2 w-full bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded">Run</button>
+        <div id="result1" class="mt-3 text-sm"></div>
+      </div>
+      
+      <div class="bg-white/10 backdrop-blur-lg rounded-lg p-4">
+        <h3 class="text-sm text-gray-400 mb-1">Test 2: Cart Operations</h3>
+        <p class="text-xs text-gray-500">Add, update, remove, calculate</p>
+        <button onclick="runBenchmark2()" class="mt-2 w-full bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded">Run</button>
+        <div id="result2" class="mt-3 text-sm"></div>
+      </div>
+      
+      <div class="bg-white/10 backdrop-blur-lg rounded-lg p-4">
+        <h3 class="text-sm text-gray-400 mb-1">Test 3: Hash Lookups</h3>
+        <p class="text-xs text-gray-500">512 products × 1000 queries</p>
+        <button onclick="runBenchmark3()" class="mt-2 w-full bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded">Run</button>
+        <div id="result3" class="mt-3 text-sm"></div>
+      </div>
+    </div>
+    
+    <button onclick="runAllBenchmarks()" class="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-6 py-3 rounded-lg font-semibold text-lg mb-4">
+      🚀 Run All Benchmarks
+    </button>
+    
+    <div id="status" class="text-center text-gray-400 text-sm"></div>
+  </div>
+
+  <script>
+    let wasmReady = false;
+    let wasmExports = null;
+    
+    // Load WASM
+    async function loadWasm() {
+      try {
+        const response = await fetch('/kasir.wasm');
+        const buffer = await response.arrayBuffer();
+        const wasm = await WebAssembly.instantiate(buffer, {
+          env: {}
+        });
+        wasmExports = wasm.instance.exports;
+        
+        // Log available exports
+        console.log('✅ WASM Exports:', Object.keys(wasmExports));
+        
+        // Init memory if function exists
+        if (wasmExports.init_memory) {
+          wasmExports.init_memory();
+          console.log('✅ Memory initialized');
+        }
+        
+        wasmReady = true;
+        document.getElementById('status').textContent = '✅ WASM Ready';
+      } catch (e) {
+        console.error('❌ WASM Load Error:', e);
+        document.getElementById('status').textContent = '❌ WASM Failed: ' + e.message;
+      }
+    }
+    
+    // JS fallback for benchmark 1
+    function jsBenchmark1(iterations) {
+      let acc = 0.0;
+      
+      for (let i = 0; i < iterations; i++) {
+        for (let j = 0; j < 100; j++) {
+          const x = i * j + 1;
+          const y = Math.sqrt(x);
+          acc += y * 1.0001;
+          acc = acc % 10000.0;
+        }
+      }
+      
+      // Struct operations
+      const items = [];
+      for (let i = 0; i < 32; i++) {
+        items.push({ id: i, qty: i % 10 + 1, price: i * 1000 + 500 });
+      }
+      
+      // Bubble sort
+      let sorted = false;
+      while (!sorted) {
+        sorted = true;
+        for (let i = 0; i < 31; i++) {
+          if (items[i].price > items[i + 1].price) {
+            [items[i], items[i + 1]] = [items[i + 1], items[i]];
+            sorted = false;
+          }
+        }
+      }
+      
+      // Accumulate
+      for (const item of items) {
+        acc += item.price * item.qty;
+      }
+      
+      return acc;
+    }
+    
+    // JS fallback for benchmark 2
+    function jsBenchmark2(iterations) {
+      let acc = 0.0;
+      
+      for (let i = 0; i < iterations; i++) {
+        const cart = [];
+        
+        // Add 20 items
+        for (let j = 0; j < 20; j++) {
+          cart.push({ id: j % 512, qty: j % 5 + 1, price: Math.random() * 10000 });
+        }
+        
+        // Update 10 items
+        for (let j = 0; j < 10; j++) {
+          if (cart[j]) cart[j].qty = (j % 3) + 2;
+        }
+        
+        // Remove 5 items
+        cart.splice(0, 5);
+        
+        // Calculate
+        let subtotal = 0;
+        for (const item of cart) {
+          subtotal += item.price * item.qty;
+        }
+        acc += subtotal;
+      }
+      
+      return acc;
+    }
+    
+    // JS fallback for benchmark 3
+    function jsBenchmark3(iterations) {
+      const catalog = new Map();
+      for (let i = 0; i < 512; i++) {
+        catalog.set(i, { id: i, price: i * 1000 });
+      }
+      
+      let hits = 0;
+      for (let i = 0; i < iterations; i++) {
+        for (let j = 0; j < 512; j++) {
+          if (catalog.has(j)) hits++;
+        }
+      }
+      return hits;
+    }
+    
+    function runBenchmark1() {
+      const iterations = 1000;
+      const resultDiv = document.getElementById('result1');
+      resultDiv.innerHTML = '<span class="text-yellow-400">Running...</span>';
+      
+      setTimeout(() => {
+        const jsStart = performance.now();
+        const jsResult = jsBenchmark1(iterations);
+        const jsTime = performance.now() - jsStart;
+        
+        let wasmTime = 0;
+        let wasmResult = 0;
+        if (wasmReady) {
+          try {
+            const wasmStart = performance.now();
+            wasmResult = wasmExports.compute_benchmark(iterations);
+            wasmTime = performance.now() - wasmStart;
+            console.log(`✅ WASM Benchmark 1: ${wasmTime.toFixed(2)}ms, result=${wasmResult}`);
+          } catch (e) {
+            console.error('❌ WASM Benchmark 1 Error:', e);
+            wasmReady = false;
+          }
+        }
+        
+        const speedup = wasmReady ? (jsTime / wasmTime).toFixed(2) : 'N/A';
+        
+        resultDiv.innerHTML = `
+          <div class="space-y-1">
+            <div class="${wasmReady && wasmTime < jsTime ? 'winner' : 'loser'} border-l-4 pl-2 py-1">
+              <div class="font-semibold">WASM: ${wasmTime.toFixed(2)}ms</div>
+            </div>
+            <div class="${!wasmReady || jsTime < wasmTime ? 'winner' : 'loser'} border-l-4 pl-2 py-1">
+              <div class="font-semibold">JS: ${jsTime.toFixed(2)}ms</div>
+            </div>
+            ${wasmReady ? `<div class="text-center text-purple-400 font-bold mt-2">${speedup}x faster</div>` : ''}
+          </div>
+        `;
+      }, 100);
+    }
+    
+    function runBenchmark2() {
+      const iterations = 100;
+      const resultDiv = document.getElementById('result2');
+      resultDiv.innerHTML = '<span class="text-yellow-400">Running...</span>';
+      
+      setTimeout(() => {
+        const jsStart = performance.now();
+        const jsResult = jsBenchmark2(iterations);
+        const jsTime = performance.now() - jsStart;
+        
+        let wasmTime = 0;
+        if (wasmReady) {
+          try {
+            const wasmStart = performance.now();
+            wasmExports.benchmark_cart_operations(iterations);
+            wasmTime = performance.now() - wasmStart;
+            console.log(`✅ WASM Benchmark 2: ${wasmTime.toFixed(2)}ms`);
+          } catch (e) {
+            console.error('❌ WASM Benchmark 2 Error:', e);
+            wasmReady = false;
+          }
+        }
+        
+        const speedup = wasmReady ? (jsTime / wasmTime).toFixed(2) : 'N/A';
+        
+        resultDiv.innerHTML = `
+          <div class="space-y-1">
+            <div class="${wasmReady && wasmTime < jsTime ? 'winner' : 'loser'} border-l-4 pl-2 py-1">
+              <div class="font-semibold">WASM: ${wasmTime.toFixed(2)}ms</div>
+            </div>
+            <div class="${!wasmReady || jsTime < wasmTime ? 'winner' : 'loser'} border-l-4 pl-2 py-1">
+              <div class="font-semibold">JS: ${jsTime.toFixed(2)}ms</div>
+            </div>
+            ${wasmReady ? `<div class="text-center text-purple-400 font-bold mt-2">${speedup}x faster</div>` : ''}
+          </div>
+        `;
+      }, 100);
+    }
+    
+    function runBenchmark3() {
+      const iterations = 1000;
+      const resultDiv = document.getElementById('result3');
+      resultDiv.innerHTML = '<span class="text-yellow-400">Running...</span>';
+      
+      setTimeout(() => {
+        const jsStart = performance.now();
+        const jsResult = jsBenchmark3(iterations);
+        const jsTime = performance.now() - jsStart;
+        
+        let wasmTime = 0;
+        if (wasmReady) {
+          try {
+            const wasmStart = performance.now();
+            const hits = wasmExports.benchmark_catalog_query(iterations);
+            wasmTime = performance.now() - wasmStart;
+            console.log(`✅ WASM Benchmark 3: ${wasmTime.toFixed(2)}ms, hits=${hits}`);
+          } catch (e) {
+            console.error('❌ WASM Benchmark 3 Error:', e);
+            wasmReady = false;
+          }
+        }
+        
+        const speedup = wasmReady ? (jsTime / wasmTime).toFixed(2) : 'N/A';
+        
+        resultDiv.innerHTML = `
+          <div class="space-y-1">
+            <div class="${wasmReady && wasmTime < jsTime ? 'winner' : 'loser'} border-l-4 pl-2 py-1">
+              <div class="font-semibold">WASM: ${wasmTime.toFixed(2)}ms</div>
+            </div>
+            <div class="${!wasmReady || jsTime < wasmTime ? 'winner' : 'loser'} border-l-4 pl-2 py-1">
+              <div class="font-semibold">JS: ${jsTime.toFixed(2)}ms</div>
+            </div>
+            ${wasmReady ? `<div class="text-center text-purple-400 font-bold mt-2">${speedup}x faster</div>` : ''}
+          </div>
+        `;
+      }, 100);
+    }
+    
+    function runAllBenchmarks() {
+      runBenchmark1();
+      setTimeout(() => runBenchmark2(), 200);
+      setTimeout(() => runBenchmark3(), 400);
+    }
+    
+    // Auto load WASM on page load
+    loadWasm();
+  </script>
+</body>
+</html>

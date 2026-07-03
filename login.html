@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KasirGo — Login</title>
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              kasir: {
+                bg: '#0a0e1a',
+                card: '#131826',
+                border: 'rgba(255,255,255,0.06)',
+                fg: '#e8edf5',
+                muted: '#8b95a8',
+                accent: '#00d9a3',
+                accent2: '#ff8a3d',
+              }
+            },
+            fontFamily: {
+              sans: ['"Space Grotesk"', 'sans-serif'],
+              mono: ['"JetBrains Mono"', 'monospace'],
+            },
+          },
+        },
+      };
+    </script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+    <!-- Alpine.js -->
+    <script defer src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" integrity="sha384-Rpe/8orFUm5Q1GplYBHxbuA8Az8O8C5sAoOsdbRWkqPjKFaxPgGZipj4zeHL7lxX" crossorigin="anonymous"></script>
+
+    <style>
+      :root {
+        --bg: #0a0e1a;
+        --accent: #00d9a3;
+        --accent2: #ff8a3d;
+        --accent-glow: rgba(0, 217, 163, 0.3);
+        --accent2-glow: rgba(255, 138, 61, 0.3);
+        --fg: #e8edf5;
+        --muted: #8b95a8;
+        --border: rgba(255, 255, 255, 0.06);
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: 'Space Grotesk', sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* Blob background - match index.html */
+      .blob {
+        position: fixed;
+        border-radius: 50%;
+        filter: blur(120px);
+        opacity: 0.35;
+        z-index: 0;
+        animation: float 8s ease-in-out infinite;
+      }
+      .blob-1 {
+        width: 520px;
+        height: 520px;
+        background: #00d9a3;
+        top: -150px;
+        left: -120px;
+      }
+      .blob-2 {
+        width: 620px;
+        height: 620px;
+        background: #ff8a3d;
+        top: 25%;
+        right: -220px;
+        opacity: 0.25;
+        animation-delay: -4s;
+      }
+      .blob-3 {
+        width: 400px;
+        height: 400px;
+        background: #00d9a3;
+        top: 80%;
+        left: 30%;
+        opacity: 0.12;
+        animation-delay: -2s;
+      }
+
+      @keyframes float {
+        0%, 100% { transform: translateY(0) scale(1); }
+        50% { transform: translateY(-30px) scale(1.05); }
+      }
+
+      /* Glass card - match index.html style */
+      .glass {
+        background: rgba(19, 24, 38, 0.7);
+        border: 1px solid var(--border);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-radius: 20px;
+      }
+
+      .glass-input {
+        background: rgba(19, 24, 38, 0.6);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px 16px;
+        color: var(--fg);
+        font-size: 15px;
+        width: 100%;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        outline: none;
+        font-family: 'Space Grotesk', sans-serif;
+      }
+      .glass-input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-glow);
+      }
+      .glass-input::placeholder { color: #3a4155; }
+
+      .btn-primary {
+        background: linear-gradient(135deg, var(--accent), #00b88a);
+        color: #0a0e1a;
+        border: none;
+        border-radius: 12px;
+        padding: 14px;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+        width: 100%;
+        transition: transform 0.15s, box-shadow 0.15s;
+        font-family: 'Space Grotesk', sans-serif;
+      }
+      .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 25px var(--accent-glow);
+      }
+      .btn-primary:active { transform: translateY(0); }
+      .btn-primary:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .tab-btn {
+        padding: 10px 24px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        font-family: 'Space Grotesk', sans-serif;
+        flex: 1;
+      }
+      .tab-btn.active {
+        background: rgba(0, 217, 163, 0.12);
+        color: var(--accent);
+      }
+      .tab-btn:hover:not(.active) {
+        background: rgba(255, 255, 255, 0.04);
+        color: #b0b8c8;
+      }
+
+      .error-msg {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.2);
+        color: #fca5a5;
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 13px;
+        display: none;
+      }
+      .error-msg.show { display: block; }
+
+      .success-msg {
+        background: rgba(0, 217, 163, 0.1);
+        border: 1px solid rgba(0, 217, 163, 0.2);
+        color: #6ee7b7;
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 13px;
+        display: none;
+      }
+      .success-msg.show { display: block; }
+
+      .fade-in {
+        animation: fadeIn 0.3s ease-out;
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      /* Loading spinner */
+      .spinner {
+        display: inline-block;
+        width: 18px;
+        height: 18px;
+        border: 2px solid rgba(10, 14, 26, 0.3);
+        border-top-color: #0a0e1a;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      /* Logo badge */
+      .logo-badge {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, var(--accent), #00b88a);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+
+      /* Divider */
+      .divider {
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      /* Responsive */
+      @media (max-width: 480px) {
+        .glass { border-radius: 16px; }
+        .glass p-8 { padding: 24px; }
+      }
+    </style>
+    <link rel="icon" type="image/svg+xml" href="/assets/kasirku_logo.svg" />
+  </head>
+  <body>
+    <!-- Background blobs - match index.html -->
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+
+    <!-- Scroll progress (invisible but for consistency) -->
+    <div id="scroll-progress" class="fixed top-0 left-0 h-[2px] bg-gradient-to-r from-emerald-400 via-teal-300 to-orange-400 z-50" style="width: 0%"></div>
+
+    <!-- Main Card -->
+    <div class="relative z-10 w-full max-w-md mx-4"
+         x-data="{
+           tab: 'login',
+           loading: false,
+           error: '',
+           success: '',
+           loginForm: { username: '', password: '' },
+           signupForm: { username: '', password: '', nama: '' },
+
+           async safeJson(res) {
+             const text = await res.text();
+             if (!text) return {};
+             try { return JSON.parse(text); } catch { return {}; }
+           },
+
+           async sha256(msg) {
+             const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
+             return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+           },
+
+           async doLogin() {
+             this.error = '';
+             this.success = '';
+             if (!this.loginForm.username || !this.loginForm.password) {
+               this.error = 'Username dan password wajib diisi';
+               return;
+             }
+             this.loading = true;
+             try {
+               const hashed = await this.sha256(this.loginForm.password);
+               const res = await fetch('/api/auth/login', {
+                 method: 'POST',
+                 headers: { 'content-type': 'application/json' },
+                 body: JSON.stringify({ username: this.loginForm.username, password: hashed }),
+               });
+               const data = await this.safeJson(res);
+               if (!res.ok) throw new Error(data.error || 'Login gagal');
+               window.location.href = '/dashboard.html';
+             } catch (e) {
+               this.error = e.message;
+             } finally {
+               this.loading = false;
+             }
+           },
+
+           async doSignup() {
+             this.error = '';
+             this.success = '';
+             if (!this.signupForm.username || !this.signupForm.password || !this.signupForm.nama) {
+               this.error = 'Semua field wajib diisi';
+               return;
+             }
+             if (this.signupForm.password.length < 6) {
+               this.error = 'Password minimal 6 karakter';
+               return;
+             }
+             this.loading = true;
+             try {
+               const hashed = await this.sha256(this.signupForm.password);
+               const res = await fetch('/api/auth/signup', {
+                 method: 'POST',
+                 headers: { 'content-type': 'application/json' },
+                 body: JSON.stringify({ ...this.signupForm, password: hashed }),
+               });
+               const data = await this.safeJson(res);
+               if (!res.ok) throw new Error(data.error || 'Pendaftaran gagal');
+               this.success = 'Akun berhasil dibuat! Mengalihkan...';
+               setTimeout(() => { window.location.href = '/dashboard.html'; }, 1000);
+             } catch (e) {
+               this.error = e.message;
+             } finally {
+               this.loading = false;
+             }
+           }
+         }">
+
+      <!-- Logo + tagline -->
+      <div class="text-center mb-8">
+        <a href="/" class="inline-flex items-center gap-3 no-underline">
+          <div class="logo-badge">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0a0e1a" stroke-width="2.5">
+              <path d="M3 3h18v4H3zM5 7v14h14V7" />
+              <path d="M9 11h6M9 15h4" />
+            </svg>
+          </div>
+          <span class="text-2xl font-bold text-white tracking-tight">Kasir<span style="color: var(--accent)">Go</span></span>
+        </a>
+        <p class="text-sm mt-2" style="color: var(--muted)">Sistem kasir cepat bertenaga WASM</p>
+      </div>
+
+      <!-- Card -->
+      <div class="glass p-8">
+        <!-- Tabs -->
+        <div class="flex gap-1 mb-6 bg-white/[0.03] rounded-xl p-1.5">
+          <button class="tab-btn" :class="{ active: tab === 'login' }" @click="tab = 'login'; error = ''; success = ''">Masuk</button>
+          <button class="tab-btn" :class="{ active: tab === 'signup' }" @click="tab = 'signup'; error = ''; success = ''">Daftar</button>
+        </div>
+
+        <!-- Error / Success -->
+        <div class="error-msg mb-4" :class="{ show: error }" x-text="error"></div>
+        <div class="success-msg mb-4" :class="{ show: success }" x-text="success"></div>
+
+        <!-- Login Form -->
+        <form x-show="tab === 'login'" x-transition:enter="fade-in" @submit.prevent="doLogin()" class="space-y-4">
+          <div>
+            <label class="text-xs font-medium mb-1.5 block" style="color: var(--muted)">Username</label>
+            <input type="text" class="glass-input" placeholder="Masukkan username"
+                   x-model="loginForm.username" autocomplete="username" />
+          </div>
+          <div>
+            <label class="text-xs font-medium mb-1.5 block" style="color: var(--muted)">Password</label>
+            <input type="password" class="glass-input" placeholder="Masukkan password"
+                   x-model="loginForm.password" autocomplete="current-password" />
+          </div>
+          <button type="submit" class="btn-primary" :disabled="loading">
+            <span x-show="!loading">Masuk</span>
+            <span x-show="loading" class="spinner"></span>
+          </button>
+          <p class="text-center text-sm mt-2" style="color: var(--muted)">
+            Belum punya akun?
+            <a href="#" @click.prevent="tab = 'signup'" style="color: var(--accent)" class="hover:opacity-80">Daftar</a>
+          </p>
+        </form>
+
+        <!-- Signup Form -->
+        <form x-show="tab === 'signup'" x-transition:enter="fade-in" @submit.prevent="doSignup()" class="space-y-4">
+          <div>
+            <label class="text-xs font-medium mb-1.5 block" style="color: var(--muted)">Nama Lengkap</label>
+            <input type="text" class="glass-input" placeholder="Nama Anda"
+                   x-model="signupForm.nama" autocomplete="name" />
+          </div>
+          <div>
+            <label class="text-xs font-medium mb-1.5 block" style="color: var(--muted)">Username</label>
+            <input type="text" class="glass-input" placeholder="Pilih username"
+                   x-model="signupForm.username" autocomplete="username" />
+          </div>
+          <div>
+            <label class="text-xs font-medium mb-1.5 block" style="color: var(--muted)">Password</label>
+            <input type="password" class="glass-input" placeholder="Minimal 6 karakter"
+                   x-model="signupForm.password" autocomplete="new-password" />
+          </div>
+          <button type="submit" class="btn-primary" :disabled="loading">
+            <span x-show="!loading">Daftar</span>
+            <span x-show="loading" class="spinner"></span>
+          </button>
+          <p class="text-center text-sm mt-2" style="color: var(--muted)">
+            Sudah punya akun?
+            <a href="#" @click.prevent="tab = 'login'" style="color: var(--accent)" class="hover:opacity-80">Masuk</a>
+          </p>
+        </form>
+
+        <!-- Demo credentials -->
+        <div class="mt-6 pt-4 divider">
+          <p class="text-xs text-center" style="color: #3a4155">
+            Demo: <span class="font-mono" style="color: var(--muted)">admin</span> / <span class="font-mono" style="color: var(--muted)">admin123</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <p class="text-center text-xs mt-6">
+        <a href="/" class="hover:opacity-60 transition-opacity" style="color: #3a4155">← Kembali ke beranda</a>
+      </p>
+    </div>
+
+    <!-- Auto-redirect jika sudah login -->
+    <script>
+      (async () => {
+        try {
+          const res = await fetch('/api/auth/me');
+          if (res.ok) window.location.href = '/dashboard.html';
+        } catch {}
+      })();
+    </script>
+  </body>
+</html>

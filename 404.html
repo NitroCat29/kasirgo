@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>404 — KasirGo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      background: #0a0e1a;
+      color: #e8edf5;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .blob {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.3;
+      z-index: 0;
+      animation: float 8s ease-in-out infinite;
+    }
+    .blob-1 { width: 400px; height: 400px; background: #00d9a3; top: -100px; left: -80px; }
+    .blob-2 { width: 500px; height: 500px; background: #ff8a3d; top: 40%; right: -150px; opacity: 0.2; animation-delay: -4s; }
+    @keyframes float {
+      0%, 100% { transform: translateY(0) scale(1); }
+      50% { transform: translateY(-20px) scale(1.03); }
+    }
+    .content { position: relative; z-index: 1; text-align: center; }
+    .code {
+      font-size: 120px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #00d9a3, #ff8a3d);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1;
+    }
+    .msg { font-size: 18px; color: #8b95a8; margin-top: 4px; }
+    .back {
+      display: inline-block;
+      margin-top: 24px;
+      padding: 12px 28px;
+      background: linear-gradient(135deg, #00d9a3, #00b88a);
+      color: #0a0e1a;
+      border-radius: 12px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 14px;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .back:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 25px rgba(0, 217, 163, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="content">
+    <div class="code">404</div>
+    <p class="msg">Halaman yang kamu cari tidak ditemukan</p>
+    <a href="/" class="back">← Kembali ke beranda</a>
+  </div>
+</body>
+</html>
