@@ -39,6 +39,9 @@
     <!-- Alpine.js -->
     <script defer src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" integrity="sha384-Rpe/8orFUm5Q1GplYBHxbuA8Az8O8C5sAoOsdbRWkqPjKFaxPgGZipj4zeHL7lxX" crossorigin="anonymous"></script>
 
+    <!-- API Config -->
+    <script src="./config.js"></script>
+
     <style>
       :root {
         --bg: #0a0e1a;
@@ -285,9 +288,10 @@
              this.loading = true;
              try {
                const hashed = await this.sha256(this.loginForm.password);
-               const res = await fetch('/api/auth/login', {
+               const res = await fetch(window.API_BASE + '/api/auth/login', {
                  method: 'POST',
                  headers: { 'content-type': 'application/json' },
+                 credentials: 'include',
                  body: JSON.stringify({ username: this.loginForm.username, password: hashed }),
                });
                const data = await this.safeJson(res);
@@ -314,9 +318,10 @@
              this.loading = true;
              try {
                const hashed = await this.sha256(this.signupForm.password);
-               const res = await fetch('/api/auth/signup', {
+               const res = await fetch(window.API_BASE + '/api/auth/signup', {
                  method: 'POST',
                  headers: { 'content-type': 'application/json' },
+                 credentials: 'include',
                  body: JSON.stringify({ ...this.signupForm, password: hashed }),
                });
                const data = await this.safeJson(res);
@@ -424,7 +429,7 @@
     <script>
       (async () => {
         try {
-          const res = await fetch('/api/auth/me');
+          const res = await fetch(window.API_BASE + '/api/auth/me', { credentials: 'include' });
           if (res.ok) window.location.href = '/dashboard.html';
         } catch {}
       })();

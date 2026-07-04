@@ -56,10 +56,10 @@ updated  : "2026-06-30"
 ## 2. STATUS SEKARANG
 
 ```
-wip      : "Deployed to GitHub Pages"
+wip      : "Railway backend config ready — waiting for manual deploy"
 progress : 100%
 blocker  : "null"
-next     : "Backend hosting (Railway/Fly.io) + connect frontend to backend URL"
+next     : "Deploy backend ke Railway + update config.js dengan Railway URL"
 ```
 
 ---
@@ -87,6 +87,12 @@ next     : "Backend hosting (Railway/Fly.io) + connect frontend to backend URL"
   - [x] GitHub repo: https://github.com/NitroCat29/kasirgo
   - [x] Build script (bun run build → dist/)
   - [x] GitHub Pages: https://nitrocat29.github.io/kasirgo/ (gh-pages branch)
+- [~] Backend hosting (Railway.app)
+  - [x] railway.json config (Bun builder, start command, healthcheck)
+  - [x] Frontend configurable API URL (window.API_BASE di config.js)
+  - [x] Frontend fetch() updated: API_BASE prefix + credentials: 'include'
+  - [ ] Deploy backend ke Railway (manual: sign up → connect repo → set env vars)
+  - [ ] Update config.js dengan Railway URL setelah deploy
 - [x] Integrasi frontend (HTMX) ke backend API
 - [x] Static file serving dari Bun :3456 + clean URLs (/login → /login.html)
 - [x] Custom 404.html dengan glassmorphism design
@@ -130,6 +136,8 @@ next     : "Backend hosting (Railway/Fly.io) + connect frontend to backend URL"
 - "Cookie: session HttpOnly + csrf_token non-HttpOnly, Secure flag conditional (HTTPS)"
 - "SRI hashes: integrity attribute di semua CDN scripts (kecuali Tailwind CDN dinamis)"
 - "Codebase: split modular — db.ts, helpers.ts, router.ts, routes/auth|toko|produk|transaksi.ts"
+- "Backend hosting: Railway.app (free tier: 512MB RAM, 1GB storage, 1 vCPU)"
+- "Frontend API config: window.API_BASE di config.js (empty = same origin, isi URL Railway untuk production)"
 ```
 
 ---
@@ -174,7 +182,9 @@ Browser (index.html)
 | build.js                       | done   | Build script: minify JS, copy static, fix paths for GH Pages |
 | package.json                   | done   | Scripts: build (→ dist/), dev (backend) |
 | dist/                          | done   | Production build output, deployed to gh-pages branch |
-| AGENTS.md                      | done   | Updated sesi 2026-07-03 |
+| railway.json                   | done   | Railway config: Bun builder, start command, healthcheck |
+| config.js                      | done   | Frontend API config: window.API_BASE (empty = same origin) |
+| AGENTS.md                      | done   | Updated sesi 2026-07-03 (Railway config added) |
 ```
 
 `active_file: "AGENTS.md"`

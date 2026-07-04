@@ -31,6 +31,9 @@
     <!-- Alpine.js -->
     <script defer src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" integrity="sha384-Rpe/8orFUm5Q1GplYBHxbuA8Az8O8C5sAoOsdbRWkqPjKFaxPgGZipj4zeHL7lxX" crossorigin="anonymous"></script>
 
+    <!-- API Config -->
+    <script src="./config.js"></script>
+
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
@@ -584,7 +587,7 @@
 
           async init() {
             try {
-              const res = await fetch('/api/auth/me');
+              const res = await fetch(window.API_BASE + '/api/auth/me', { credentials: 'include' });
               if (!res.ok) throw new Error('unauthorized');
               this.user = await res.json();
               await this.loadStats();
@@ -596,14 +599,14 @@
 
           async loadStats() {
             try {
-              const res = await fetch('/api/stats');
+              const res = await fetch(window.API_BASE + '/api/stats', { credentials: 'include' });
               if (res.ok) this.stats = await res.json();
             } catch {}
           },
 
           async loadToko() {
             try {
-              const res = await fetch('/api/toko');
+              const res = await fetch(window.API_BASE + '/api/toko', { credentials: 'include' });
               if (res.ok) this.daftarToko = await res.json();
             } catch {}
           },
@@ -611,7 +614,7 @@
           async loadProduk() {
             await this.loadToko();
             try {
-              const res = await fetch('/api/produk');
+              const res = await fetch(window.API_BASE + '/api/produk', { credentials: 'include' });
               if (res.ok) this.daftarProduk = await res.json();
             } catch {}
           },
@@ -619,7 +622,7 @@
           async loadTransaksi() {
             await this.loadToko();
             try {
-              const res = await fetch('/api/transaksi');
+              const res = await fetch(window.API_BASE + '/api/transaksi', { credentials: 'include' });
               if (res.ok) this.daftarTransaksi = await res.json();
             } catch {}
           },
@@ -642,10 +645,11 @@
           async saveToko() {
             const m = this.modalToko;
             const method = m.id ? 'PATCH' : 'POST';
-            const url = m.id ? `/api/toko/${m.id}` : '/api/toko';
+            const url = m.id ? window.API_BASE + `/api/toko/${m.id}` : window.API_BASE + '/api/toko';
             await fetch(url, {
               method,
               headers: apiHeaders(),
+              credentials: 'include',
               body: JSON.stringify({ nama: m.nama, alamat: m.alamat, telepon: m.telepon }),
             });
             this.showTokoModal = false;
@@ -655,7 +659,7 @@
 
           async hapusToko(id) {
             if (!confirm('Hapus toko ini? Produk terkait juga ikut terhapus.')) return;
-            await fetch(`/api/toko/${id}`, { method: 'DELETE', headers: apiHeaders() });
+            await fetch(window.API_BASE + `/api/toko/${id}`, { method: 'DELETE', headers: apiHeaders(), credentials: 'include' });
             await this.loadToko();
             await this.loadStats();
           },
@@ -668,10 +672,11 @@
           async saveProduk() {
             const m = this.modalProduk;
             const method = m.id ? 'PATCH' : 'POST';
-            const url = m.id ? `/api/produk/${m.id}` : '/api/produk';
+            const url = m.id ? window.API_BASE + `/api/produk/${m.id}` : window.API_BASE + '/api/produk';
             await fetch(url, {
               method,
               headers: apiHeaders(),
+              credentials: 'include',
               body: JSON.stringify({ nama: m.nama, harga: Number(m.harga), stok: Number(m.stok), toko_id: m.toko_id }),
             });
             this.showProdukModal = false;
@@ -681,20 +686,20 @@
 
           async hapusProduk(id) {
             if (!confirm('Hapus produk ini?')) return;
-            await fetch(`/api/produk/${id}`, { method: 'DELETE', headers: apiHeaders() });
+            await fetch(window.API_BASE + `/api/produk/${id}`, { method: 'DELETE', headers: apiHeaders(), credentials: 'include' });
             await this.loadProduk();
             await this.loadStats();
           },
 
           async hapusTransaksi(id) {
             if (!confirm('Hapus transaksi ini?')) return;
-            await fetch(`/api/transaksi/${id}`, { method: 'DELETE', headers: apiHeaders() });
+            await fetch(window.API_BASE + `/api/transaksi/${id}`, { method: 'DELETE', headers: apiHeaders(), credentials: 'include' });
             await this.loadTransaksi();
             await this.loadStats();
           },
 
           async logout() {
-            await fetch('/api/auth/logout', { method: 'POST', headers: apiHeaders() });
+            await fetch(window.API_BASE + '/api/auth/logout', { method: 'POST', headers: apiHeaders(), credentials: 'include' });
             window.location.href = '/login.html';
           },
         };
