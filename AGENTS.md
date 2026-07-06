@@ -60,10 +60,10 @@ sync     : "Periodik (tag/release) → push ke GitHub mirror + GH Pages"
 ## 2. STATUS SEKARANG
 
 ```
-wip      : "Backend features completed: RBAC, audit logging, low stock alerts"
-progress : 100%
+wip      : "Architecture redesign + Tauri desktop planning"
+progress : "~25% (rewrite besar — lihat Plan.md)"
 blocker  : "null"
-next     : "Deploy backend ke Railway + update config.js dengan Railway URL"
+next     : "Framework decision (SolidJS vs Preact), lalu extract shared/types.ts + shared/validation.ts"
 ```
 
 ---
@@ -74,13 +74,38 @@ next     : "Deploy backend ke Railway + update config.js dengan Railway URL"
 > Urutkan dari yang paling dekat dieksekusi.
 
 ```
-- [~] Repo migration: Codeberg primary (dev) + GitHub secondary (mirror/production)
+- [x] Repo migration: Codeberg primary (dev) + GitHub secondary (mirror/production)
   - [x] Remote setup: origin=Codeberg (main), github=GitHub (mirror)
   - [x] Rebase lokal main di atas origin/main (resolve README conflict → pakai versi lokal)
   - [x] AGENTS.md + README update: repo URL, decisions, tea sebagai pengganti gh
   - [ ] tea login add (Codeberg) — butuh token dari El (manual)
-  - [ ] Script/alias sync-gh (push main + gh-pages ke GitHub saat release)
-  - [ ] First push main → Codeberg + verify
+  - [x] Script sync-gh.sh (build + push main + gh-pages ke GitHub saat release)
+  - [x] First push main → Codeberg + verify (commit c10ebef, GH Pages live: 200)
+- [x] Dokumentasi & aturan main (planning sesi 2026-07-07)
+  - [x] SECURITY.md — measures, threat model, disclosure policy
+  - [x] CONTRIBUTING.md — PR workflow, branch naming, commit convention, agent rule
+  - [x] Plan.md — arsitektur mode split, framework eval, roadmap A-Z
+  - [x] AGENTS.md — progress recalibrate, decisions, files status update
+- [ ] Codebase Rewrite (SolidJS rekomendasi — TBD oleh El)
+  - [ ] Framework decision final: SolidJS / Preact / Astro
+  - [ ] Extract shared/types.ts + shared/validation.ts + shared/wasm-bridge.ts
+  - [ ] Backend adapt: import dari shared/, hapus duplikasi
+  - [ ] Setup Vite + SolidJS scaffold
+  - [ ] Migrasi dashboard.html → SolidJS SPA (component-based)
+  - [ ] Migrasi login.html → SolidJS route
+  - [ ] Migrasi index.html → SolidJS landing
+  - [ ] Tailwind JIT build (bukan CDN) → bundle kecil
+- [ ] Desktop App (Tauri v2)
+  - [ ] Init Tauri scaffold + konfigurasi window/icon/permissions
+  - [ ] Integrasi SQLite lokal via Rust (rusqlite atau tauri-plugin-sql)
+  - [ ] Bridge JS ↔ Rust: invoke('db_query', ...)
+  - [ ] Offline CRUD: read/write SQLite lokal, UI update via SolidJS signals
+  - [ ] WASM load di Tauri webview (tes memory/table import kompatibel)
+  - [ ] Build target: .AppImage (Linux) + portable .exe (Windows)
+- [ ] Sync Layer (opt-in, desktop → server)
+  - [ ] Sync queue + conflict resolution (last-write-wins)
+  - [ ] Backend: /api/sync/push + /api/sync/pull
+  - [ ] Auth desktop: device token (bukan session cookie)
 - [x] Backend features (RBAC, audit, alerts)
   - [x] RBAC: requireRole() middleware dengan hierarchy (admin > manajer > kasir)
   - [x] Audit logging: logAudit() helper + audit_logs table
@@ -162,6 +187,11 @@ next     : "Deploy backend ke Railway + update config.js dengan Railway URL"
 - "Repo hosting: Codeberg primary (dev, branch main) + GitHub secondary (mirror + GH Pages production)"
 - "CLI: tea (Gitea CLI) ganti gh — hanya untuk Codeberg entity management (issues/pr/release)"
 - "Sync model: periodik (tag/release) → push main + gh-pages ke GitHub; dev harian hanya ke Codeberg"
+- "PR Workflow: semua perubahan via branch+PR (Codeberg), JANGAN push langsung ke main — lihat CONTRIBUTING.md"
+- "Tauri = full mode (offline-first, SQLite lokal, no server dependency)"
+- "Browser = limited mode (tetap butuh Bun server, hardening security jalan terus)"
+- "Framework rekomendasi = SolidJS (signals, tiny bundle, POS-friendly) — keputusan final TBD El"
+- "Keamanan: SECURITY.md → threat model split browser vs desktop; disclosure via Codeberg confidential issue"
 
 ---
 
@@ -209,7 +239,11 @@ Browser (index.html)
 | dist/                          | done   | Production build output, deployed to gh-pages branch |
 | railway.json                   | done   | Railway config: Bun builder, start command, healthcheck |
 | config.js                      | done   | Frontend API config: window.API_BASE (empty = same origin) |
-| AGENTS.md                      | done   | Updated sesi 2026-07-03 (RBAC, audit, alerts added) |
+| AGENTS.md                      | done   | Updated sesi 2026-07-07 (rewrite plan, PR workflow, security) |
+| Plan.md                        | done   | Arsitektur mode split, framework eval, roadmap 5 fase |
+| CONTRIBUTING.md                 | done   | PR workflow, branch naming, commit convention, agent rule |
+| SECURITY.md                     | done   | Measures, threat model (browser vs desktop), disclosure |
+| sync-gh.sh                     | done   | Script sync Codeberg → GitHub mirror + GH Pages |
 ```
 
 `active_file: "AGENTS.md"`
