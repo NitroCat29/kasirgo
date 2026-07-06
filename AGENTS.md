@@ -48,7 +48,11 @@ stack    : ["HTMX", "Alpine.js", "Tailwind CSS", "Bun", "SQLite", "Zig/WASM"]
 runtime  : "bun"
 os       : "Windows"
 repo     : "E:\\Coding\\KasirGO"
-updated  : "2026-06-30"
+updated  : "2026-07-03"
+git_primary  : "Codeberg → https://codeberg.org/ElCastra/KasirGO (branch: main)"
+git_secondary: "GitHub  → https://github.com/NitroCat29/kasirgo (mirror + GH Pages production)"
+cli      : "tea (Gitea CLI) sebagai pengganti gh — hanya untuk Codeberg entity mgmt"
+sync     : "Periodik (tag/release) → push ke GitHub mirror + GH Pages"
 ```
 
 ---
@@ -70,6 +74,13 @@ next     : "Deploy backend ke Railway + update config.js dengan Railway URL"
 > Urutkan dari yang paling dekat dieksekusi.
 
 ```
+- [~] Repo migration: Codeberg primary (dev) + GitHub secondary (mirror/production)
+  - [x] Remote setup: origin=Codeberg (main), github=GitHub (mirror)
+  - [x] Rebase lokal main di atas origin/main (resolve README conflict → pakai versi lokal)
+  - [x] AGENTS.md + README update: repo URL, decisions, tea sebagai pengganti gh
+  - [ ] tea login add (Codeberg) — butuh token dari El (manual)
+  - [ ] Script/alias sync-gh (push main + gh-pages ke GitHub saat release)
+  - [ ] First push main → Codeberg + verify
 - [x] Backend features (RBAC, audit, alerts)
   - [x] RBAC: requireRole() middleware dengan hierarchy (admin > manajer > kasir)
   - [x] Audit logging: logAudit() helper + audit_logs table
@@ -148,7 +159,9 @@ next     : "Deploy backend ke Railway + update config.js dengan Railway URL"
 - "RBAC: role hierarchy admin > manajer > kasir, requireRole() returns user or Response"
 - "Audit logging: logAudit() helper, audit_logs table tracks CREATE/UPDATE/DELETE actions"
 - "Low stock alerts: stock_threshold column, GET /api/alerts/* endpoints, WASM batch check"
-```
+- "Repo hosting: Codeberg primary (dev, branch main) + GitHub secondary (mirror + GH Pages production)"
+- "CLI: tea (Gitea CLI) ganti gh — hanya untuk Codeberg entity management (issues/pr/release)"
+- "Sync model: periodik (tag/release) → push main + gh-pages ke GitHub; dev harian hanya ke Codeberg"
 
 ---
 
