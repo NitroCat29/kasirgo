@@ -56,7 +56,7 @@ updated  : "2026-06-30"
 ## 2. STATUS SEKARANG
 
 ```
-wip      : "Railway backend config ready — waiting for manual deploy"
+wip      : "Backend features completed: RBAC, audit logging, low stock alerts"
 progress : 100%
 blocker  : "null"
 next     : "Deploy backend ke Railway + update config.js dengan Railway URL"
@@ -70,6 +70,13 @@ next     : "Deploy backend ke Railway + update config.js dengan Railway URL"
 > Urutkan dari yang paling dekat dieksekusi.
 
 ```
+- [x] Backend features (RBAC, audit, alerts)
+  - [x] RBAC: requireRole() middleware dengan hierarchy (admin > manajer > kasir)
+  - [x] Audit logging: logAudit() helper + audit_logs table
+  - [x] Audit routes: GET /api/audit-logs (admin only)
+  - [x] Low stock alerts: GET /api/alerts/low-stock, GET /api/alerts/summary
+  - [x] WASM batch_check_low_stock() untuk bulk check produk
+  - [x] Schema migration: stock_threshold column di produk
 - [x] Fix loadWasm(): memory + table import untuk WASM Zig
 - [x] Security + Architecture rework (sebelum deploy)
   - [x] Split server.ts → backend/db.ts, routes/auth.ts, routes/toko.ts, routes/produk.ts, routes/transaksi.ts, helpers.ts
@@ -138,6 +145,9 @@ next     : "Deploy backend ke Railway + update config.js dengan Railway URL"
 - "Codebase: split modular — db.ts, helpers.ts, router.ts, routes/auth|toko|produk|transaksi.ts"
 - "Backend hosting: Railway.app (free tier: 512MB RAM, 1GB storage, 1 vCPU)"
 - "Frontend API config: window.API_BASE di config.js (empty = same origin, isi URL Railway untuk production)"
+- "RBAC: role hierarchy admin > manajer > kasir, requireRole() returns user or Response"
+- "Audit logging: logAudit() helper, audit_logs table tracks CREATE/UPDATE/DELETE actions"
+- "Low stock alerts: stock_threshold column, GET /api/alerts/* endpoints, WASM batch check"
 ```
 
 ---
@@ -162,13 +172,15 @@ Browser (index.html)
 |--------------------------------|--------|------|
 | backend/server.ts              | done   | Thin entry point (95 baris), Bun.serve + static serving
 | backend/db.ts                  | done   | Schema + seed logic
-| backend/helpers.ts             | done   | json(), parseBody(), getUser(), makeSessionCookie(), config, rateLimit, CSRF, cleanup
-| backend/router.ts              | done   | Route registry + handler resolver
+| backend/helpers.ts             | done   | json(), parseBody(), getUser(), makeSessionCookie(), config, rateLimit, CSRF, cleanup, requireRole(), logAudit()
+| backend/router.ts              | done   | Route registry + handler resolver + auditRoutes + alertsRoutes
 | backend/routes/auth.ts         | done   | Auth handlers: signup, login, logout, me
-| backend/routes/toko.ts         | done   | CRUD handlers toko
-| backend/routes/produk.ts       | done   | CRUD handlers produk
-| backend/routes/transaksi.ts    | done   | CRUD handlers transaksi
-| backend/db/kasirgo.sqlite      | done   | SQLite DB, seed: admin (sha256 hashed), 2 toko, 10 produk
+| backend/routes/toko.ts         | done   | CRUD handlers toko + RBAC + audit logging
+| backend/routes/produk.ts       | done   | CRUD handlers produk + RBAC + audit logging + stock_threshold
+| backend/routes/transaksi.ts    | done   | CRUD handlers transaksi + RBAC + audit logging
+| backend/routes/audit.ts        | done   | GET /api/audit-logs (admin only)
+| backend/routes/alerts.ts       | done   | GET /api/alerts/low-stock, GET /api/alerts/summary
+| backend/db/kasirgo.sqlite      | done   | SQLite DB, seed: admin (sha256 hashed), 2 toko, 10 produk, audit_logs table, stock_threshold column
 | .env.example                   | done   | Template env vars: PORT, DB_PATH, CORS_ORIGIN, SESSION_DAYS, COOKIE_SECURE, RATE_LIMIT
 | index.html                     | done   | Landing page, WASM conditional badge working, SRI hashes added
 | login.html                     | done   | Login/signup, client SHA-256 hash, Alpine.js, SRI hashes added
@@ -176,15 +188,15 @@ Browser (index.html)
 | 404.html                       | done   | Custom 404 with glassmorphism design |
 | script.js                      | done   | loadWasm() fixed: pakai exports.memory + init_memory() |
 | styles/style.css               | done   | Custom CSS (glass, reveal, blob, badge-wasm-*) |
-| kasir.wasm                     | done   | Zig-compiled WASM (647KB) |
-| zig/                           | done   | Source Zig untuk WASM |
+| kasir.wasm                     | done   | Zig-compiled WASM (647KB) + batch_check_low_stock |
+| zig/                           | done   | Source Zig untuk WASM (main.zig dengan batch_check_low_stock) |
 | assets/kasirku_logo.svg        | done   | Logo favicon 4.5KB, linked di semua HTML |
 | build.js                       | done   | Build script: minify JS, copy static, fix paths for GH Pages |
 | package.json                   | done   | Scripts: build (→ dist/), dev (backend) |
 | dist/                          | done   | Production build output, deployed to gh-pages branch |
 | railway.json                   | done   | Railway config: Bun builder, start command, healthcheck |
 | config.js                      | done   | Frontend API config: window.API_BASE (empty = same origin) |
-| AGENTS.md                      | done   | Updated sesi 2026-07-03 (Railway config added) |
+| AGENTS.md                      | done   | Updated sesi 2026-07-03 (RBAC, audit, alerts added) |
 ```
 
 `active_file: "AGENTS.md"`

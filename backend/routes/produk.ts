@@ -1,14 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
-import { json, parseBody, getUser } from "../helpers";
+import { json, parseBody, requireRole, logAudit } from "../helpers";
 
 // ============================================================
 // Produk Routes
 // ============================================================
 export const produkRoutes: Record<string, (req: Request, path: string[]) => Response | Promise<Response>> = {
   "GET /api/produk": (req) => {
-    const user = getUser(req);
-    if (!user) return json({ error: "Belum login" }, 401);
+    const user = requireRole(req, ["admin", "manajer", "kasir"]);
+    if (user instanceof Response) return user;
     const url = new URL(req.url);
     const tokoId = url.searchParams.get("toko_id");
     const rows = tokoId
@@ -18,16 +18,16 @@ export const produkRoutes: Record<string, (req: Request, path: string[]) => Resp
   },
 
   "GET /api/produk/:id": (req, path) => {
-    const user = getUser(req);
-    if (!user) return json({ error: "Belum login" }, 401);
+    const user = requireRole(req, ["admin", "manajer", "kasir"]);
+    if (user instanceof Response) return user;
     const row = db.query("SELECT * FROM produk WHERE id = ?").get(path[2]);
     if (!row) return json({ error: "Produk tidak ditemukan" }, 404);
     return json(row);
   },
 
   "POST /api/produk": async (req) => {
-    const user = getUser(req);
-    if (!user) return json({ error: "Belum login" }, 401);
+    const user = requireRole(req, ["admin", "manajer"]);
+    if (user instanceof Response) return user;
     const { data: body, error } = await parseBody(req);
     if (error) return error;
     if (!body.nama || typeof body.nama !== "string" || body.nama.trim().length === 0) {
@@ -45,18 +45,22 @@ export const produkRoutes: Record<string, (req: Request, path: string[]) => Resp
     if (body.stok !== undefined && (typeof body.stok !== "number" || body.stok < 0)) {
       return json({ error: "Stok harus angka >= 0" }, 400);
     }
+    if (body.stock_threshold !== undefined && (typeof body.stock_threshold !== "number" || body.stock_threshold < 0)) {
+      return json({ error: "stock_threshold harus angka >= 0" }, 400);
+    }
     const id = randomUUID();
     db.run(
-      "INSERT INTO produk (id, toko_id, nama, harga, stok) VALUES (?, ?, ?, ?, ?)",
-      [id, body.toko_id, body.nama.trim(), body.harga || 0, body.stok || 0]
+      "INSERT INTO produk (id, toko_id, nama, harga, stok, stock_threshold) VALUES (?, ?, ?, ?, ?, ?)",
+      [id, body.toko_id, body.nama.trim(), body.harga || 0, body.stok || 0, body.stock_threshold ?? 10]
     );
+    logAudit({ user_id: user.id, username: user.username, action: "CREATE", entity_type: "produk", entity_id: id, details: { nama: body.nama, toko_id: body.toko_id } });
     const row = db.query("SELECT * FROM produk WHERE id = ?").get(id);
     return json(row, 201);
   },
 
   "PATCH /api/produk/:id": async (req, path) => {
-    const user = getUser(req);
-    if (!user) return json({ error: "Belum login" }, 401);
+    const user = requireRole(req, ["admin", "manajer"]);
+    if (user instanceof Response) return user;
     const id = path[2];
     const e = db.query("SELECT * FROM produk WHERE id = ?").get(id) as any;
     if (!e) return json({ error: "Produk tidak ditemukan" }, 404);
@@ -71,18 +75,26 @@ export const produkRoutes: Record<string, (req: Request, path: string[]) => Resp
     if (body.stok !== undefined && (typeof body.stok !== "number" || body.stok < 0)) {
       return json({ error: "Stok harus angka >= 0" }, 400);
     }
-    db.run("UPDATE produk SET nama=?, harga=?, stok=? WHERE id=?", [
-      body.nama ? body.nama.trim() : e.nama, body.harga ?? e.harga, body.stok ?? e.stok, id,
+    if (body.stock_threshold !== undefined && (typeof body.stock_threshold !== "number" || body.stock_threshold < 0)) {
+      return json({ error: "stock_threshold harus angka >= 0" }, 400);
+    }
+    db.run("UPDATE produk SET nama=?, harga=?, stok=?, stock_threshold=? WHERE id=?", [
+      body.nama ? body.nama.trim() : e.nama, body.harga ?? e.harga, body.stok ?? e.stok, body.stock_threshold ?? e.stock_threshold, id,
     ]);
+    logAudit({ user_id: user.id, username: user.username, action: "UPDATE", entity_type: "produk", entity_id: id, details: { nama: body.nama || e.nama, stok: body.stok ?? e.stok } });
     const row = db.query("SELECT * FROM produk WHERE id = ?").get(id);
     return json(row);
   },
 
   "DELETE /api/produk/:id": (req, path) => {
-    const user = getUser(req);
-    if (!user) return json({ error: "Belum login" }, 401);
-    const r = db.run("DELETE FROM produk WHERE id = ?", [path[2]]);
+    const user = requireRole(req, ["admin", "manajer"]);
+    if (user instanceof Response) return user;
+    const id = path[2];
+    const existing = db.query("SELECT nama FROM produk WHERE id = ?").get(id) as any;
+    if (!existing) return json({ error: "Produk tidak ditemukan" }, 404);
+    const r = db.run("DELETE FROM produk WHERE id = ?", [id]);
     if (r.changes === 0) return json({ error: "Produk tidak ditemukan" }, 404);
+    logAudit({ user_id: user.id, username: user.username, action: "DELETE", entity_type: "produk", entity_id: id, details: { nama: existing.nama } });
     return json({ ok: true });
   },
 };

@@ -45,6 +45,38 @@ export function getUser(req: Request): any {
   return db.query("SELECT id, username, nama, role FROM users WHERE id = ?").get(session.user_id);
 }
 
+// ============================================================
+// RBAC — Role-Based Access Control
+// ============================================================
+// Roles: admin > manajer > kasir
+// admin: full access (users, toko, produk, transaksi, audit, alerts)
+// manajer: manage toko, produk, transaksi (no user management, no audit)
+// kasir: view toko/produk, create transaksi only
+
+const ROLE_HIERARCHY: Record<string, number> = {
+  kasir: 1,
+  manajer: 2,
+  admin: 3,
+};
+
+/**
+ * Check if user has the required minimum role level.
+ * Returns the user if authorized, or a Response with 403 if not.
+ * Usage: const auth = requireRole(req, ["admin"]); if (auth instanceof Response) return auth;
+ */
+export function requireRole(req: Request, allowedRoles: string[]): any | Response {
+  const user = getUser(req);
+  if (!user) return json({ error: "Belum login" }, 401);
+
+  const userLevel = ROLE_HIERARCHY[user.role] || 0;
+  const minLevel = Math.min(...allowedRoles.map(r => ROLE_HIERARCHY[r] || 0));
+
+  if (userLevel < minLevel) {
+    return json({ error: "Akses ditolak: role tidak memadai" }, 403);
+  }
+  return user;
+}
+
 export function makeSessionCookie(userId: string): { sessionCookie: string; csrfCookie: string; csrfToken: string } {
   const token = randomUUID();
   const expires = new Date(Date.now() + config.sessionDays * 24 * 3600_000).toISOString();
@@ -109,4 +141,23 @@ export function validateCsrf(req: Request): boolean {
 // ============================================================
 export function cleanupExpiredSessions() {
   db.run("DELETE FROM sessions WHERE expires_at < datetime('now')");
+}
+
+// ============================================================
+// Audit Logging
+// ============================================================
+export function logAudit(opts: {
+  user_id?: string;
+  username?: string;
+  action: string;       // "CREATE", "UPDATE", "DELETE", "LOGIN", "LOGOUT"
+  entity_type: string;  // "toko", "produk", "transaksi", "user", "auth"
+  entity_id?: string;
+  details?: Record<string, unknown>;
+  ip?: string;
+}) {
+  const id = randomUUID();
+  db.run(
+    "INSERT INTO audit_logs (id, user_id, username, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    [id, opts.user_id || null, opts.username || null, opts.action, opts.entity_type, opts.entity_id || null, opts.details ? JSON.stringify(opts.details) : null, opts.ip || null]
+  );
 }

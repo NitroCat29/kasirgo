@@ -28,10 +28,17 @@ db.run(`
     nama TEXT NOT NULL,
     harga INTEGER NOT NULL,
     stok INTEGER NOT NULL DEFAULT 0,
+    stock_threshold INTEGER NOT NULL DEFAULT 10,
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (toko_id) REFERENCES toko(id) ON DELETE CASCADE
   )
 `);
+
+// Migration: add stock_threshold if missing
+const cols = db.query("PRAGMA table_info(produk)").all() as any[];
+if (!cols.find(c => c.name === "stock_threshold")) {
+  db.run("ALTER TABLE produk ADD COLUMN stock_threshold INTEGER NOT NULL DEFAULT 10");
+}
 
 db.run(`
   CREATE TABLE IF NOT EXISTS transaksi (
@@ -66,6 +73,22 @@ db.run(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   )
 `);
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS audit_logs (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    username TEXT,
+    action TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT,
+    details TEXT,
+    ip_address TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
+
 
 // ============================================================
 // Seed Mockup Data (jalankan sekali saat DB kosong)

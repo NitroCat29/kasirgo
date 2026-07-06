@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
-import { json, parseBody, getUser, makeSessionCookie, cleanupExpiredSessions, checkRateLimit } from "../helpers";
+import { json, parseBody, getUser, requireRole, makeSessionCookie, cleanupExpiredSessions, checkRateLimit, logAudit } from "../helpers";
 
 // ============================================================
 // Auth Routes
@@ -23,12 +23,15 @@ export const authRoutes: Record<string, (req: Request, path: string[]) => Respon
 
     const id = randomUUID();
     const hash = await Bun.password.hash(body.password);
+    // Only admin can assign non-kasir roles during signup
+    const assignedRole = body.role === "admin" || body.role === "manajer" ? body.role : "kasir";
     db.run(
       "INSERT INTO users (id, username, password_hash, nama, role) VALUES (?, ?, ?, ?, ?)",
-      [id, body.username, hash, body.nama, body.role || "kasir"]
+      [id, body.username, hash, body.nama, assignedRole]
     );
+    logAudit({ user_id: id, username: body.username, action: "CREATE", entity_type: "user", entity_id: id, details: { role: assignedRole, self_signup: true } });
     const { sessionCookie, csrfCookie, csrfToken } = makeSessionCookie(id);
-    const res = json({ id, username: body.username, nama: body.nama, csrf_token: csrfToken }, 201);
+    const res = json({ id, username: body.username, nama: body.nama, role: assignedRole, csrf_token: csrfToken }, 201);
     res.headers.set("set-cookie", sessionCookie);
     res.headers.append("set-cookie", csrfCookie);
     return res;
@@ -55,6 +58,7 @@ export const authRoutes: Record<string, (req: Request, path: string[]) => Respon
     cleanupExpiredSessions();
 
     const { sessionCookie, csrfCookie, csrfToken } = makeSessionCookie(user.id);
+    logAudit({ user_id: user.id, username: user.username, action: "LOGIN", entity_type: "auth", ip });
     const res = json({ id: user.id, username: user.username, nama: user.nama, role: user.role, csrf_token: csrfToken });
     res.headers.set("set-cookie", sessionCookie);
     res.headers.append("set-cookie", csrfCookie);
@@ -64,7 +68,14 @@ export const authRoutes: Record<string, (req: Request, path: string[]) => Respon
   "POST /api/auth/logout": (req) => {
     const cookie = req.headers.get("cookie") || "";
     const match = cookie.match(/session=([^;]+)/);
-    if (match) db.run("DELETE FROM sessions WHERE token = ?", [match[1]]);
+    if (match) {
+      const session = db.query("SELECT user_id FROM sessions WHERE token = ?").get(match[1]) as any;
+      if (session) {
+        const u = db.query("SELECT username FROM users WHERE id = ?").get(session.user_id) as any;
+        if (u) logAudit({ user_id: session.user_id, username: u.username, action: "LOGOUT", entity_type: "auth" });
+      }
+      db.run("DELETE FROM sessions WHERE token = ?", [match[1]]);
+    }
     const res = json({ ok: true });
     res.headers.set("set-cookie", "session=; Path=/; HttpOnly; Max-Age=0");
     res.headers.append("set-cookie", "csrf_token=; Path=/; Max-Age=0");

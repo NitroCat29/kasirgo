@@ -6,6 +6,7 @@
 //   --export=reset_memory --export=catalog_clear --export=catalog_get_count \
 //   --export=catalog_set_timestamp --export=catalog_get_timestamp --export=load_products \
 //   --export=get_product --export=update_stock --export=get_product_stock --export=catalog_is_expired \
+//   --export=batch_check_low_stock \
 //   --export=cart_init --export=cart_add_item --export=cart_get_item_count --export=cart_remove_item \
 //   --export=cart_update_qty --export=cart_clear --export=cart_get_items --export=cart_get_totals \
 //   --export=get_cart_view --export=get_last_error --export=get_last_error_msg --export=get_last_error_len \
@@ -386,6 +387,43 @@ export fn catalog_is_expired(current_timestamp: u64) u32 {
     }
     
     return 0; // Still valid
+}
+
+/// Batch check low stock products
+/// Input: count(u32) + [product_id(u32) stock(u32) threshold(u32)]*
+/// Output: count(u32) + [product_id(u32)]* written to memory buffer
+/// Returns offset in memory buffer where result is written
+export fn batch_check_low_stock(data_ptr: [*]const u8, data_len: usize) usize {
+    if (data_len < 4) return 0;
+    
+    const count = read_u32(data_ptr[0..data_len], 0);
+    var offset: usize = 4;
+    
+    // Allocate result buffer: 4 + (count * 4) bytes max
+    const max_result_size = 4 + (count * 4);
+    const result_offset = alloc_bytes(max_result_size);
+    if (result_offset == 0) return 0; // OOM
+    
+    var low_count: u32 = 0;
+    var i: u32 = 0;
+    
+    while (i < count and offset + 12 <= data_len) : (i += 1) {
+        const product_id = read_u32(data_ptr[0..data_len], offset);
+        const stock = read_u32(data_ptr[0..data_len], offset + 4);
+        const threshold = read_u32(data_ptr[0..data_len], offset + 8);
+        
+        if (stock <= threshold) {
+            // Write product_id to result
+            write_u32(memory_buffer[result_offset..], 4 + (low_count * 4), product_id);
+            low_count += 1;
+        }
+        
+        offset += 12;
+    }
+    
+    // Write count at beginning
+    write_u32(memory_buffer[result_offset..], 0, low_count);
+    return result_offset;
 }
 
 // ============================================================================
