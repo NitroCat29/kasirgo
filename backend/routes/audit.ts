@@ -5,7 +5,9 @@ import { json, requireRole } from "../helpers";
 // Audit Log Routes
 // ============================================================
 export const auditRoutes: Record<string, (req: Request, path: string[]) => Response | Promise<Response>> = {
-  "GET /api/audit-logs": requireRole("admin")(async (req) => {
+  "GET /api/audit-logs": (req) => {
+    const user = requireRole(req, ["admin"]);
+    if (user instanceof Response) return user;
     const url = new URL(req.url);
     const limit = Number(url.searchParams.get("limit")) || 100;
     const offset = Number(url.searchParams.get("offset")) || 0;
@@ -24,5 +26,5 @@ export const auditRoutes: Record<string, (req: Request, path: string[]) => Respo
 
     const rows = db.query(query).all(...params);
     return json(rows);
-  }),
+  },
 };

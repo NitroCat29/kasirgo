@@ -60,10 +60,10 @@ sync     : "Periodik (tag/release) → push ke GitHub mirror + GH Pages"
 ## 2. STATUS SEKARANG
 
 ```
-wip      : "Architecture redesign + Tauri desktop planning"
-progress : "~25% (rewrite besar — lihat Plan.md)"
+wip      : "Polish UX/Security/Performance done (Phase 2.x.1)"
+progress : "~60% (Phase 1 + 2 + 2.x + 2.x.1 done)"
 blocker  : "null"
-next     : "Framework decision (SolidJS vs Preact), lalu extract shared/types.ts + shared/validation.ts"
+next     : "Phase 3: Tauri desktop scaffold"
 ```
 
 ---
@@ -86,15 +86,27 @@ next     : "Framework decision (SolidJS vs Preact), lalu extract shared/types.ts
   - [x] CONTRIBUTING.md — PR workflow, branch naming, commit convention, agent rule
   - [x] Plan.md — arsitektur mode split, framework eval, roadmap A-Z
   - [x] AGENTS.md — progress recalibrate, decisions, files status update
-- [ ] Codebase Rewrite (SolidJS rekomendasi — TBD oleh El)
-  - [ ] Framework decision final: SolidJS / Preact / Astro
-  - [ ] Extract shared/types.ts + shared/validation.ts + shared/wasm-bridge.ts
-  - [ ] Backend adapt: import dari shared/, hapus duplikasi
-  - [ ] Setup Vite + SolidJS scaffold
-  - [ ] Migrasi dashboard.html → SolidJS SPA (component-based)
-  - [ ] Migrasi login.html → SolidJS route
-  - [ ] Migrasi index.html → SolidJS landing
-  - [ ] Tailwind JIT build (bukan CDN) → bundle kecil
+- [x] Shared Core (Phase 1 — 2026-07-07)
+  - [x] shared/types.ts — Toko, Produk, Transaksi, User, AuditLog, WasmExports
+  - [x] shared/validation.ts — 8 validasi functions (signup, login, toko, produk, transaksi)
+  - [x] shared/db-schema.sql — 6 CREATE TABLE, source of truth untuk schema
+  - [x] shared/wasm-bridge.ts — loadWasm(), calculateTotal(), computeBenchmark(), jsFallback
+  - [x] Backend adapt: db.ts import schema, routes pakai shared validation
+- [x] Codebase Rewrite (SolidJS — El approved 2026-07-07, done 2026-07-07)
+  - [x] Framework decision final: SolidJS (signals, tiny bundle, POS-friendly)
+  - [x] Setup Vite + SolidJS scaffold in frontend/
+  - [x] Migrasi index.html → SolidJS landing (src/pages/Landing.tsx)
+  - [x] Migrasi login.html → SolidJS route (src/pages/Login.tsx + auth.ts + api.ts)
+  - [x] Migrasi dashboard.html → SolidJS SPA (src/pages/Dashboard.tsx, full CRUD)
+  - [x] Tailwind v4 via @tailwindcss/vite (JIT build, bukan CDN)
+  - [x] server.ts serve frontend/dist/ sebagai SPA (fallback ke legacy HTML)
+- [x] Phase 2.x.1 — UX/Security/Performance Polish (sesi 2026-07-08 lanjutan)
+  - [x] Foundation: AuthShell shared component (wrapper bg+logo+card+footer, eliminate duplikasi 200+ lines), useAutoFocus hook, PasswordField (show/hide eye toggle), ResendCooldown 60s, toast store (success/error/info/warning + auto-dismiss), calcPasswordStrength (4-level weak/fair/good/strong), UI primitives (Skeleton, SkeletonStatCard, EmptyState 5 type, SearchInput, PasswordStrengthMeter, FieldError, SessionTimeoutModal)
+  - [x] Auth UX: show/hide password, auto-focus first field per view, password strength meter di signup+reset, resend cooldown 60s, inline validation per field (FieldError + .field-error-state border merah), Enter key submit (native form behavior)
+  - [x] Dashboard polish: useSessionTimeout hook (idle 25 menit → warning 2 menit → auto-logout + /api/auth/me polling 60s untuk deteksi server-side expired), SkeletonStatCard loading state di overview, EmptyState di 5 tabel (toko/produk/transaksi/users/audit) dengan icon per type + description + CTA, SessionTimeoutModal mount dengan countdown real-time
+  - [x] Security: type-safe AuthErrorCode union (18 code) + errorResponse(code, message, status, extra) helper, password history anti-reuse (tabel password_history, check current + 3 hash terakhir, simpan + cleanup keep max 5 per user, code AUTH_PASSWORD_REUSE), hCaptcha infra (verifyHcaptcha function via api.hcaptcha.com/siteverify, config env HCAPTCHA_SECRET + HCAPTCHA_SITE_KEY, dev mode skip kalau kosong, fix bug remoteip invalid)
+  - [x] Performance (low-end PC): GPU accel translateZ(0) + will-change untuk 9 animasi (blob/aurora/liquid-glass/pulse-dot/scroll-bounce/marquee/toast/button/skeleton/password-strength/spinner/stat-card), content-visibility: auto + contain-intrinsic-size untuk feature-card, prefers-reduced-motion/data + pointer:coarse media queries, print-friendly media query, preload VerifyEmail + ResetPassword chunk via requestIdleCallback di Login onMount
+  - [x] hCaptcha UI integration: GET /api/auth/hcaptcha-sitekey endpoint (return enabled + site_key dari config), script hCaptcha API di index.html head (async defer), widget <div class="h-captcha"> di Login signup form (render kalau enabled), global callbacks onHcaptchaSuccess/Expired/Error set signal, verify di POST /api/auth/signup via verifyHcaptcha() (wajib kalau enabled, AUTH_HCAPTCHA_MISSING kalau token kosong, AUTH_HCAPTCHA_FAILED kalau verify gagal), reset widget via hcaptcha.reset() kalau signup gagal
 - [ ] Desktop App (Tauri v2)
   - [ ] Init Tauri scaffold + konfigurasi window/icon/permissions
   - [ ] Integrasi SQLite lokal via Rust (rusqlite atau tauri-plugin-sql)
@@ -192,18 +204,29 @@ next     : "Framework decision (SolidJS vs Preact), lalu extract shared/types.ts
 - "Browser = limited mode (tetap butuh Bun server, hardening security jalan terus)"
 - "Framework rekomendasi = SolidJS (signals, tiny bundle, POS-friendly) — keputusan final TBD El"
 - "Keamanan: SECURITY.md → threat model split browser vs desktop; disclosure via Codeberg confidential issue"
+- "Email verification: Resend API (HTTP fetch, no dep) — dev mode log code+link ke console, production butuh RESEND_API_KEY + MAIL_FROM + APP_URL"
+- "Password reset: 8-digit code + magic link (keduanya di email sama) — verify by token ATAU email+code, anti-replay via record used flag"
+- "hCaptcha anti-bot di signup — butuh HCAPTCHA_SECRET + HCAPTCHA_SITE_KEY (kosong = skip mode testing), widget render kalau backend report enabled"
+- "Password history anti-reuse — tolak new password sama dengan current + 3 hash terakhir, tabel password_history keep max 5 per user"
+- "Type-safe error code — AuthErrorCode union (18 code) di backend, errorResponse(code, message, status, extra) helper, frontend bisa switch case"
+- "Session timeout — idle 25 menit → warning modal 2 menit countdown → auto-logout, poll /api/auth/me 60s untuk deteksi server-side expired"
+- "Performance low-end PC — GPU accel (translateZ + will-change) untuk animasi, content-visibility untuk off-screen, prefers-reduced-motion/data + pointer:coarse media queries"
+- "Preload chunk — VerifyEmail/ResetPassword di-import idle di Login onMount via requestIdleCallback (instant nav setelah signup/forgot)"
+- "AuthShell shared component — wrapper background+logo+card+footer, eliminate duplikasi 200+ lines di Login/VerifyEmail/ResetPassword"
 
 ---
 
 ## 6. ARCHITECTURE (ASCII, 3-5 baris cukup)
 
 ```
-Browser (index.html)
-  → HTMX (ajax) → Backend Bun (:3456)
-    → bun:sqlite (backend/db/kasirgo.sqlite)
+Browser (SolidJS SPA)
+  → fetch(/api/*) → Backend Bun (:3456)
+    → bun:sqlite (kasirgo.sqlite) + password_history + email_verifications
+    → Resend API (verification + reset email, dev fallback log console)
+    → hCaptcha siteverify (anti-bot signup, skip kalau env kosong)
   → WASM (kasir.wasm via Zig) — perhitungan transaksi
-  → Alpine.js — state management frontend
-  → Tailwind CDN — styling
+  → SolidJS signals + AuthShell + Toast + SessionTimeout
+  → Tailwind v4 JIT + Liquid Glass CSS + GPU accel (low-end PC)
 ```
 
 ---
@@ -243,10 +266,30 @@ Browser (index.html)
 | Plan.md                        | done   | Arsitektur mode split, framework eval, roadmap 5 fase |
 | CONTRIBUTING.md                 | done   | PR workflow, branch naming, commit convention, agent rule |
 | SECURITY.md                     | done   | Measures, threat model (browser vs desktop), disclosure |
+| frontend/package.json           | done   | SolidJS + Vite + Tailwind v4 + @solidjs/router |
+| frontend/vite.config.ts         | done   | SolidJS plugin, Tailwind plugin, proxy /api → :3456 |
+| frontend/src/App.tsx            | done   | Router: /, /login, /dashboard, * (404) |
+| frontend/src/pages/Landing.tsx  | done   | Hero section, CTA buttons, glassmorphism |
+| frontend/src/pages/Login.tsx    | done   | Login/signup form, SHA-256 hash, error handling |
+| frontend/src/pages/Dashboard.tsx | done   | Sidebar, stat cards, CRUD toko/produk/transaksi |
+| frontend/src/lib/api.ts         | done   | Fetch wrapper, CSRF token, credentials include |
+| frontend/src/lib/auth.ts        | done   | SolidJS signals: user() (with email+verified), login (identifier), signup (with email + hcaptchaToken), verifyEmailByToken/Code, resendVerification, forgotPassword, verifyResetCodeByToken/Code, resetPassword, logout, fetchMe, getHcaptchaConfig
+| frontend/src/lib/wasm.ts        | done   | loadWasm(), calculateTotal(), jsFallback, wasmReady signal
+| frontend/src/lib/toast.ts       | done   | Toast store (success/error/info/warning, auto-dismiss + progress bar) + calcPasswordStrength (4-level weak/fair/good/strong)
+| frontend/src/lib/session-timeout.ts | done | useSessionTimeout hook (idle 25 menit + warning 2 menit countdown + auto-logout + /api/auth/me polling 60s)
+| frontend/src/components/AuthShell.tsx | done | Shared wrapper (background+logo+card+footer, eliminate duplikasi 200+ lines) + useAutoFocus hook + PasswordField (show/hide eye toggle) + ResendCooldown (60s countdown)
+| frontend/src/components/ui.tsx   | done   | ToastContainer + Skeleton/SkeletonStatCard/SkeletonRow + EmptyState (5 type icon) + SearchInput + PasswordStrengthMeter + FieldError + SessionTimeoutModal
+| frontend/src/lib/wasm.ts        | done   | loadWasm(), calculateTotal(), jsFallback, wasmReady signal |
 | sync-gh.sh                     | done   | Script sync Codeberg → GitHub mirror + GH Pages |
+| shared/types.ts                | done   | Toko, Produk, Transaksi, User, AuditLog, WasmExports interfaces |
+| shared/validation.ts           | done   | 8 validation functions: signup (with email), login (identifier), toko, produk, transaksi + validateEmail (provider whitelist + anti-alias +/.) + isEmailIdentifier
+| shared/db-schema.sql           | done   | 7 CREATE TABLE (toko, produk, transaksi, users + email/verified, sessions, email_verifications, password_history, audit_logs), source of truth for SQLite schema
+| shared/wasm-bridge.ts          | done   | loadWasm(), calculateTotal(), computeBenchmark(), jsFallback
+| frontend/index.html            | done   | Vite entry + hCaptcha API script (async defer) in head
+| frontend/src/index.css          | done   | Tailwind v4 + theme tokens + glass utilities + liquid glass (iOS-style) + GPU accel micro-opts + content-visibility + prefers-reduced-motion/data + pointer:coarse + password-strength + field-error + toast + skeleton + empty-state + search + session-timeout + print-friendly
 ```
 
-`active_file: "AGENTS.md"`
+`active_file: "Plan.md"`
 
 ---
 
@@ -321,3 +364,4 @@ dari model lain tanpa setup ulang context dari nol.
 ## Notes
 
 - all
+- save sebagai persistent memory isi chat ini, agar bisa digunakan di sesi baru

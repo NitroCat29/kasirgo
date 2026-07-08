@@ -3,10 +3,10 @@
 // ============================================================
 // db.ts auto-runs schema + seed on import
 import "./db";
-import { json, config, validateCsrf } from "./helpers";
+import { json, config, validateCsrf, corsHeaders } from "./helpers";
 import { resolveHandler } from "./router";
 
-const ROOT = import.meta.dir + "/..";
+const FRONTEND_DIST = import.meta.dir + "/../frontend/dist";
 
 const MIME: Record<string, string> = {
   html: "text/html; charset=utf-8",
@@ -19,77 +19,79 @@ const MIME: Record<string, string> = {
   ico: "image/x-icon",
 };
 
+// Inject CORS headers into any Response (for endpoints yang build Response manual)
+function withCors(res: Response, req: Request): Response {
+  for (const [k, v] of Object.entries(corsHeaders(req))) {
+    res.headers.set(k, v);
+  }
+  return res;
+}
+
 Bun.serve({
   port: config.port,
   async fetch(req) {
     // CORS preflight
     if (req.method === "OPTIONS") {
       return new Response(null, {
-        headers: {
-          "access-control-allow-origin": config.corsOrigin,
-          "access-control-allow-methods": "GET,POST,PATCH,DELETE,OPTIONS",
-          "access-control-allow-headers": "content-type,x-csrf-token",
-          "access-control-allow-credentials": "true",
-        },
+        status: 204,
+        headers: corsHeaders(req),
       });
     }
 
     const url = new URL(req.url);
     const p = url.pathname.split("/").filter(Boolean);
 
-    // ---- Static file serving ----
-    if (url.pathname === "/") {
-      return new Response(Bun.file(ROOT + "/index.html"), {
-        headers: { "content-type": "text/html; charset=utf-8" },
-      });
+    // ---- API routing ----
+    if (url.pathname.startsWith("/api/")) {
+      // CSRF validation for state-changing requests
+      const csrfExempt = [
+        "/api/auth/login",
+        "/api/auth/signup",
+        "/api/auth/logout",
+        "/api/auth/verify-email",
+        "/api/auth/resend-verification",
+        "/api/auth/forgot-password",
+        "/api/auth/verify-reset-code",
+        "/api/auth/reset-password",
+      ];
+      if (!csrfExempt.includes(url.pathname) && !validateCsrf(req)) {
+        return withCors(json({ error: "CSRF token tidak valid" }, 403), req);
+      }
+
+      const handler = resolveHandler(req, p);
+      if (handler) {
+        try {
+          const res = await handler(req, p);
+          return withCors(res, req);
+        } catch (err: any) {
+          console.error("API error:", err);
+          return withCors(json({ error: "Internal server error" }, 500), req);
+        }
+      }
+      return withCors(json({ error: "Not found" }, 404), req);
     }
 
+    // ---- Static file serving from frontend/dist ----
+    // Root
+    if (url.pathname === "/") {
+      const f = Bun.file(FRONTEND_DIST + "/index.html");
+      if (await f.exists()) return new Response(f, { headers: { "content-type": "text/html; charset=utf-8" } });
+    }
+
+    // Assets with extension
     const ext = url.pathname.match(/\.([a-z]+)$/)?.[1] || "";
     if (ext && MIME[ext]) {
-      const f = Bun.file(ROOT + url.pathname);
-      if (await f.exists()) {
-        return new Response(f, { headers: { "content-type": MIME[ext] } });
-      }
+      const f = Bun.file(FRONTEND_DIST + url.pathname);
+      if (await f.exists()) return new Response(f, { headers: { "content-type": MIME[ext] } });
     }
 
-    // Clean URL: /login → /login.html, /dashboard → /dashboard.html
-    if (!ext) {
-      const htmlFile = Bun.file(ROOT + url.pathname + ".html");
-      if (await htmlFile.exists()) {
-        return new Response(htmlFile, { headers: { "content-type": "text/html; charset=utf-8" } });
-      }
+    // SPA fallback: serve index.html for client-side routes
+    const spa = Bun.file(FRONTEND_DIST + "/index.html");
+    if (await spa.exists()) {
+      return new Response(spa, { headers: { "content-type": "text/html; charset=utf-8" } });
     }
 
-    // ---- CSRF validation for API state-changing requests ----
-    // Skip CSRF for auth endpoints (login/signup issue the token)
-    const csrfExempt = ["/api/auth/login", "/api/auth/signup", "/api/auth/logout"];
-    if (url.pathname.startsWith("/api/") && !csrfExempt.includes(url.pathname) && !validateCsrf(req)) {
-      return json({ error: "CSRF token tidak valid" }, 403);
-    }
-
-    // ---- API routing ----
-    const handler = resolveHandler(req, p);
-
-    let res: Response;
-    try {
-      res = handler
-        ? await handler(req, p)
-        : json({ error: "Not found" }, 404);
-    } catch (e: any) {
-      res = json({ error: e.message }, 500);
-    }
-
-    // Custom 404.html for browser requests
-    if (res.status === 404 && req.headers.get("accept")?.includes("text/html")) {
-      const f404 = Bun.file(ROOT + "/404.html");
-      if (await f404.exists()) {
-        res = new Response(f404, { status: 404, headers: { "content-type": "text/html; charset=utf-8" } });
-      }
-    }
-
-    res.headers.set("access-control-allow-origin", config.corsOrigin);
-    res.headers.set("access-control-allow-credentials", "true");
-    return res;
+    return json({ error: "Not found" }, 404, req);
   },
 });
 

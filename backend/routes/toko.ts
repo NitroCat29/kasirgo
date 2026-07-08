@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
-import { json, parseBody, requireRole, logAudit } from "../helpers";
+import { json, parseBody, requireRole, assertCanWrite, logAudit } from "../helpers";
+import { validateTokoCreate, validateTokoUpdate } from "../../shared/validation";
 
 // ============================================================
 // Toko Routes
@@ -24,17 +25,18 @@ export const tokoRoutes: Record<string, (req: Request, path: string[]) => Respon
   "POST /api/toko": async (req) => {
     const user = requireRole(req, ["admin", "manajer"]);
     if (user instanceof Response) return user;
+    const writeBlocked = assertCanWrite(user);
+    if (writeBlocked) return writeBlocked;
     const { data: body, error } = await parseBody(req);
     if (error) return error;
-    if (!body.nama || typeof body.nama !== "string" || body.nama.trim().length === 0) {
-      return json({ error: "Nama toko wajib diisi" }, 400);
-    }
+    const v = validateTokoCreate(body);
+    if (!v.ok) return json({ error: v.error }, 400);
     const id = randomUUID();
     db.run(
       "INSERT INTO toko (id, nama, alamat, telepon) VALUES (?, ?, ?, ?)",
-      [id, body.nama.trim(), body.alamat || null, body.telepon || null]
+      [id, v.data.nama, v.data.alamat || null, v.data.telepon || null]
     );
-    logAudit({ user_id: user.id, username: user.username, action: "CREATE", entity_type: "toko", entity_id: id, details: { nama: body.nama } });
+    logAudit({ user_id: user.id, username: user.username, action: "CREATE", entity_type: "toko", entity_id: id, details: { nama: v.data.nama } });
     const row = db.query("SELECT * FROM toko WHERE id = ?").get(id);
     return json(row, 201);
   },
@@ -42,17 +44,18 @@ export const tokoRoutes: Record<string, (req: Request, path: string[]) => Respon
   "PATCH /api/toko/:id": async (req, path) => {
     const user = requireRole(req, ["admin", "manajer"]);
     if (user instanceof Response) return user;
+    const writeBlocked = assertCanWrite(user);
+    if (writeBlocked) return writeBlocked;
     const id = path[2];
     const existing = db.query("SELECT * FROM toko WHERE id = ?").get(id) as any;
     if (!existing) return json({ error: "Toko tidak ditemukan" }, 404);
     const { data: body, error } = await parseBody(req);
     if (error) return error;
-    if (body.nama !== undefined && (typeof body.nama !== "string" || body.nama.trim().length === 0)) {
-      return json({ error: "Nama toko tidak boleh kosong" }, 400);
-    }
-    const nama = body.nama ? body.nama.trim() : existing.nama;
-    const alamat = body.alamat !== undefined ? body.alamat : existing.alamat;
-    const telepon = body.telepon !== undefined ? body.telepon : existing.telepon;
+    const v = validateTokoUpdate(body);
+    if (!v.ok) return json({ error: v.error }, 400);
+    const nama = v.data.nama ?? existing.nama;
+    const alamat = v.data.alamat ?? existing.alamat;
+    const telepon = v.data.telepon ?? existing.telepon;
     db.run("UPDATE toko SET nama=?, alamat=?, telepon=? WHERE id=?", [nama, alamat, telepon, id]);
     logAudit({ user_id: user.id, username: user.username, action: "UPDATE", entity_type: "toko", entity_id: id, details: { nama, alamat, telepon } });
     const row = db.query("SELECT * FROM toko WHERE id = ?").get(id);
@@ -62,6 +65,8 @@ export const tokoRoutes: Record<string, (req: Request, path: string[]) => Respon
   "DELETE /api/toko/:id": (req, path) => {
     const user = requireRole(req, ["admin", "manajer"]);
     if (user instanceof Response) return user;
+    const writeBlocked = assertCanWrite(user);
+    if (writeBlocked) return writeBlocked;
     const id = path[2];
     const existing = db.query("SELECT nama FROM toko WHERE id = ?").get(id) as any;
     if (!existing) return json({ error: "Toko tidak ditemukan" }, 404);

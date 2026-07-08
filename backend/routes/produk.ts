@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
-import { json, parseBody, requireRole, logAudit } from "../helpers";
+import { json, parseBody, requireRole, assertCanWrite, logAudit } from "../helpers";
+import { validateProdukCreate, validateProdukUpdate } from "../../shared/validation";
 
 // ============================================================
 // Produk Routes
@@ -28,32 +29,21 @@ export const produkRoutes: Record<string, (req: Request, path: string[]) => Resp
   "POST /api/produk": async (req) => {
     const user = requireRole(req, ["admin", "manajer"]);
     if (user instanceof Response) return user;
+    const writeBlocked = assertCanWrite(user);
+    if (writeBlocked) return writeBlocked;
     const { data: body, error } = await parseBody(req);
     if (error) return error;
-    if (!body.nama || typeof body.nama !== "string" || body.nama.trim().length === 0) {
-      return json({ error: "Nama produk wajib diisi" }, 400);
-    }
-    if (!body.toko_id || typeof body.toko_id !== "string") {
-      return json({ error: "toko_id wajib diisi" }, 400);
-    }
+    const v = validateProdukCreate(body);
+    if (!v.ok) return json({ error: v.error }, 400);
     // Validasi toko exists
-    const toko = db.query("SELECT id FROM toko WHERE id = ?").get(body.toko_id);
+    const toko = db.query("SELECT id FROM toko WHERE id = ?").get(v.data.toko_id);
     if (!toko) return json({ error: "Toko tidak ditemukan" }, 400);
-    if (body.harga !== undefined && (typeof body.harga !== "number" || body.harga < 0)) {
-      return json({ error: "Harga harus angka >= 0" }, 400);
-    }
-    if (body.stok !== undefined && (typeof body.stok !== "number" || body.stok < 0)) {
-      return json({ error: "Stok harus angka >= 0" }, 400);
-    }
-    if (body.stock_threshold !== undefined && (typeof body.stock_threshold !== "number" || body.stock_threshold < 0)) {
-      return json({ error: "stock_threshold harus angka >= 0" }, 400);
-    }
     const id = randomUUID();
     db.run(
       "INSERT INTO produk (id, toko_id, nama, harga, stok, stock_threshold) VALUES (?, ?, ?, ?, ?, ?)",
-      [id, body.toko_id, body.nama.trim(), body.harga || 0, body.stok || 0, body.stock_threshold ?? 10]
+      [id, v.data.toko_id, v.data.nama, v.data.harga || 0, v.data.stok || 0, v.data.stock_threshold ?? 10]
     );
-    logAudit({ user_id: user.id, username: user.username, action: "CREATE", entity_type: "produk", entity_id: id, details: { nama: body.nama, toko_id: body.toko_id } });
+    logAudit({ user_id: user.id, username: user.username, action: "CREATE", entity_type: "produk", entity_id: id, details: { nama: v.data.nama, toko_id: v.data.toko_id } });
     const row = db.query("SELECT * FROM produk WHERE id = ?").get(id);
     return json(row, 201);
   },
@@ -61,27 +51,19 @@ export const produkRoutes: Record<string, (req: Request, path: string[]) => Resp
   "PATCH /api/produk/:id": async (req, path) => {
     const user = requireRole(req, ["admin", "manajer"]);
     if (user instanceof Response) return user;
+    const writeBlocked = assertCanWrite(user);
+    if (writeBlocked) return writeBlocked;
     const id = path[2];
     const e = db.query("SELECT * FROM produk WHERE id = ?").get(id) as any;
     if (!e) return json({ error: "Produk tidak ditemukan" }, 404);
     const { data: body, error } = await parseBody(req);
     if (error) return error;
-    if (body.nama !== undefined && (typeof body.nama !== "string" || body.nama.trim().length === 0)) {
-      return json({ error: "Nama produk tidak boleh kosong" }, 400);
-    }
-    if (body.harga !== undefined && (typeof body.harga !== "number" || body.harga < 0)) {
-      return json({ error: "Harga harus angka >= 0" }, 400);
-    }
-    if (body.stok !== undefined && (typeof body.stok !== "number" || body.stok < 0)) {
-      return json({ error: "Stok harus angka >= 0" }, 400);
-    }
-    if (body.stock_threshold !== undefined && (typeof body.stock_threshold !== "number" || body.stock_threshold < 0)) {
-      return json({ error: "stock_threshold harus angka >= 0" }, 400);
-    }
+    const v = validateProdukUpdate(body);
+    if (!v.ok) return json({ error: v.error }, 400);
     db.run("UPDATE produk SET nama=?, harga=?, stok=?, stock_threshold=? WHERE id=?", [
-      body.nama ? body.nama.trim() : e.nama, body.harga ?? e.harga, body.stok ?? e.stok, body.stock_threshold ?? e.stock_threshold, id,
+      v.data.nama ?? e.nama, v.data.harga ?? e.harga, v.data.stok ?? e.stok, v.data.stock_threshold ?? e.stock_threshold, id,
     ]);
-    logAudit({ user_id: user.id, username: user.username, action: "UPDATE", entity_type: "produk", entity_id: id, details: { nama: body.nama || e.nama, stok: body.stok ?? e.stok } });
+    logAudit({ user_id: user.id, username: user.username, action: "UPDATE", entity_type: "produk", entity_id: id, details: { nama: v.data.nama || e.nama, stok: v.data.stok ?? e.stok } });
     const row = db.query("SELECT * FROM produk WHERE id = ?").get(id);
     return json(row);
   },
@@ -89,6 +71,8 @@ export const produkRoutes: Record<string, (req: Request, path: string[]) => Resp
   "DELETE /api/produk/:id": (req, path) => {
     const user = requireRole(req, ["admin", "manajer"]);
     if (user instanceof Response) return user;
+    const writeBlocked = assertCanWrite(user);
+    if (writeBlocked) return writeBlocked;
     const id = path[2];
     const existing = db.query("SELECT nama FROM produk WHERE id = ?").get(id) as any;
     if (!existing) return json({ error: "Produk tidak ditemukan" }, 404);

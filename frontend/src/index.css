@@ -1,0 +1,2144 @@
+@import "tailwindcss";
+
+/* ============================================
+   THEME TOKENS (Tailwind v4 @theme)
+   ============================================ */
+@theme {
+  --color-kasir-bg: #0a0e1a;
+  --color-kasir-bg2: #0f1424;
+  --color-kasir-card: #131826;
+  --color-kasir-card-hover: #1a2033;
+  --color-kasir-border: rgba(255, 255, 255, 0.06);
+  --color-kasir-border-strong: rgba(255, 255, 255, 0.12);
+  --color-kasir-fg: #e8edf5;
+  --color-kasir-muted: #8b95a8;
+  --color-kasir-accent: #00d9a3;
+  --color-kasir-accent2: #ff8a3d;
+  --font-sans: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+/* ============================================
+   BASE
+   ============================================ */
+* {
+  -webkit-font-smoothing: antialiased;
+}
+
+html, body {
+  background: var(--color-kasir-bg);
+  color: var(--color-kasir-fg);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  margin: 0;
+}
+
+::selection {
+  background: var(--color-kasir-accent);
+  color: var(--color-kasir-bg);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-kasir-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ============================================
+   SCROLLBAR
+   ============================================ */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--color-kasir-bg); }
+::-webkit-scrollbar-thumb { background: #2a3145; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #3a4258; }
+
+/* ============================================
+   GLASS UTILITIES
+   ============================================ */
+.glass {
+  background: rgba(19, 24, 38, 0.65);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--color-kasir-border);
+  border-radius: 16px;
+}
+
+.glass-strong {
+  background: rgba(19, 24, 38, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--color-kasir-border-strong);
+  border-radius: 20px;
+}
+
+/* Glass with neon edge */
+.glass-neon {
+  background: linear-gradient(135deg, rgba(19, 24, 38, 0.7), rgba(15, 20, 36, 0.55));
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid rgba(0, 217, 163, 0.18);
+  border-radius: 20px;
+  box-shadow:
+    0 0 0 1px rgba(0, 217, 163, 0.04),
+    0 20px 60px -20px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  position: relative;
+}
+
+.glass-neon::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(0, 217, 163, 0.4), transparent 40%, transparent 60%, rgba(255, 138, 61, 0.25));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.glass-neon-accent2 {
+  background: linear-gradient(135deg, rgba(19, 24, 38, 0.7), rgba(15, 20, 36, 0.55));
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid rgba(255, 138, 61, 0.18);
+  border-radius: 20px;
+  box-shadow:
+    0 20px 60px -20px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Neon glow text/border */
+.neon-glow {
+  box-shadow:
+    0 0 20px rgba(0, 217, 163, 0.35),
+    0 0 40px rgba(0, 217, 163, 0.15);
+}
+
+.neon-glow-orange {
+  box-shadow:
+    0 0 20px rgba(255, 138, 61, 0.35),
+    0 0 40px rgba(255, 138, 61, 0.15);
+}
+
+.neon-text {
+  text-shadow:
+    0 0 12px rgba(0, 217, 163, 0.6),
+    0 0 24px rgba(0, 217, 163, 0.3);
+}
+
+.neon-text-orange {
+  text-shadow:
+    0 0 12px rgba(255, 138, 61, 0.6),
+    0 0 24px rgba(255, 138, 61, 0.3);
+}
+
+/* Neon animated border (gradient sweep) */
+.neon-border-anim {
+  position: relative;
+  isolation: isolate;
+}
+.neon-border-anim::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(from 0deg, transparent 0%, #00d9a3 25%, #ff8a3d 50%, #00d9a3 75%, transparent 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: neon-spin 4s linear infinite;
+  z-index: -1;
+}
+
+@keyframes neon-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Aurora background layer */
+.aurora {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 50% at 20% 30%, rgba(0, 217, 163, 0.18), transparent 60%),
+    radial-gradient(ellipse 50% 60% at 80% 70%, rgba(255, 138, 61, 0.12), transparent 60%),
+    radial-gradient(ellipse 40% 40% at 50% 50%, rgba(99, 102, 241, 0.1), transparent 60%);
+  animation: aurora-shift 18s ease-in-out infinite;
+}
+
+@keyframes aurora-shift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(2%, -2%) scale(1.05); }
+  66% { transform: translate(-2%, 2%) scale(0.98); }
+}
+
+/* ============================================
+   BACKGROUND EFFECTS
+   ============================================ */
+.blob {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(140px);
+  opacity: 0.35;
+  pointer-events: none;
+  z-index: -1;
+  animation: blob-float 10s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes blob-float {
+  0%, 100% { transform: translateY(0) scale(1) rotate(0deg); }
+  33% { transform: translateY(-40px) scale(1.08) rotate(2deg); }
+  66% { transform: translateY(20px) scale(0.96) rotate(-2deg); }
+}
+
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 80%);
+}
+
+/* .noise root — establish stacking context biar child z-index -1/-2
+   (blob, aurora, grid-bg) di-stack di dalam container, bukan di belakang body.
+   Tanpa ini, content Landing bisa ter-hidden di belakang background layer. */
+.noise {
+  position: relative;
+  z-index: 0;
+}
+
+.noise::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ============================================
+   SCROLL PROGRESS BAR
+   ============================================ */
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 2px;
+  background: linear-gradient(to right, var(--color-kasir-accent), #38e8b0, var(--color-kasir-accent2));
+  z-index: 50;
+  transition: width 0.1s;
+}
+
+/* ============================================
+   BUTTON GLOW
+   ============================================ */
+.btn-glow {
+  box-shadow:
+    0 0 0 1px rgba(0, 217, 163, 0.4),
+    0 8px 30px -8px rgba(0, 217, 163, 0.35);
+  transition: box-shadow 0.3s, transform 0.2s;
+}
+
+.btn-glow:hover {
+  box-shadow:
+    0 0 0 1px rgba(0, 217, 163, 0.7),
+    0 14px 40px -8px rgba(0, 217, 163, 0.35);
+  transform: translateY(-1px);
+}
+
+/* ============================================
+   REVEAL ON SCROLL (IntersectionObserver)
+   ============================================ */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ============================================
+   POS MOCKUP SCREEN (neon glow)
+   ============================================ */
+.pos-screen {
+  background: linear-gradient(180deg, #0f1424 0%, #0a0e1a 100%);
+  border: 1px solid rgba(0, 217, 163, 0.18);
+  border-radius: 18px;
+  box-shadow:
+    0 30px 80px -20px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(0, 217, 163, 0.12),
+    0 0 60px -20px rgba(0, 217, 163, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  position: relative;
+}
+
+.pos-screen::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(0, 217, 163, 0.4), transparent 50%, rgba(255, 138, 61, 0.25));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.8); }
+}
+.pulse-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
+
+@keyframes scroll-bounce {
+  0%, 100% { transform: translateY(0); opacity: 0.9; }
+  50% { transform: translateY(8px); opacity: 0.3; }
+}
+.scroll-bounce { animation: scroll-bounce 2s ease-in-out infinite; }
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-track { animation: marquee 28s linear infinite; }
+
+/* ============================================
+   FEATURE CARD HOVER (neon glass)
+   ============================================ */
+.feature-card {
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+              border-color 0.35s,
+              background 0.35s,
+              box-shadow 0.35s;
+  position: relative;
+  overflow: hidden;
+}
+
+.feature-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(0, 217, 163, 0.3), transparent 50%, transparent 70%, rgba(255, 138, 61, 0.2));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s;
+}
+
+.feature-card:hover {
+  transform: translateY(-6px);
+  background: rgba(0, 217, 163, 0.03);
+  box-shadow:
+    0 20px 50px -20px rgba(0, 217, 163, 0.25),
+    0 0 0 1px rgba(0, 217, 163, 0.15);
+}
+
+.feature-card:hover::before {
+  opacity: 1;
+}
+
+/* ============================================
+   TICKER NUMBERS
+   ============================================ */
+.ticker-num {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+
+/* ============================================
+   TEXT GRADIENT
+   ============================================ */
+.text-gradient {
+  background: linear-gradient(135deg, #00d9a3, #4dffd0, #ff8a3d);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: text-gradient-shift 6s ease-in-out infinite;
+}
+
+@keyframes text-gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* ============================================
+   WASM BADGES
+   ============================================ */
+.badge-wasm-active {
+  background: linear-gradient(90deg, rgba(0, 217, 163, 0.15), rgba(0, 217, 163, 0.05));
+  border: 1px solid rgba(0, 217, 163, 0.35);
+  color: #4dffd0;
+}
+
+.badge-wasm-fallback {
+  background: linear-gradient(90deg, rgba(255, 138, 61, 0.15), rgba(255, 138, 61, 0.05));
+  border: 1px solid rgba(255, 138, 61, 0.35);
+  color: #ffb380;
+}
+
+/* ============================================
+   REINVENT — BENTO + TERMINAL + WASM ORB
+   (Landing.tsx v2 — 2026-07-08)
+   ============================================ */
+
+/* Bento tile — adaptive border-glow on hover */
+.bento-card {
+  position: relative;
+  background: linear-gradient(135deg, rgba(19, 24, 38, 0.7), rgba(15, 20, 36, 0.55));
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
+  overflow: hidden;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s, box-shadow 0.3s;
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+.bento-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    400px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(0, 217, 163, 0.12),
+    transparent 40%
+  );
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+.bento-card:hover {
+  border-color: rgba(0, 217, 163, 0.25);
+  box-shadow: 0 20px 60px -20px rgba(0, 0, 0, 0.6), 0 0 30px -10px rgba(0, 217, 163, 0.25);
+  transform: translateY(-3px) translateZ(0);
+}
+
+.bento-card:hover::before { opacity: 1; }
+
+/* Terminal mockup — dark, scanline, glow */
+.terminal-screen {
+  position: relative;
+  background: linear-gradient(180deg, #050810 0%, #0a0f1c 100%);
+  border: 1px solid rgba(0, 217, 163, 0.18);
+  border-radius: 16px;
+  box-shadow:
+    0 30px 80px -30px rgba(0, 0, 0, 0.8),
+    0 0 40px -15px rgba(0, 217, 163, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+.terminal-screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 217, 163, 0.025) 0px,
+    rgba(0, 217, 163, 0.025) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  mix-blend-mode: screen;
+}
+
+/* Terminal header dots */
+.terminal-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.terminal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.terminal-body {
+  padding: 16px 18px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  color: #c8d4e8;
+}
+
+.terminal-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  opacity: 0;
+  transform: translateY(6px);
+  animation: terminal-line-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes terminal-line-in {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.terminal-prompt {
+  color: #00d9a3;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.terminal-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 16px;
+  background: #00d9a3;
+  vertical-align: text-bottom;
+  animation: terminal-blink 1s steps(2) infinite;
+  box-shadow: 0 0 8px rgba(0, 217, 163, 0.6);
+}
+
+@keyframes terminal-blink {
+  0%, 50% { opacity: 1; }
+  50.01%, 100% { opacity: 0; }
+}
+
+/* WASM orb — pulsing status indicator */
+.wasm-orb {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 0.4s, box-shadow 0.4s;
+}
+
+.wasm-orb-active {
+  background: #00d9a3;
+  box-shadow: 0 0 12px rgba(0, 217, 163, 0.7), 0 0 24px rgba(0, 217, 163, 0.3);
+  animation: wasm-orb-pulse 2s ease-in-out infinite;
+}
+
+.wasm-orb-idle {
+  background: #ff8a3d;
+  box-shadow: 0 0 10px rgba(255, 138, 61, 0.5);
+  animation: wasm-orb-pulse-slow 3s ease-in-out infinite;
+}
+
+@keyframes wasm-orb-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 12px rgba(0, 217, 163, 0.7), 0 0 24px rgba(0, 217, 163, 0.3); }
+  50% { transform: scale(1.15); box-shadow: 0 0 18px rgba(0, 217, 163, 0.9), 0 0 36px rgba(0, 217, 163, 0.4); }
+}
+
+@keyframes wasm-orb-pulse-slow {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* WASM orb big — for WASM Lab section visualizer */
+.wasm-orb-big {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.6s, box-shadow 0.6s;
+}
+
+.wasm-orb-big-active {
+  background: radial-gradient(circle at 30% 30%, #4dffd0, #00d9a3 60%, #007a5c);
+  box-shadow:
+    0 0 60px rgba(0, 217, 163, 0.5),
+    0 0 120px rgba(0, 217, 163, 0.25),
+    inset 0 0 30px rgba(255, 255, 255, 0.1);
+  animation: wasm-orb-big-pulse 3s ease-in-out infinite;
+}
+
+.wasm-orb-big-idle {
+  background: radial-gradient(circle at 30% 30%, #ffb380, #ff8a3d 60%, #a8521f);
+  box-shadow:
+    0 0 40px rgba(255, 138, 61, 0.4),
+    0 0 80px rgba(255, 138, 61, 0.15),
+    inset 0 0 30px rgba(255, 255, 255, 0.08);
+  animation: wasm-orb-big-pulse 4s ease-in-out infinite;
+}
+
+@keyframes wasm-orb-big-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+/* WASM orb ring layers (decorative pulsing rings behind big orb) */
+.wasm-orb-ring {
+  position: absolute;
+  inset: -20px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 217, 163, 0.2);
+  animation: wasm-orb-ring 3s ease-out infinite;
+  pointer-events: none;
+}
+
+.wasm-orb-ring-2 { animation-delay: 1s; }
+.wasm-orb-ring-3 { animation-delay: 2s; }
+
+@keyframes wasm-orb-ring {
+  0% { transform: scale(0.8); opacity: 0.6; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+/* Scanline — animated horizontal sweep overlay */
+.scanline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(0, 217, 163, 0.5), transparent);
+  pointer-events: none;
+  animation: scanline-sweep 4s linear infinite;
+  z-index: 5;
+}
+
+@keyframes scanline-sweep {
+  0% { top: 0; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* Grid counter — big mono numeric counter */
+.grid-counter {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #00d9a3, #4dffd0, #ff8a3d);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Ticker tape — vertical marquee variant */
+.ticker-tape {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  mask-image: linear-gradient(180deg, transparent 0%, black 12%, black 88%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, black 12%, black 88%, transparent 100%);
+}
+
+.ticker-tape-track {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: ticker-tape-scroll 24s linear infinite;
+}
+
+@keyframes ticker-tape-scroll {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+
+/* Neon border pulse — section divider */
+.neon-border-pulse {
+  position: relative;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 217, 163, 0.4), transparent);
+}
+
+.neon-border-pulse::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 60px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #00d9a3, transparent);
+  transform: translateX(-50%);
+  animation: neon-border-pulse-sweep 6s ease-in-out infinite;
+  box-shadow: 0 0 12px rgba(0, 217, 163, 0.6);
+}
+
+@keyframes neon-border-pulse-sweep {
+  0%, 100% { left: 10%; }
+  50% { left: 90%; }
+}
+
+/* Benchmark bar — WASM vs JS visual comparison */
+.bench-bar-track {
+  position: relative;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.bench-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 6px;
+  width: 0;
+  transition: width 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bench-bar-fill-wasm {
+  background: linear-gradient(90deg, #00d9a3, #4dffd0);
+  box-shadow: 0 0 12px rgba(0, 217, 163, 0.4);
+}
+
+.bench-bar-fill-js {
+  background: linear-gradient(90deg, #ff8a3d, #ffb380);
+  box-shadow: 0 0 12px rgba(255, 138, 61, 0.4);
+}
+
+/* Stat counter bento — asymmetric tile variant (extends .bento-card) */
+.bento-stat {
+  position: relative;
+  background: linear-gradient(135deg, rgba(19, 24, 38, 0.7), rgba(15, 20, 36, 0.55));
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
+  overflow: hidden;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s, box-shadow 0.3s;
+  will-change: transform;
+  transform: translateZ(0);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 140px;
+}
+
+.bento-stat::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(400px circle at var(--mx, 50%) var(--my, 50%), rgba(0, 217, 163, 0.12), transparent 40%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+.bento-stat:hover {
+  border-color: rgba(0, 217, 163, 0.25);
+  box-shadow: 0 20px 60px -20px rgba(0, 0, 0, 0.6), 0 0 30px -10px rgba(0, 217, 163, 0.25);
+  transform: translateY(-3px) translateZ(0);
+}
+
+.bento-stat:hover::before { opacity: 1; }
+
+/* Hero terminal wrapper — preserves .hero-mockup selector for animations.ts */
+.hero-mockup-terminal {
+  position: relative;
+  perspective: 1200px;
+  transform-style: preserve-3d;
+}
+
+/* ============================================
+   FORM INPUTS
+   ============================================ */
+.input-dark {
+  background: rgba(10, 14, 26, 0.7);
+  border: 1px solid var(--color-kasir-border-strong);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: var(--color-kasir-fg);
+  font-size: 14px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  font-family: var(--font-sans);
+}
+
+.input-dark:focus {
+  border-color: var(--color-kasir-accent);
+  box-shadow: 0 0 0 3px rgba(0, 217, 163, 0.15);
+}
+
+.input-dark::placeholder {
+  color: rgba(139, 149, 168, 0.5);
+}
+
+/* Glass input for dashboard modals */
+.glass-input {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 12px 14px;
+  color: var(--color-kasir-fg);
+  font-size: 14px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: var(--font-sans);
+}
+
+.glass-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.glass-input::placeholder {
+  color: #52525b;
+}
+
+/* ============================================
+   RANGE SLIDER
+   ============================================ */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  width: 100%;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: var(--color-kasir-accent);
+  margin-top: -6px;
+  box-shadow: 0 0 0 4px rgba(0, 217, 163, 0.15), 0 0 12px rgba(0, 217, 163, 0.5);
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+}
+
+input[type="range"]::-moz-range-thumb {
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: var(--color-kasir-accent);
+  border: none;
+  box-shadow: 0 0 0 4px rgba(0, 217, 163, 0.15), 0 0 12px rgba(0, 217, 163, 0.5);
+  cursor: pointer;
+}
+
+/* ============================================
+   MASK FOR MARQUEE
+   ============================================ */
+.mask-marquee {
+  mask-image: linear-gradient(90deg, transparent, black 10%, black 90%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 10%, black 90%, transparent);
+}
+
+/* ============================================
+   DASHBOARD SPECIFIC
+   ============================================ */
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-radius: 10px;
+  color: #71717a;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.15s;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  font-family: var(--font-sans);
+}
+
+.sidebar-link:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: #a1a1aa;
+}
+
+.sidebar-link.active {
+  background: rgba(99, 102, 241, 0.12);
+  color: #a5b4fc;
+}
+
+.stat-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 120px; height: 120px;
+  border-radius: 50%;
+  filter: blur(50px);
+  opacity: 0.15;
+  z-index: 0;
+}
+
+.stat-card.indigo::before { background: #6366f1; }
+.stat-card.emerald::before { background: #10b981; }
+.stat-card.amber::before { background: #f59e0b; }
+.stat-card.cyan::before { background: #06b6d4; }
+.stat-card.rose::before { background: #f43f5e; }
+.stat-card.violet::before { background: #8b5cf6; }
+
+.badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+.badge-indigo { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; }
+.badge-emerald { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; }
+.badge-amber { background: rgba(245, 158, 11, 0.15); color: #fcd34d; }
+
+/* Data table */
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #52525b;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.data-table td {
+  padding: 12px 16px;
+  font-size: 14px;
+  color: #a1a1aa;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+.data-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Buttons */
+.btn-sm {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+  font-family: var(--font-sans);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: #71717a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.btn-ghost:hover { background: rgba(255, 255, 255, 0.05); color: #a1a1aa; }
+
+.btn-indigo {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+}
+.btn-indigo:hover { box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3); }
+
+.btn-red {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+.btn-red:hover { background: rgba(239, 68, 68, 0.25); }
+
+/* Modal */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.modal-box {
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 28px;
+  width: 100%;
+  max-width: 440px;
+  margin: 16px;
+  animation: modal-in 0.25s ease-out;
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Rupiah mono */
+.rupiah {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Fade in */
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Login specific */
+.logo-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--color-kasir-accent), #00b88a);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-kasir-accent), #00b88a);
+  color: var(--color-kasir-bg);
+  border: none;
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+  transition: transform 0.15s, box-shadow 0.15s;
+  font-family: var(--font-sans);
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 25px rgba(0, 217, 163, 0.3);
+}
+
+.btn-primary:active { transform: translateY(0); }
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.tab-btn {
+  padding: 10px 24px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  background: transparent;
+  color: var(--color-kasir-muted);
+  font-family: var(--font-sans);
+  flex: 1;
+}
+
+.tab-btn.active {
+  background: rgba(0, 217, 163, 0.12);
+  color: var(--color-kasir-accent);
+}
+
+.tab-btn:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.04);
+  color: #b0b8c8;
+}
+
+/* Error/success messages */
+.error-msg {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.success-msg {
+  background: rgba(0, 217, 163, 0.1);
+  border: 1px solid rgba(0, 217, 163, 0.2);
+  color: #6ee7b7;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+/* Spinner */
+.spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(10, 14, 26, 0.3);
+  border-top-color: var(--color-kasir-bg);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Toast notification */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  z-index: 60;
+  animation: toast-in 0.3s ease-out;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+.toast-success {
+  background: rgba(0, 217, 163, 0.15);
+  border: 1px solid rgba(0, 217, 163, 0.3);
+  color: #4dffd0;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================
+   RESPONSIVE SIDEBAR
+   ============================================ */
+@media (max-width: 1024px) {
+  .sidebar-responsive {
+    transform: translateX(-100%);
+  }
+  .sidebar-responsive.open {
+    transform: translateX(0);
+  }
+}
+
+/* ============================================
+   HERO PATTERN ANIMATION (animated dot grid)
+   ============================================ */
+.hero-pattern {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  overflow: hidden;
+}
+
+.hero-pattern::before {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  width: 200%;
+  height: 200%;
+  background-image: radial-gradient(circle, rgba(0, 217, 163, 0.12) 1px, transparent 1px);
+  background-size: 40px 40px;
+  animation: pattern-drift 20s linear infinite;
+}
+
+.hero-pattern::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 50% 30%, transparent 20%, var(--color-kasir-bg) 80%);
+  pointer-events: none;
+}
+
+@keyframes pattern-drift {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  100% { transform: translate(40px, 40px) rotate(1deg); }
+}
+
+/* Hero glow pulse rings (created by GSAP) */
+.hero-pulse-ring {
+  opacity: 0;
+}
+
+/* Hero mockup perspective */
+.hero-mockup {
+  transform-style: preserve-3d;
+}
+
+/* ============================================
+   REDUCED MOTION
+   ============================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .hero-pattern::before {
+    animation: none;
+  }
+}
+
+/* ============================================
+   SWEETALERT2 — dark glass theme
+   ============================================ */
+.kasir-swal-popup {
+  border: 1px solid rgba(0, 217, 163, 0.18) !important;
+  border-radius: 18px !important;
+  box-shadow:
+    0 30px 80px -20px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(0, 217, 163, 0.08),
+    0 0 60px -20px rgba(0, 217, 163, 0.25) !important;
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  font-family: var(--font-sans) !important;
+}
+
+.kasir-swal-title {
+  color: #e8edf5 !important;
+  font-weight: 700 !important;
+}
+
+.kasir-swal-html {
+  color: #8b95a8 !important;
+}
+
+.kasir-swal-btn {
+  background: linear-gradient(135deg, #00d9a3, #00b88a) !important;
+  color: #0a0e1a !important;
+  font-weight: 700 !important;
+  border: none !important;
+  border-radius: 10px !important;
+  padding: 10px 22px !important;
+  box-shadow: 0 8px 20px -8px rgba(0, 217, 163, 0.4) !important;
+  transition: transform 0.15s, box-shadow 0.15s !important;
+}
+.kasir-swal-btn:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 12px 28px -8px rgba(0, 217, 163, 0.5) !important;
+}
+
+.kasir-swal-btn-cancel {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: #a1a1aa !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 10px !important;
+  padding: 10px 22px !important;
+  font-weight: 600 !important;
+}
+.kasir-swal-btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ============================================
+   LIQUID GLASS (iOS-style glassmorphism)
+   ============================================
+   Layered translucent bg + refractive blur + specular
+   edge highlight (top-left sheen) + soft inner glow.
+   Build di atas glass system yang sudah ada (kasir-* palette).
+   ============================================ */
+
+/* Base liquid glass — translucent card with specular sheen */
+.liquid-glass {
+  position: relative;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 50%, rgba(255, 255, 255, 0.04) 100%),
+    linear-gradient(180deg, rgba(19, 24, 38, 0.55) 0%, rgba(15, 20, 36, 0.45) 100%);
+  backdrop-filter: blur(28px) saturate(1.6);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 28px;
+  box-shadow:
+    0 30px 80px -24px rgba(0, 0, 0, 0.6),
+    0 8px 24px -12px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+  isolation: isolate;
+}
+
+/* Specular sheen — bright top-left highlight, dim bottom-right (refraction feel) */
+.liquid-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.14) 0%,
+    rgba(255, 255, 255, 0.04) 18%,
+    transparent 38%,
+    transparent 62%,
+    rgba(0, 217, 163, 0.04) 82%,
+    rgba(255, 138, 61, 0.05) 100%
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Inner glow ring — soft accent halo inside the border */
+.liquid-glass::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 24px rgba(0, 217, 163, 0.06),
+    inset 0 8px 30px -10px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Stronger variant — main login card (more opaque + heavier blur) */
+.liquid-glass-strong {
+  position: relative;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 50%, rgba(255, 255, 255, 0.04) 100%),
+    linear-gradient(180deg, rgba(19, 24, 38, 0.72) 0%, rgba(15, 20, 36, 0.6) 100%);
+  backdrop-filter: blur(36px) saturate(1.8);
+  -webkit-backdrop-filter: blur(36px) saturate(1.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 32px;
+  box-shadow:
+    0 40px 100px -28px rgba(0, 0, 0, 0.7),
+    0 12px 36px -16px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(0, 217, 163, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 0 60px -20px rgba(0, 217, 163, 0.12);
+  isolation: isolate;
+}
+
+.liquid-glass-strong::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(255, 255, 255, 0.06) 18%,
+    transparent 40%,
+    transparent 60%,
+    rgba(0, 217, 163, 0.06) 80%,
+    rgba(255, 138, 61, 0.07) 100%
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+.liquid-glass-strong::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 32px rgba(0, 217, 163, 0.08),
+    inset 0 12px 40px -12px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Ensure children sit above ::before/::after */
+.liquid-glass > *,
+.liquid-glass-strong > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* Liquid input — translucent, kasir-accent focus ring (fixes old indigo inconsistency) */
+.liquid-input {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 14px 16px 14px 44px;
+  color: var(--color-kasir-fg);
+  font-size: 14px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.25s, background 0.2s;
+  font-family: var(--font-sans);
+  position: relative;
+  z-index: 2;
+}
+
+.liquid-input::placeholder {
+  color: rgba(139, 149, 168, 0.55);
+}
+
+.liquid-input:focus {
+  border-color: var(--color-kasir-accent);
+  background: rgba(0, 217, 163, 0.04);
+  box-shadow:
+    0 0 0 3px rgba(0, 217, 163, 0.18),
+    inset 0 0 16px rgba(0, 217, 163, 0.08);
+}
+
+/* Input icon wrapper (positioned absolute left, dim by default, bright on focus) */
+.liquid-input-wrap {
+  position: relative;
+}
+
+.liquid-input-wrap .input-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(139, 149, 168, 0.55);
+  pointer-events: none;
+  transition: color 0.2s;
+  z-index: 3;
+}
+
+.liquid-input-wrap:focus-within .input-icon {
+  color: var(--color-kasir-accent);
+}
+
+/* Liquid tab switcher — pill container with sliding active state */
+.liquid-tab-container {
+  position: relative;
+  display: flex;
+  gap: 4px;
+  padding: 5px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 24px;
+  z-index: 2;
+}
+
+.liquid-tab {
+  flex: 1;
+  padding: 11px 24px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: color 0.25s;
+  border: none;
+  background: transparent;
+  color: var(--color-kasir-muted);
+  font-family: var(--font-sans);
+  position: relative;
+  z-index: 2;
+}
+
+.liquid-tab.active {
+  color: var(--color-kasir-bg);
+  background: linear-gradient(135deg, var(--color-kasir-accent), #00b88a);
+  box-shadow:
+    0 6px 20px -6px rgba(0, 217, 163, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.liquid-tab:hover:not(.active) {
+  color: #b0b8c8;
+}
+
+/* Liquid chip — small glass chip for demo credential / metadata */
+.liquid-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  font-size: 12px;
+  color: var(--color-kasir-muted);
+  font-family: var(--font-mono);
+}
+
+.liquid-chip .chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-kasir-accent2);
+  box-shadow: 0 0 8px rgba(255, 138, 61, 0.6);
+}
+
+/* Liquid button — extends btn-primary with sheen overlay + stronger neon glow */
+.liquid-button {
+  position: relative;
+  background: linear-gradient(135deg, var(--color-kasir-accent), #00b88a);
+  color: var(--color-kasir-bg);
+  border: none;
+  border-radius: 14px;
+  padding: 15px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+  transition: transform 0.15s, box-shadow 0.25s;
+  font-family: var(--font-sans);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Specular sheen sweep on top of button */
+.liquid-button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.08) 30%, transparent 50%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.liquid-button:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 12px 30px -8px rgba(0, 217, 163, 0.45),
+    0 0 0 1px rgba(0, 217, 163, 0.4),
+    0 0 30px -8px rgba(0, 217, 163, 0.4);
+}
+
+.liquid-button:active { transform: translateY(0); }
+
+.liquid-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.liquid-button > * { position: relative; z-index: 2; }
+
+/* Staggered entrance animation for login card children */
+@keyframes liquid-entrance {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.entrance {
+  animation: liquid-entrance 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.entrance-1 { animation-delay: 0.05s; }
+.entrance-2 { animation-delay: 0.18s; }
+.entrance-3 { animation-delay: 0.32s; }
+.entrance-4 { animation-delay: 0.46s; }
+
+/* ============================================
+   PERFORMANCE — GPU ACCEL + LOW-END OPTIMIZATIONS
+   ============================================
+   Mayoritas user pakai PC kantoran (low-end), jadi:
+   - Force GPU layer untuk animasi berat (blob, aurora)
+   - Reduce blur radius di low-end (media query)
+   - Disable non-essential animation di prefers-reduced-motion
+   - will-change explicit biar browser gak allocate layer late
+   ============================================ */
+
+/* GPU acceleration untuk blob — transform translateZ(0) promote layer,
+   will-change transform biar browser pre-allocate. Smoother di low-end. */
+.blob-optimized {
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* Aurora juga butuh GPU layer — animationnya translate+scale */
+.aurora {
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* Liquid glass pseudo-elements (specular sheen + inner glow) —
+   translateZ promote biar repaint gak trigger layer utama card */
+.liquid-glass::before,
+.liquid-glass::after,
+.liquid-glass-strong::before,
+.liquid-glass-strong::after {
+  transform: translateZ(0);
+}
+
+/* Input focus ring — gunakan transform/will-change biar box-shadow
+   animation smooth (box-shadow itu paint-heavy kalau gak di-layer) */
+.liquid-input {
+  will-change: border-color, box-shadow;
+}
+
+/* Cooldown button — animasi opacity smooth */
+.resend-cooldown {
+  will-change: opacity;
+}
+
+/* ============================================
+   LOW-END PC — REDUCE BLUR + ANIMATION
+   ============================================
+   Detect via `prefers-reduced-motion` (user setting)
+   ATAU media query untuk device dengan limited GPU.
+   Kalau motion direduce, blob statis, blur ringan, entrance instant.
+   ============================================ */
+@media (prefers-reduced-motion: reduce) {
+  .blob-optimized,
+  .blob {
+    animation: none !important;
+    transform: none !important;
+  }
+  .aurora {
+    animation: none !important;
+  }
+  .pulse-dot {
+    animation: none !important;
+    opacity: 0.7;
+  }
+  .entrance,
+  .entrance-1,
+  .entrance-2,
+  .entrance-3,
+  .entrance-4 {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .neon-border-anim::after {
+    animation: none !important;
+  }
+  .hero-pattern::before {
+    animation: none !important;
+  }
+  .marquee-track {
+    animation: none !important;
+  }
+  /* Reinvent v2 — disable non-essential animations */
+  .terminal-line {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+  }
+  .terminal-cursor,
+  .scanline,
+  .wasm-orb-active,
+  .wasm-orb-idle,
+  .wasm-orb-big-active,
+  .wasm-orb-big-idle,
+  .wasm-orb-ring,
+  .neon-border-pulse::before,
+  .ticker-tape-track {
+    animation: none !important;
+  }
+  .wasm-orb-active,
+  .wasm-orb-idle,
+  .wasm-orb-big-active,
+  .wasm-orb-big-idle {
+    transform: none !important;
+  }
+}
+
+/* Device dengan GPU lemah — reduce blur radius (paint cost tinggi).
+   Heuristic: device yang render slowly biasanya di-detect via
+   `prefers-reduced-data` (mobile/low-end) atau media query coarse pointer. */
+@media (prefers-reduced-data: reduce) {
+  .liquid-glass {
+    backdrop-filter: blur(16px) saturate(1.4);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  }
+  .liquid-glass-strong {
+    backdrop-filter: blur(20px) saturate(1.5);
+    -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  }
+  .blob-optimized {
+    filter: blur(80px); /* turun dari 140px */
+  }
+}
+
+/* Coarse pointer (touch device / low-end) — reduce animasi berat */
+@media (pointer: coarse) {
+  .blob-optimized {
+    animation-duration: 14s !important; /* slow down, hemat CPU */
+  }
+}
+
+/* ============================================
+   PASSWORD STRENGTH METER
+   ============================================ */
+.password-strength {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.password-strength-bar {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+
+.password-strength-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.password-strength-fill.weak {
+  background: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+.password-strength-fill.fair {
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+}
+
+.password-strength-fill.good {
+  background: #00d9a3;
+  box-shadow: 0 0 8px rgba(0, 217, 163, 0.4);
+}
+
+.password-strength-fill.strong {
+  background: linear-gradient(90deg, #00d9a3, #4dffd0);
+  box-shadow: 0 0 12px rgba(0, 217, 163, 0.5);
+}
+
+.password-strength-label {
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.password-strength-label.weak { color: #ef4444; }
+.password-strength-label.fair { color: #f59e0b; }
+.password-strength-label.good { color: #00d9a3; }
+.password-strength-label.strong { color: #4dffd0; }
+
+/* ============================================
+   INLINE FIELD ERROR
+   ============================================ */
+/* Pesan error per-field, lebih granular dari top error-msg */
+.field-error {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #fca5a5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.field-error::before {
+  content: "!";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.2);
+  font-size: 9px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Input state — border merah kalau field error */
+.liquid-input.field-error-state {
+  border-color: rgba(239, 68, 68, 0.5);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+/* ============================================
+   TOAST NOTIFICATION SYSTEM
+   ============================================ */
+/* Global toast — lebih versatile dari success-msg inline.
+   Pakai position fixed top-center, auto-dismiss dengan progress bar. */
+.toast-container {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+  width: 100%;
+  max-width: 420px;
+  padding: 0 16px;
+}
+
+.toast-item {
+  pointer-events: auto;
+  padding: 12px 18px 12px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.5);
+  animation: toast-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.toast-item.toast-success {
+  background: rgba(0, 217, 163, 0.12);
+  border-color: rgba(0, 217, 163, 0.3);
+  color: #4dffd0;
+}
+
+.toast-item.toast-error {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+.toast-item.toast-info {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: #a5b4fc;
+}
+
+.toast-item.toast-warning {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #fcd34d;
+}
+
+.toast-icon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+
+.toast-message {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.toast-close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  opacity: 0.5;
+  cursor: pointer;
+  padding: 2px;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+.toast-close:hover { opacity: 1; }
+
+.toast-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: currentColor;
+  opacity: 0.4;
+  animation: toast-progress-shrink linear forwards;
+}
+
+@keyframes toast-slide-in {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes toast-progress-shrink {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+@keyframes toast-slide-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-12px); }
+}
+
+.toast-item.dismissing {
+  animation: toast-slide-out 0.25s ease-in forwards;
+}
+
+/* ============================================
+   SKELETON LOADER (dashboard)
+   ============================================ */
+/* Untuk stat cards + tabel saat data loading —
+   lebih polished dari text "Loading..." */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.08) 37%,
+    rgba(255, 255, 255, 0.04) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+.skeleton-text {
+  height: 14px;
+  margin-bottom: 6px;
+}
+
+.skeleton-text.short { width: 60%; }
+.skeleton-text.medium { width: 80%; }
+
+.skeleton-card {
+  height: 110px;
+  border-radius: 14px;
+}
+
+.skeleton-row {
+  height: 48px;
+  margin-bottom: 4px;
+  border-radius: 8px;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+/* ============================================
+   EMPTY STATE
+   ============================================ */
+/* Untuk tabel kosong — ilustrasi + text + CTA */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  gap: 12px;
+}
+
+.empty-state-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-kasir-muted);
+  margin-bottom: 4px;
+}
+
+.empty-state-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-kasir-fg);
+}
+
+.empty-state-desc {
+  font-size: 13px;
+  color: var(--color-kasir-muted);
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+/* ============================================
+   SEARCH/FILTER INPUT (dashboard)
+   ============================================ */
+.search-input {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 8px 12px 8px 36px;
+  color: var(--color-kasir-fg);
+  font-size: 13px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  font-family: var(--font-sans);
+}
+
+.search-input:focus {
+  border-color: var(--color-kasir-accent);
+  box-shadow: 0 0 0 3px rgba(0, 217, 163, 0.12);
+}
+
+.search-input::placeholder {
+  color: rgba(139, 149, 168, 0.5);
+}
+
+.search-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 280px;
+}
+
+.search-wrap .search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(139, 149, 168, 0.5);
+  pointer-events: none;
+}
+
+/* ============================================
+   SESSION TIMEOUT WARNING MODAL
+   ============================================ */
+.session-timeout-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.25s ease-out;
+}
+
+.session-timeout-box {
+  background: linear-gradient(180deg, rgba(19, 24, 38, 0.95), rgba(15, 20, 36, 0.95));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 138, 61, 0.25);
+  border-radius: 18px;
+  padding: 28px;
+  max-width: 380px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 20px 60px -16px rgba(0, 0, 0, 0.7), 0 0 30px -8px rgba(255, 138, 61, 0.2);
+  animation: modal-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.session-timeout-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  background: rgba(255, 138, 61, 0.12);
+  border: 1px solid rgba(255, 138, 61, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff8a3d;
+}
+
+.session-timeout-countdown {
+  font-size: 32px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: #ff8a3d;
+  margin: 8px 0 16px;
+  text-shadow: 0 0 16px rgba(255, 138, 61, 0.4);
+}
+
+/* ============================================
+   PERFORMANCE MICRO-OPTS — GPU accel for animations
+   ============================================
+   translateZ(0) promote ke GPU layer biar repaint
+   gak trigger layer utama. will-change explicit.
+   Penting untuk PC low-end (mayoritas user kasir).
+   ============================================ */
+
+.pulse-dot,
+.scroll-bounce,
+.marquee-track {
+  transform: translateZ(0);
+  will-change: transform, opacity;
+}
+
+.toast-item {
+  transform: translateZ(0);
+  will-change: transform, opacity;
+}
+
+.liquid-button {
+  transform: translateZ(0);
+  will-change: transform, box-shadow;
+}
+
+.skeleton {
+  transform: translateZ(0);
+  will-change: background-position;
+}
+
+.password-strength-fill {
+  transform: translateZ(0);
+  will-change: width, background;
+}
+
+.spinner {
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+.stat-card::before {
+  transform: translateZ(0);
+}
+
+/* ============================================
+   CONTENT-VISIBILITY — skip render off-screen
+   ============================================
+   content-visibility: auto skip rendering element
+   yang di luar viewport — hemat paint cost di low-end.
+   contain-intrinsic-size beri placeholder height biar
+   scroll position gak jitter.
+   ============================================ */
+@media (min-width: 768px) {
+  .feature-card {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 200px;
+  }
+}
+
+/* ============================================
+   PRINT-FRIENDLY (bonus)
+   ============================================ */
+@media print {
+  .blob, .aurora, .grid-bg, .noise::before, .pulse-dot,
+  .scroll-progress, .toast-container, .session-timeout-modal {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+}
