@@ -4,7 +4,7 @@
   "description": "KasirGo - POS System with Zig WASM",
   "type": "module",
   "scripts": {
-    "build": "bun run build.js",
+    "build": "cd frontend && bun run build",
     "dev": "bun --hot backend/server.ts",
     "dev:frontend": "cd frontend && bun run dev",
     "build:frontend": "cd frontend && bun run build"

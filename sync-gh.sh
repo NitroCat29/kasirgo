@@ -5,15 +5,18 @@ set -euo pipefail
 
 GH_REPO="https://github.com/NitroCat29/kasirgo.git"
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-DIST="$ROOT/dist"
+DIST="$ROOT/frontend/dist"   # SolidJS build output (vite outDir: dist/)
 
-echo "==> Build produksi (dist/)"
+echo "==> Build produksi (frontend/dist/)"
 bun run build
+
+echo "==> Copy kasir.wasm ke dist (WASM engine untuk GH Pages static)"
+cp -f "$ROOT/frontend/public/kasir.wasm" "$DIST/kasir.wasm" 2>/dev/null || true
 
 echo "==> Push main -> github (mirror)"
 git push github main
 
-echo "==> Deploy dist/ -> github gh-pages (GitHub Pages production)"
+echo "==> Deploy frontend/dist/ -> github gh-pages (GitHub Pages production)"
 cd "$DIST"
 git init -q
 git config user.email "deploy@kasirgo.local"
