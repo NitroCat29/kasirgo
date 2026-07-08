@@ -5,6 +5,11 @@
   "type": "module",
   "scripts": {
     "build": "bun run build.js",
-    "dev": "bun run backend/server.ts"
+    "dev": "bun --hot backend/server.ts",
+    "dev:frontend": "cd frontend && bun run dev",
+    "build:frontend": "cd frontend && bun run build"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3"
   }
 }

@@ -12,6 +12,10 @@ node_modules/
 
 # Build output
 dist/
+frontend/dist/
+
+# Trash (deprecated files)
+.trash/
 
 # Editor / OS
 *.swp
@@ -27,3 +31,10 @@ zig/*.wasm
 # Tooling config
 .reasonix/
 reasonix.toml
+
+# Skill repo (jangan commit)
+.ponytail-repo/
+
+# Backup files
+*.bak
+*.bak.*

@@ -1,5 +1,7 @@
 import { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 // ============================================================
 // SQLite Database Setup
@@ -9,30 +11,23 @@ db.run("PRAGMA journal_mode = WAL");
 db.run("PRAGMA foreign_keys = ON");
 
 // ============================================================
-// Schema
+// Schema — import from shared/db-schema.sql (source of truth)
 // ============================================================
-db.run(`
-  CREATE TABLE IF NOT EXISTS toko (
-    id TEXT PRIMARY KEY,
-    nama TEXT NOT NULL,
-    alamat TEXT,
-    telepon TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
+const schemaPath = join(import.meta.dir, "..", "shared", "db-schema.sql");
+const schema = readFileSync(schemaPath, "utf-8");
+const statements = schema
+  .split(";")
+  .map(s => s
+    .split("\n")
+    .map(l => l.replace(/--.*$/, "")) // strip inline comment (di akhir baris)
+    .filter(l => l.trim().length > 0) // buang baris kosong setelah strip
+    .join(" ")
+    .trim()
   )
-`);
-
-db.run(`
-  CREATE TABLE IF NOT EXISTS produk (
-    id TEXT PRIMARY KEY,
-    toko_id TEXT NOT NULL,
-    nama TEXT NOT NULL,
-    harga INTEGER NOT NULL,
-    stok INTEGER NOT NULL DEFAULT 0,
-    stock_threshold INTEGER NOT NULL DEFAULT 10,
-    created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (toko_id) REFERENCES toko(id) ON DELETE CASCADE
-  )
-`);
+  .filter(s => s.length > 0);
+for (const stmt of statements) {
+  db.run(stmt);
+}
 
 // Migration: add stock_threshold if missing
 const cols = db.query("PRAGMA table_info(produk)").all() as any[];
@@ -40,53 +35,14 @@ if (!cols.find(c => c.name === "stock_threshold")) {
   db.run("ALTER TABLE produk ADD COLUMN stock_threshold INTEGER NOT NULL DEFAULT 10");
 }
 
-db.run(`
-  CREATE TABLE IF NOT EXISTS transaksi (
-    id TEXT PRIMARY KEY,
-    toko_id TEXT NOT NULL,
-    total INTEGER NOT NULL,
-    tax_rate INTEGER NOT NULL DEFAULT 11,
-    discount_rate INTEGER NOT NULL DEFAULT 0,
-    items_json TEXT NOT NULL,
-    created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (toko_id) REFERENCES toko(id) ON DELETE CASCADE
-  )
-`);
-
-db.run(`
-  CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    nama TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'kasir',
-    created_at TEXT DEFAULT (datetime('now'))
-  )
-`);
-
-db.run(`
-  CREATE TABLE IF NOT EXISTS sessions (
-    token TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    created_at TEXT DEFAULT (datetime('now')),
-    expires_at TEXT NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-  )
-`);
-
-db.run(`
-  CREATE TABLE IF NOT EXISTS audit_logs (
-    id TEXT PRIMARY KEY,
-    user_id TEXT,
-    username TEXT,
-    action TEXT NOT NULL,
-    entity_type TEXT NOT NULL,
-    entity_id TEXT,
-    details TEXT,
-    ip_address TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
-  )
-`);
+// Migration: add email + verified columns to users (idempotent)
+const userCols = db.query("PRAGMA table_info(users)").all() as any[];
+if (!userCols.find(c => c.name === "email")) {
+  db.run("ALTER TABLE users ADD COLUMN email TEXT");
+}
+if (!userCols.find(c => c.name === "verified")) {
+  db.run("ALTER TABLE users ADD COLUMN verified INTEGER NOT NULL DEFAULT 0");
+}
 
 
 
@@ -123,15 +79,40 @@ if (tokoCount.c === 0) {
   console.log("✅ Seed data berhasil diinsert (2 toko, 10 produk)");
 }
 
-// Seed admin user
-const userCount = db.query("SELECT COUNT(*) as c FROM users").get() as { c: number };
-if (userCount.c === 0) {
-  const adminHash = await Bun.password.hash("240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9");
+// ============================================================
+// Seed Users (idempotent — check by username)
+// ============================================================
+// Login flow: client sends sha256(password) -> backend Bun.password.hash() it.
+// Jadi seed memakai sha256 hex string sebagai input ke Bun.password.hash().
+
+// Hapus admin demo lama (cascade hapus sessions via FK ON DELETE CASCADE)
+db.run("DELETE FROM users WHERE username = 'admin'");
+
+// Mark seed users verified=1 (backwards-compat: login tanpa email verification)
+db.run("UPDATE users SET verified = 1 WHERE username IN ('Ebril', 'demo')");
+
+// Admin real (privileged) — Ebril
+// sha256("zmJW#j.6x507l}ST") = 6c32e5981dd32a7bb76586a5063db7cd69b15e8e1ea50b6c22a64244d07b52e9
+const ebrilExists = db.query("SELECT id FROM users WHERE username = ?").get("Ebril");
+if (!ebrilExists) {
+  const ebrilHash = await Bun.password.hash("6c32e5981dd32a7bb76586a5063db7cd69b15e8e1ea50b6c22a64244d07b52e9");
   db.run(
-    "INSERT INTO users (id, username, password_hash, nama, role) VALUES (?, ?, ?, ?, ?)",
-    [randomUUID(), "admin", adminHash, "Admin KasirGo", "admin"]
+    "INSERT INTO users (id, username, password_hash, nama, role, verified) VALUES (?, ?, ?, ?, ?, 1)",
+    [randomUUID(), "Ebril", ebrilHash, "Ebril", "admin"]
   );
-  console.log('✅ Seed user: admin / admin123');
+  console.log('✅ Seed user: Ebril (admin)');
+}
+
+// Akun demo — fake-admin (read-only, akses view layaknya admin tapi tidak bisa write)
+// sha256("demo123") = d3ad9315b7be5dd53b31a273b3b3aba5defe700808305aa16a3062b76658a791
+const demoExists = db.query("SELECT id FROM users WHERE username = ?").get("demo");
+if (!demoExists) {
+  const demoHash = await Bun.password.hash("d3ad9315b7be5dd53b31a273b3b3aba5defe700808305aa16a3062b76658a791");
+  db.run(
+    "INSERT INTO users (id, username, password_hash, nama, role, verified) VALUES (?, ?, ?, ?, ?, 1)",
+    [randomUUID(), "demo", demoHash, "Demo Akun (Read-Only)", "fake-admin"]
+  );
+  console.log('✅ Seed user: demo / demo123 (fake-admin, read-only)');
 }
 
 export { db };
