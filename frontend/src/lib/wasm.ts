@@ -39,7 +39,7 @@ export const jsFallback = {
   },
 };
 
-export async function loadWasm(wasmUrl = "/kasir.wasm"): Promise<boolean> {
+export async function loadWasm(wasmUrl = "./kasir.wasm"): Promise<boolean> {
   try {
     const response = await fetch(wasmUrl);
     if (!response.ok) throw new Error("WASM file tidak ditemukan");
