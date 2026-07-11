@@ -78,7 +78,7 @@ next     : "Phase 3: Tauri desktop scaffold"
   - [x] Remote setup: origin=Codeberg (main), github=GitHub (mirror)
   - [x] Rebase lokal main di atas origin/main (resolve README conflict → pakai versi lokal)
   - [x] AGENTS.md + README update: repo URL, decisions, tea sebagai pengganti gh
-  - [ ] tea login add (Codeberg) — butuh token dari El (manual)
+  - [x] tea login add (Codeberg) — done 2026-07-09
   - [x] Script sync-gh.sh (build + push main + gh-pages ke GitHub saat release)
   - [x] First push main → Codeberg + verify (commit c10ebef, GH Pages live: 200)
 - [x] Dokumentasi & aturan main (planning sesi 2026-07-07)
