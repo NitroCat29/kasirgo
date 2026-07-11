@@ -35,6 +35,8 @@ export const config = {
   // Kalau kosong, hCaptcha check di-skip (mode testing).
   hcaptchaSecret: process.env.HCAPTCHA_SECRET || "",
   hcaptchaSiteKey: process.env.HCAPTCHA_SITE_KEY || "",
+  // Dev mode: skip static file serving (frontend di-serve oleh Vite, port 5173)
+  devEnv: process.env.DEV_ENV === "true",
 };
 
 // ============================================================

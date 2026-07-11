@@ -19,6 +19,52 @@
 }
 
 /* ============================================
+   LIGHT MODE (warm cream + amber)
+   Apply via data-theme="light" on <html>
+   ============================================ */
+[data-theme="light"] {
+  --color-kasir-bg: #faf6f0;
+  --color-kasir-bg2: #f0ebe3;
+  --color-kasir-card: #ffffff;
+  --color-kasir-card-hover: #f8f4ec;
+  --color-kasir-border: rgba(0, 0, 0, 0.08);
+  --color-kasir-border-strong: rgba(0, 0, 0, 0.15);
+  --color-kasir-fg: #1a1612;
+  --color-kasir-muted: #7a7066;
+  --color-kasir-accent: #d97706;
+  --color-kasir-accent2: #ea580c;
+}
+
+[data-theme="light"] html,
+[data-theme="light"] body {
+  background: var(--color-kasir-bg);
+  color: var(--color-kasir-fg);
+}
+
+[data-theme="light"] ::selection {
+  background: var(--color-kasir-accent);
+  color: #fff;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-track { background: var(--color-kasir-bg2); }
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: #d4ccc2; }
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: #b8b0a6; }
+
+[data-theme="light"] .glass {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .liquid-glass {
+  background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0.6));
+  backdrop-filter: blur(24px) saturate(1.2);
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 4px 30px rgba(0,0,0,0.06);
+}
+
+/* ============================================
    BASE
    ============================================ */
 * {

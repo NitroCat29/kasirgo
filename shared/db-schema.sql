@@ -87,3 +87,25 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 -- Migration: stock_threshold (idempotent — handled by app layer)
 -- ALTER TABLE produk ADD COLUMN stock_threshold INTEGER NOT NULL DEFAULT 10;
+
+-- ============================================================
+-- Wallet / Billing / Balance
+-- ============================================================
+CREATE TABLE IF NOT EXISTS wallets (
+  id TEXT PRIMARY KEY,
+  user_id TEXT UNIQUE NOT NULL,
+  balance INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS wallet_transactions (
+  id TEXT PRIMARY KEY,
+  wallet_id TEXT NOT NULL,
+  type TEXT NOT NULL,          -- 'topup' | 'purchase' | 'refund' | 'adjustment'
+  amount INTEGER NOT NULL,
+  description TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
+);

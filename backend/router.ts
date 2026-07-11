@@ -7,6 +7,7 @@ import { transaksiRoutes } from "./routes/transaksi";
 import { auditRoutes } from "./routes/audit";
 import { alertsRoutes } from "./routes/alerts";
 import { usersRoutes } from "./routes/users";
+import { walletRoutes } from "./routes/wallet";
 
 // ============================================================
 // Router — merge semua routes
@@ -15,20 +16,18 @@ export type Handler = (req: Request, path: string[]) => Response | Promise<Respo
 export const routes: Record<string, Handler> = {};
 
 // Merge semua route modules
-Object.assign(routes, authRoutes, tokoRoutes, produkRoutes, transaksiRoutes, auditRoutes, alertsRoutes, usersRoutes);
+Object.assign(routes, authRoutes, tokoRoutes, produkRoutes, transaksiRoutes, auditRoutes, alertsRoutes, usersRoutes, walletRoutes);
 
 // ---- STATS (dashboard) ----
 routes["GET /api/stats"] = (req) => {
   const user = getUser(req);
   if (!user) return json({ error: "Belum login" }, 401);
-
   const tokoCount = (db.query("SELECT COUNT(*) as c FROM toko").get() as any).c;
   const produkCount = (db.query("SELECT COUNT(*) as c FROM produk").get() as any).c;
   const transaksiCount = (db.query("SELECT COUNT(*) as c FROM transaksi").get() as any).c;
   const totalPendapatan = (db.query("SELECT COALESCE(SUM(total),0) as s FROM transaksi").get() as any).s;
   const trxHariIni = (db.query("SELECT COUNT(*) as c FROM transaksi WHERE date(created_at) = date('now')").get() as any).c;
   const pendHariIni = (db.query("SELECT COALESCE(SUM(total),0) as s FROM transaksi WHERE date(created_at) = date('now')").get() as any).s;
-
   return json({
     toko: tokoCount,
     produk: produkCount,
@@ -39,16 +38,44 @@ routes["GET /api/stats"] = (req) => {
   });
 };
 
+// ---- DAILY REVENUE (chart data — last N days) ----
+routes["GET /api/stats/daily-revenue"] = (req) => {
+  const user = getUser(req);
+  if (!user) return json({ error: "Belum login" }, 401);
+  const url = new URL(req.url);
+  const days = Math.min(Math.max(Number(url.searchParams.get("days")) || 30, 1), 90);
+  const rows = db.query(`
+    SELECT date(created_at) as day, COALESCE(SUM(total),0) as revenue, COUNT(*) as count
+    FROM transaksi
+    WHERE created_at >= date('now', '-' || ? || ' days')
+    GROUP BY date(created_at)
+    ORDER BY day ASC
+  `).all(days) as { day: string; revenue: number; count: number }[];
+  return json({ days, data: rows });
+};
+
 // ============================================================
 // Resolve handler dari request
 // ============================================================
-export function resolveHandler(req: Request, pathSegments: string[]): Handler | null {
-  const simpleKey = `${req.method} /${pathSegments.slice(0, 2).join("/")}`;
-  const paramKey = pathSegments.length >= 3 && pathSegments[2]
-    ? `${req.method} /${pathSegments[0]}/${pathSegments[1]}/:id`
-    : null;
+export function resolveHandler(req: Request): Handler | null {
+  const url = new URL(req.url);
+  const pathSegments = url.pathname.split("/").filter(Boolean);
+  const method = req.method;
 
-  return routes[`${req.method} /${pathSegments.join("/")}`]
+  // Exact match: "GET /api/stats"
+  const exactKey = `${method} /${pathSegments.join("/")}`;
+  if (routes[exactKey]) return routes[exactKey];
+
+  // Simple key (no params)
+  const simpleKey = `${method} /${pathSegments[0]}/${pathSegments[1] || ""}`;
+
+  // Param key: /api/toko/:id → "PATCH /api/toko/:id"
+  const paramKey =
+    pathSegments.length >= 3
+      ? `${method} /${pathSegments[0]}/${pathSegments[1]}/:${pathSegments[2]}`
+      : null;
+
+  return routes[`${method} /${pathSegments.join("/")}`]
     || routes[simpleKey]
     || (paramKey ? routes[paramKey] : null)
     || null;

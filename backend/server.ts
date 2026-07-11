@@ -71,7 +71,8 @@ Bun.serve({
       return withCors(json({ error: "Not found" }, 404), req);
     }
 
-    // ---- Static file serving from frontend/dist ----
+    // ---- Static file serving from frontend/dist (production only) ----
+    if (!config.devEnv) {
     // Root
     if (url.pathname === "/") {
       const f = Bun.file(FRONTEND_DIST + "/index.html");
@@ -90,6 +91,7 @@ Bun.serve({
     if (await spa.exists()) {
       return new Response(spa, { headers: { "content-type": "text/html; charset=utf-8" } });
     }
+    } // end if (!config.devEnv)
 
     return json({ error: "Not found" }, 404, req);
   },

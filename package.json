@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "cd frontend && bun run build",
-    "dev": "bun --hot backend/server.ts",
+    "dev": "concurrently -n backend,frontend -c blue,green \"bun --hot backend/server.ts\" \"cd frontend && bun run dev\"",
     "dev:frontend": "cd frontend && bun run dev",
     "build:frontend": "cd frontend && bun run build"
   },

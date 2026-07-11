@@ -6,6 +6,8 @@ import { swalConfirm, swalSuccess, swalApiError, swalToast, swalWarning, swalInf
 import { calculateTotal, loadWasm } from "../lib/wasm";
 import { useSessionTimeout } from "../lib/session-timeout";
 import { SessionTimeoutModal, SkeletonStatCard, EmptyState } from "../components/ui";
+import RevenueChart from "../components/RevenueChart";
+import WalletCard from "../components/WalletCard";
 
 /* ============================================
    TYPES
@@ -115,6 +117,22 @@ export default function Dashboard() {
   const [daftarAudit, setDaftarAudit] = createSignal<AuditLog[]>([]);
   const [auditFilter, setAuditFilter] = createSignal<string>("");
 
+  // Daily revenue (chart)
+  interface DailyRevenue { day: string; revenue: number; count: number }
+  const [dailyRevenue, setDailyRevenue] = createSignal<DailyRevenue[]>([]);
+  const [chartLoading, setChartLoading] = createSignal(true);
+
+  // Theme
+  const [theme, setTheme] = createSignal<"dark" | "light">(
+    (localStorage.getItem("kasir-theme") as "dark" | "light") || "dark"
+  );
+  function toggleTheme() {
+    const next = theme() === "dark" ? "light" : "dark";
+    setTheme(next);
+    localStorage.setItem("kasir-theme", next);
+    document.documentElement.setAttribute("data-theme", next);
+  }
+
   // Modal states
   const [showTokoModal, setShowTokoModal] = createSignal(false);
   const [showProdukModal, setShowProdukModal] = createSignal(false);
@@ -141,7 +159,15 @@ export default function Dashboard() {
   });
 
   // Load WASM in background for transaksi total calculation
-  onMount(() => { loadWasm(); });
+  onMount(() => {
+    loadWasm();
+    // Apply saved theme
+    document.documentElement.setAttribute("data-theme", theme());
+    // Fetch daily revenue for chart
+    api<{ days: number; data: DailyRevenue[] }>("/api/stats/daily-revenue?days=30")
+      .then((d) => { setDailyRevenue(d.data); setChartLoading(false); })
+      .catch(() => setChartLoading(false));
+  });
 
   /* ============================================
      DATA LOADERS
@@ -567,6 +593,16 @@ export default function Dashboard() {
               )}
             </For>
           </nav>
+
+          {/* Theme toggle */}
+          <button onClick={toggleTheme} class="sidebar-link mt-4 w-full">
+            <Show when={theme() === "dark"} fallback={
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" /></svg>
+            }>
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" /></svg>
+            </Show>
+            <span>{theme() === "dark" ? "Light Mode" : "Dark Mode"}</span>
+          </button>
         </div>
 
         {/* User info */}
@@ -600,59 +636,74 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ========== OVERVIEW ========== */}
+        {/* ========== OVERVIEW (Bento Box Layout) ========== */}
         <Show when={tab() === "overview"}>
           <div class="fade-in">
-            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
+            {/* Row 1: Stat cards — 4 small bento boxes */}
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               <For each={[
-                { label: "Toko", value: stats()?.toko, suffix: "terdaftar", color: "indigo", badge: "Aktif" },
-                { label: "Produk", value: stats()?.produk, suffix: "item", color: "emerald", badge: "Total" },
-                { label: "Transaksi Hari Ini", value: stats()?.transaksi_hari_ini, suffix: "transaksi", color: "amber", badge: "Today" },
-                { label: "Pendapatan Hari Ini", value: stats()?.pendapatan_hari_ini, suffix: "rupiah", color: "cyan", badge: null, isRupiah: true },
-                { label: "Total Transaksi", value: stats()?.transaksi, suffix: "semua waktu", color: "rose", badge: null },
-                { label: "Total Pendapatan", value: stats()?.total_pendapatan, suffix: "semua waktu", color: "violet", badge: null, isRupiah: true },
+                { label: "Toko", value: stats()?.toko, icon: "🏪" },
+                { label: "Produk", value: stats()?.produk, icon: "📦" },
+                { label: "Trx Hari Ini", value: stats()?.transaksi_hari_ini, icon: "🧾" },
+                { label: "Pendapatan Hari Ini", value: stats()?.pendapatan_hari_ini, icon: "💰", isRupiah: true },
               ]}>
                 {(card) => (
                   <Show when={stats()} fallback={<SkeletonStatCard />}>
-                    <div class={`glass stat-card ${card.color} p-5`}>
-                      <div class="relative z-10">
-                        <div class="flex items-center justify-between mb-3">
-                          <span class="text-xs font-semibold text-zinc-500 uppercase tracking-wider">{card.label}</span>
-                          <Show when={card.badge} fallback={<span class={`badge badge-${card.color}`}>Total</span>}>
-                            <span class={`badge badge-${card.color}`}>{card.badge}</span>
-                          </Show>
-                        </div>
-                        <Show when={!card.isRupiah} fallback={
-                          <p class="text-3xl font-bold text-white"><span class="text-lg text-zinc-400">Rp</span> <span class="rupiah">{formatRupiah(card.value)}</span></p>
-                        }>
-                          <p class="text-3xl font-bold text-white rupiah">{card.value ?? "—"}</p>
-                        </Show>
-                        <p class="text-xs text-zinc-500 mt-1">{card.suffix}</p>
-                      </div>
+                    <div class="glass rounded-2xl p-4 border border-kasir-border hover:border-kasir-border-strong transition-colors">
+                      <span class="text-2xl">{card.icon}</span>
+                      <p class="text-2xl font-bold text-kasir-fg mt-2">
+                        {card.isRupiah ? formatRupiah(card.value) : (card.value ?? 0).toLocaleString("id-ID")}
+                      </p>
+                      <p class="text-xs text-kasir-muted mt-1">{card.label}</p>
                     </div>
                   </Show>
                 )}
               </For>
             </div>
 
-            {/* Quick Actions */}
-            <div class="glass p-6">
-              <h3 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">Aksi Cepat</h3>
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <For each={[
-                  { label: "Kelola Toko", desc: "Tambah & edit toko", color: "text-indigo-400", tab: "toko" as const, icon: <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /> },
-                  { label: "Kelola Produk", desc: "Tambah & edit produk", color: "text-emerald-400", tab: "produk" as const, icon: <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" /> },
-                  { label: "Riwayat Transaksi", desc: "Lihat semua transaksi", color: "text-amber-400", tab: "transaksi" as const, icon: <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" /> },
-                ]}>
-                  {(action) => (
-                    <button onClick={() => handleTabClick(action.tab)} class="glass p-4 text-left hover:bg-white/[0.04] transition-colors cursor-pointer rounded-xl border border-transparent hover:border-white/[0.08]">
-                      <div class={`${action.color} mb-2`}><svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">{action.icon}</svg></div>
-                      <p class="text-sm font-semibold text-zinc-300">{action.label}</p>
-                      <p class="text-xs text-zinc-500 mt-0.5">{action.desc}</p>
-                    </button>
-                  )}
-                </For>
+            {/* Row 2: Revenue Chart (2/3) + Wallet (1/3) */}
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+              <div class="lg:col-span-2 glass rounded-2xl p-5 border border-kasir-border">
+                <div class="flex items-center justify-between mb-3">
+                  <h3 class="text-sm font-semibold text-kasir-fg">Pendapatan Harian</h3>
+                  <span class="text-xs text-kasir-muted">30 hari terakhir</span>
+                </div>
+                <RevenueChart data={dailyRevenue()} loading={chartLoading()} />
               </div>
+              <div class="glass rounded-2xl p-5 border border-kasir-border">
+                <WalletCard />
+              </div>
+            </div>
+
+            {/* Row 3: Total stats (2 boxes) */}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+              <div class="glass rounded-2xl p-5 border border-kasir-border">
+                <p class="text-kasir-muted text-xs uppercase tracking-wider font-medium mb-1">Total Transaksi</p>
+                <p class="text-xl font-bold text-kasir-fg">{(stats()?.transaksi ?? 0).toLocaleString("id-ID")}</p>
+                <p class="text-xs text-kasir-muted mt-1">semua waktu</p>
+              </div>
+              <div class="glass rounded-2xl p-5 border border-kasir-border">
+                <p class="text-kasir-muted text-xs uppercase tracking-wider font-medium mb-1">Total Pendapatan</p>
+                <p class="text-xl font-bold text-kasir-accent">{formatRupiah(stats()?.total_pendapatan)}</p>
+                <p class="text-xs text-kasir-muted mt-1">semua waktu</p>
+              </div>
+            </div>
+
+            {/* Row 4: Quick actions */}
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <For each={[
+                { label: "Kelola Toko", desc: "Tambah & edit toko", color: "text-indigo-400", tab: "toko" as const, icon: <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /> },
+                { label: "Kelola Produk", desc: "Tambah & edit produk", color: "text-emerald-400", tab: "produk" as const, icon: <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" /> },
+                { label: "Riwayat Transaksi", desc: "Lihat semua transaksi", color: "text-amber-400", tab: "transaksi" as const, icon: <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" /> },
+              ]}>
+                {(action) => (
+                  <button onClick={() => handleTabClick(action.tab)} class="glass p-4 text-left hover:bg-white/[0.04] transition-colors cursor-pointer rounded-xl border border-transparent hover:border-white/[0.08]">
+                    <div class={`${action.color} mb-2`}><svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">{action.icon}</svg></div>
+                    <p class="text-sm font-semibold text-kasir-fg">{action.label}</p>
+                    <p class="text-xs text-kasir-muted mt-0.5">{action.desc}</p>
+                  </button>
+                )}
+              </For>
             </div>
           </div>
         </Show>
