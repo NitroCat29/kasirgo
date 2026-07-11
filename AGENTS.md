@@ -60,8 +60,8 @@ sync     : "Periodik (tag/release) → push ke GitHub mirror + GH Pages"
 ## 2. STATUS SEKARANG
 
 ```
-wip      : "Polish UX/Security/Performance done (Phase 2.x.1)"
-progress : "~60% (Phase 1 + 2 + 2.x + 2.x.1 done)"
+wip      : "Dashboard bento + chart + wallet done (Phase 2.x.2)"
+progress : "~65% (Phase 1 + 2 + 2.x + 2.x.1 + 2.x.2 done)"
 blocker  : "null"
 next     : "Phase 3: Tauri desktop scaffold"
 ```
@@ -148,6 +148,12 @@ next     : "Phase 3: Tauri desktop scaffold"
   - [x] Frontend fetch() updated: API_BASE prefix + credentials: 'include'
   - [ ] Deploy backend ke Railway (manual: sign up → connect repo → set env vars)
   - [ ] Update config.js dengan Railway URL setelah deploy
+- [x] Dashboard UX overhaul (Phase 2.x.2)
+  - [x] Bento box grid layout: 4 stat cards (2x2/4x1), chart 2/3 + wallet 1/3
+  - [x] Revenue chart: uPlot bar chart, GET /api/stats/daily-revenue?days=N
+  - [x] Wallet/billing: wallets + wallet_transactions tables, GET /api/wallet, POST /api/wallet/topup, GET /api/wallet/history
+  - [x] WalletCard component: saldo, top-up modal (Rp 1k–10jt), riwayat tx
+  - [x] Dark/light mode toggle: data-theme attr, localStorage persist, CSS variables
 - [x] Integrasi frontend (HTMX) ke backend API
 - [x] Static file serving dari Bun :3456 + clean URLs (/login → /login.html)
 - [x] Custom 404.html dengan glassmorphism design
@@ -213,6 +219,10 @@ next     : "Phase 3: Tauri desktop scaffold"
 - "Performance low-end PC — GPU accel (translateZ + will-change) untuk animasi, content-visibility untuk off-screen, prefers-reduced-motion/data + pointer:coarse media queries"
 - "Preload chunk — VerifyEmail/ResetPassword di-import idle di Login onMount via requestIdleCallback (instant nav setelah signup/forgot)"
 - "AuthShell shared component — wrapper background+logo+card+footer, eliminate duplikasi 200+ lines di Login/VerifyEmail/ResetPassword"
+- "Chart library: uPlot (native bars, ~35KB, no ECharts/Recharts bloat) — bar chart daily revenue"
+- "Dashboard layout: bento box grid — stat cards 4-col, chart 2/3 + wallet 1/3"
+- "Dark/light mode: data-theme='light'|'dark' on <html>, localStorage 'kasir-theme', CSS variables per theme"
+- "Wallet: wallets + wallet_transactions tables, balance in IDR (integer), topup via POST /api/wallet/topup"
 
 ---
 
@@ -271,7 +281,7 @@ Browser (SolidJS SPA)
 | frontend/src/App.tsx            | done   | Router: /, /login, /dashboard, * (404) |
 | frontend/src/pages/Landing.tsx  | done   | Hero section, CTA buttons, glassmorphism |
 | frontend/src/pages/Login.tsx    | done   | Login/signup form, SHA-256 hash, error handling |
-| frontend/src/pages/Dashboard.tsx | done   | Sidebar, stat cards, CRUD toko/produk/transaksi |
+| frontend/src/pages/Dashboard.tsx | done   | Bento box layout, stat cards, chart+wallet, theme toggle, CRUD toko/produk/transaksi |
 | frontend/src/lib/api.ts         | done   | Fetch wrapper, CSRF token, credentials include |
 | frontend/src/lib/auth.ts        | done   | SolidJS signals: user() (with email+verified), login (identifier), signup (with email + hcaptchaToken), verifyEmailByToken/Code, resendVerification, forgotPassword, verifyResetCodeByToken/Code, resetPassword, logout, fetchMe, getHcaptchaConfig
 | frontend/src/lib/wasm.ts        | done   | loadWasm(), calculateTotal(), jsFallback, wasmReady signal
@@ -283,13 +293,16 @@ Browser (SolidJS SPA)
 | sync-gh.sh                     | done   | Script sync Codeberg → GitHub mirror + GH Pages |
 | shared/types.ts                | done   | Toko, Produk, Transaksi, User, AuditLog, WasmExports interfaces |
 | shared/validation.ts           | done   | 8 validation functions: signup (with email), login (identifier), toko, produk, transaksi + validateEmail (provider whitelist + anti-alias +/.) + isEmailIdentifier
-| shared/db-schema.sql           | done   | 7 CREATE TABLE (toko, produk, transaksi, users + email/verified, sessions, email_verifications, password_history, audit_logs), source of truth for SQLite schema
+| shared/db-schema.sql           | done   | 9 CREATE TABLE (+wallets, wallet_transactions), source of truth untuk SQLite schema
 | shared/wasm-bridge.ts          | done   | loadWasm(), calculateTotal(), computeBenchmark(), jsFallback
 | frontend/index.html            | done   | Vite entry + hCaptcha API script (async defer) in head
-| frontend/src/index.css          | done   | Tailwind v4 + theme tokens + glass utilities + liquid glass (iOS-style) + GPU accel micro-opts + content-visibility + prefers-reduced-motion/data + pointer:coarse + password-strength + field-error + toast + skeleton + empty-state + search + session-timeout + print-friendly
+| frontend/src/index.css          | done   | Tailwind v4 + theme tokens + light mode [data-theme=light] + glass + liquid glass + GPU accel + content-visibility + prefers-reduced-motion + pointer:coarse + password-strength + field-error + toast + skeleton + empty-state + search + session-timeout + print-friendly
+| backend/routes/wallet.ts        | done   | GET /api/wallet (saldo), POST /api/wallet/topup, GET /api/wallet/history |
+| frontend/src/components/RevenueChart.tsx | done | uPlot bar chart, daily revenue, theme-aware colors |
+| frontend/src/components/WalletCard.tsx | done | Saldo display, top-up modal, tx history accordion |
 ```
 
-`active_file: "Plan.md"`
+`active_file: "AGENTS.md"`
 
 ---
 

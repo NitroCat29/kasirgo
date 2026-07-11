@@ -102,11 +102,11 @@ export fn get_memory_size() usize {
 fn alloc_bytes(n: usize) usize {
     // Align to 8 bytes
     const aligned_n = (n + 7) & ~@as(usize, 7);
-    
+
     if (memory_offset + aligned_n > MEMORY_SIZE) {
         return 0; // OOM
     }
-    
+
     const offset = memory_offset;
     memory_offset += aligned_n;
     return offset;
@@ -217,7 +217,7 @@ fn hash_product_id(id: u32) usize {
 fn catalog_insert(product: Product) bool {
     var index = hash_product_id(product.id);
     var probe_count: usize = 0;
-    
+
     // Linear probing
     while (probe_count < CATALOG_SIZE) : (probe_count += 1) {
         if (!catalog_occupied[index]) {
@@ -227,17 +227,17 @@ fn catalog_insert(product: Product) bool {
             catalog_count += 1;
             return true;
         }
-        
+
         if (catalog[index].id == product.id) {
             // Update existing
             catalog[index] = product;
             return true;
         }
-        
+
         // Collision, try next slot
         index = (index + 1) % CATALOG_SIZE;
     }
-    
+
     return false; // Catalog full
 }
 
@@ -246,19 +246,19 @@ fn catalog_insert(product: Product) bool {
 fn catalog_find(id: u32) ?*Product {
     var index = hash_product_id(id);
     var probe_count: usize = 0;
-    
+
     while (probe_count < CATALOG_SIZE) : (probe_count += 1) {
         if (!catalog_occupied[index]) {
             return null; // Not found
         }
-        
+
         if (catalog[index].id == id) {
             return &catalog[index];
         }
-        
+
         index = (index + 1) % CATALOG_SIZE;
     }
-    
+
     return null;
 }
 
@@ -290,34 +290,34 @@ export fn catalog_get_timestamp() u64 {
 /// Returns number of products loaded, 0 on error
 export fn load_products(data_ptr: [*]const u8, data_len: usize) u32 {
     if (data_len < 4) return 0;
-    
+
     const count = read_u32(data_ptr[0..data_len], 0);
     var offset: usize = 4;
     var loaded: u32 = 0;
-    
+
     var i: u32 = 0;
     while (i < count and offset < data_len) : (i += 1) {
         // Need at least: id(4) + price(8) + stock(4) + category(1) + name_len(4) = 21 bytes
         if (offset + 21 > data_len) break;
-        
+
         const id = read_u32(data_ptr[0..data_len], offset);
         const price = read_f64(data_ptr[0..data_len], offset + 4);
         const stock = read_u32(data_ptr[0..data_len], offset + 12);
         const category = read_u8(data_ptr[0..data_len], offset + 16);
         const name_len = read_u32(data_ptr[0..data_len], offset + 17);
-        
+
         offset += 21;
-        
+
         // Validate name_len
         if (offset + name_len > data_len) break;
-        
+
         // Allocate space for name in memory buffer
         const name_offset = alloc_bytes(name_len);
         if (name_offset == 0) break; // OOM
-        
+
         // Copy name to memory buffer
         @memcpy(memory_buffer[name_offset..][0..name_len], data_ptr[offset..][0..name_len]);
-        
+
         const product = Product{
             .id = id,
             .price = price,
@@ -326,13 +326,13 @@ export fn load_products(data_ptr: [*]const u8, data_len: usize) u32 {
             .name_ptr = @intCast(name_offset),
             .name_len = name_len,
         };
-        
+
         if (!catalog_insert(product)) break; // Catalog full
-        
+
         loaded += 1;
         offset += name_len;
     }
-    
+
     return loaded;
 }
 
@@ -341,11 +341,11 @@ export fn load_products(data_ptr: [*]const u8, data_len: usize) u32 {
 /// JS reads 32 bytes from returned offset to deserialize Product
 export fn get_product(id: u32) usize {
     const product = catalog_find(id) orelse return 0;
-    
+
     // Allocate 32 bytes for serialized product
     const offset = alloc_bytes(32);
     if (offset == 0) return 0; // OOM
-    
+
     serialize_product(product, memory_buffer[offset..][0..32]);
     return offset;
 }
@@ -354,7 +354,7 @@ export fn get_product(id: u32) usize {
 /// Returns 1 if success, 0 if product not found or invalid delta
 export fn update_stock(id: u32, delta: i32) u32 {
     const product = catalog_find(id) orelse return 0;
-    
+
     // Check for underflow
     if (delta < 0) {
         const abs_delta = @abs(delta);
@@ -365,7 +365,7 @@ export fn update_stock(id: u32, delta: i32) u32 {
     } else {
         product.stock += @as(u32, @intCast(delta));
     }
-    
+
     return 1;
 }
 
@@ -380,12 +380,12 @@ export fn get_product_stock(id: u32) u32 {
 /// Returns 1 if expired, 0 if still valid
 export fn catalog_is_expired(current_timestamp: u64) u32 {
     if (catalog_timestamp == 0) return 1; // Not initialized
-    
+
     const TTL_MS: u64 = 5 * 60 * 1000; // 5 minutes
     if (current_timestamp > catalog_timestamp + TTL_MS) {
         return 1; // Expired
     }
-    
+
     return 0; // Still valid
 }
 
@@ -395,32 +395,32 @@ export fn catalog_is_expired(current_timestamp: u64) u32 {
 /// Returns offset in memory buffer where result is written
 export fn batch_check_low_stock(data_ptr: [*]const u8, data_len: usize) usize {
     if (data_len < 4) return 0;
-    
+
     const count = read_u32(data_ptr[0..data_len], 0);
     var offset: usize = 4;
-    
+
     // Allocate result buffer: 4 + (count * 4) bytes max
     const max_result_size = 4 + (count * 4);
     const result_offset = alloc_bytes(max_result_size);
     if (result_offset == 0) return 0; // OOM
-    
+
     var low_count: u32 = 0;
     var i: u32 = 0;
-    
+
     while (i < count and offset + 12 <= data_len) : (i += 1) {
         const product_id = read_u32(data_ptr[0..data_len], offset);
         const stock = read_u32(data_ptr[0..data_len], offset + 4);
         const threshold = read_u32(data_ptr[0..data_len], offset + 8);
-        
+
         if (stock <= threshold) {
             // Write product_id to result
             write_u32(memory_buffer[result_offset..], 4 + (low_count * 4), product_id);
             low_count += 1;
         }
-        
+
         offset += 12;
     }
-    
+
     // Write count at beginning
     write_u32(memory_buffer[result_offset..], 0, low_count);
     return result_offset;
@@ -452,12 +452,12 @@ export fn cart_add_item(product_id: u32, quantity: u32) u32 {
     if (!cart_initialized) return 4;
     if (global_cart.item_count >= 64) return 1; // Cart full
     if (quantity > 100) return 5; // Max qty limit
-    
+
     const product = catalog_find(product_id) orelse return 2; // Product not found
-    
+
     // Check stock
     if (product.stock < quantity) return 3; // Insufficient stock
-    
+
     // Check if product already in cart — update quantity instead
     var i: u32 = 0;
     while (i < global_cart.item_count) : (i += 1) {
@@ -469,7 +469,7 @@ export fn cart_add_item(product_id: u32, quantity: u32) u32 {
             return 0;
         }
     }
-    
+
     // Add new item
     global_cart.items[global_cart.item_count] = CartItem{
         .product_id = product_id,
@@ -477,7 +477,7 @@ export fn cart_add_item(product_id: u32, quantity: u32) u32 {
         .price_snapshot = product.price,
     };
     global_cart.item_count += 1;
-    
+
     return 0;
 }
 
@@ -492,13 +492,13 @@ export fn cart_get_item_count() u32 {
 export fn cart_remove_item(index: u32) u32 {
     if (!cart_initialized) return 2;
     if (index >= global_cart.item_count) return 1;
-    
+
     // Shift items down
     var i: u32 = index;
     while (i < global_cart.item_count - 1) : (i += 1) {
         global_cart.items[i] = global_cart.items[i + 1];
     }
-    
+
     global_cart.item_count -= 1;
     return 0;
 }
@@ -510,13 +510,13 @@ export fn cart_update_qty(index: u32, new_qty: u32) u32 {
     if (index >= global_cart.item_count) return 1;
     if (new_qty > 100) return 2; // Max qty limit
     if (new_qty == 0) return cart_remove_item(index); // Remove if qty=0
-    
+
     const item = &global_cart.items[index];
     const product = catalog_find(item.product_id) orelse return 3;
-    
+
     // Check stock for new quantity
     if (product.stock < new_qty) return 3;
-    
+
     item.quantity = new_qty;
     return 0;
 }
@@ -536,22 +536,22 @@ export fn cart_clear() void {
 /// Returns 0 if cart not initialized
 export fn cart_get_items() usize {
     if (!cart_initialized) return 0;
-    
+
     // Calculate size: 4 bytes (count) + 16 bytes per item
     const size = 4 + (global_cart.item_count * 16);
     const offset = alloc_bytes(size);
     if (offset == 0) return 0; // OOM
-    
+
     // Write item count
     write_u32(memory_buffer[offset..], 0, global_cart.item_count);
-    
+
     // Write items
     var i: u32 = 0;
     while (i < global_cart.item_count) : (i += 1) {
         const item_offset = 4 + (i * 16);
-        serialize_cart_item(&global_cart.items[i], memory_buffer[offset + item_offset..][0..16]);
+        serialize_cart_item(&global_cart.items[i], memory_buffer[offset + item_offset ..][0..16]);
     }
-    
+
     return offset;
 }
 
@@ -559,15 +559,15 @@ export fn cart_get_items() usize {
 /// Returns offset to: subtotal(f64) discount(f64) tax(f64) total(f64) = 32 bytes
 export fn cart_get_totals() usize {
     if (!cart_initialized) return 0;
-    
+
     const offset = alloc_bytes(32);
     if (offset == 0) return 0;
-    
+
     write_f64(memory_buffer[offset..], 0, global_cart.subtotal);
     write_f64(memory_buffer[offset..], 8, global_cart.discount_amount);
     write_f64(memory_buffer[offset..], 16, global_cart.tax_amount);
     write_f64(memory_buffer[offset..], 24, global_cart.total);
-    
+
     return offset;
 }
 
@@ -577,19 +577,19 @@ export fn cart_get_totals() usize {
 /// Total size: 5 + (item_count * 3) floats
 export fn get_cart_view() usize {
     if (!cart_initialized) return 0;
-    
+
     const float_count = 5 + (global_cart.item_count * 3);
     const size = float_count * 8; // 8 bytes per f64
     const offset = alloc_bytes(size);
     if (offset == 0) return 0;
-    
+
     // Write header (5 floats)
     write_f64(memory_buffer[offset..], 0, global_cart.subtotal);
     write_f64(memory_buffer[offset..], 8, global_cart.discount_amount);
     write_f64(memory_buffer[offset..], 16, global_cart.tax_amount);
     write_f64(memory_buffer[offset..], 24, global_cart.total);
     write_f64(memory_buffer[offset..], 32, @as(f64, @floatFromInt(global_cart.item_count)));
-    
+
     // Write items (3 floats each)
     var i: u32 = 0;
     while (i < global_cart.item_count) : (i += 1) {
@@ -598,7 +598,7 @@ export fn get_cart_view() usize {
         write_f64(memory_buffer[offset..], item_offset + 8, @as(f64, @floatFromInt(global_cart.items[i].quantity)));
         write_f64(memory_buffer[offset..], item_offset + 16, global_cart.items[i].price_snapshot);
     }
-    
+
     return offset;
 }
 
@@ -625,10 +625,10 @@ export fn get_last_error() u32 {
 /// Get last error message — returns offset to string in memory buffer
 export fn get_last_error_msg() usize {
     if (last_error_len == 0) return 0;
-    
+
     const offset = alloc_bytes(last_error_len);
     if (offset == 0) return 0;
-    
+
     @memcpy(memory_buffer[offset..][0..last_error_len], last_error_msg[0..last_error_len]);
     return offset;
 }
@@ -658,9 +658,9 @@ fn apply_single_discount(cart: *Cart, rule: *const DiscountRule) f64 {
         const item = &cart.items[i];
         subtotal += item.price_snapshot * @as(f64, @floatFromInt(item.quantity));
     }
-    
+
     var discount: f64 = 0.0;
-    
+
     switch (rule.rule_type) {
         .percentage => {
             // Simple percentage discount
@@ -679,23 +679,23 @@ fn apply_single_discount(cart: *Cart, rule: *const DiscountRule) f64 {
             // Buy X get Y free (category-specific or all)
             const buy_qty = @as(u32, @intFromFloat(rule.value1));
             const get_qty = @as(u32, @intFromFloat(rule.value2));
-            
+
             var total_eligible: u32 = 0;
             i = 0;
             while (i < cart.item_count) : (i += 1) {
                 const item = &cart.items[i];
                 const product = catalog_find(item.product_id) orelse continue;
-                
+
                 // Check category filter (255 = all categories)
                 if (rule.product_category != 255 and product.category != rule.product_category) continue;
-                
+
                 total_eligible += item.quantity;
             }
-            
+
             // Calculate free items
             const sets = total_eligible / (buy_qty + get_qty);
             const free_items = sets * get_qty;
-            
+
             // Find cheapest items to discount
             // Simple approach: average price * free_items
             if (total_eligible > 0 and free_items > 0) {
@@ -710,7 +710,7 @@ fn apply_single_discount(cart: *Cart, rule: *const DiscountRule) f64 {
             }
         },
     }
-    
+
     return discount;
 }
 
@@ -720,14 +720,14 @@ fn apply_single_discount(cart: *Cart, rule: *const DiscountRule) f64 {
 export fn apply_discounts(rules_ptr: [*]const u8, rules_len: usize) f64 {
     if (!cart_initialized) return 0.0;
     if (rules_len < 4) return 0.0;
-    
+
     const rule_count = read_u32(rules_ptr[0..rules_len], 0);
     var best_discount: f64 = 0.0;
     var offset: usize = 4;
-    
+
     // Each rule: type(u8) + value1(f64) + value2(f64) + min_items(u32) + category(u8) = 26 bytes
     const RULE_SIZE = 26;
-    
+
     var i: u32 = 0;
     while (i < rule_count and offset + RULE_SIZE <= rules_len) : (i += 1) {
         const rule_type_val = read_u8(rules_ptr[0..rules_len], offset);
@@ -735,7 +735,7 @@ export fn apply_discounts(rules_ptr: [*]const u8, rules_len: usize) f64 {
         const value2 = read_f64(rules_ptr[0..rules_len], offset + 9);
         const min_items = read_u32(rules_ptr[0..rules_len], offset + 17);
         const category = read_u8(rules_ptr[0..rules_len], offset + 21);
-        
+
         const rule = DiscountRule{
             .rule_type = @enumFromInt(rule_type_val),
             .value1 = value1,
@@ -743,15 +743,15 @@ export fn apply_discounts(rules_ptr: [*]const u8, rules_len: usize) f64 {
             .min_items = min_items,
             .product_category = category,
         };
-        
+
         const discount = apply_single_discount(&global_cart, &rule);
         if (discount > best_discount) {
             best_discount = discount;
         }
-        
+
         offset += RULE_SIZE;
     }
-    
+
     global_cart.discount_amount = best_discount;
     return best_discount;
 }
@@ -761,22 +761,22 @@ export fn apply_discounts(rules_ptr: [*]const u8, rules_len: usize) f64 {
 /// If region=255, uses tax_rate parameter
 export fn calculate_tax(subtotal: f64, tax_rate: f64, region_code: u8) f64 {
     var rate: f64 = tax_rate;
-    
+
     // Region-based rates
     switch (region_code) {
         0 => rate = 11.0, // Jakarta
         1 => rate = 10.0, // Jawa
-        2 => rate = 5.0,  // Luar Jawa
+        2 => rate = 5.0, // Luar Jawa
         255 => {}, // Use provided rate
         else => rate = 10.0, // Default
     }
-    
+
     const tax = subtotal * (rate / 100.0);
-    
+
     if (cart_initialized) {
         global_cart.tax_amount = tax;
     }
-    
+
     return tax;
 }
 
@@ -785,15 +785,15 @@ export fn calculate_tax(subtotal: f64, tax_rate: f64, region_code: u8) f64 {
 /// Base: 1 point per Rp 1000
 export fn calculate_loyalty_points(total: f64, tier: u8) u32 {
     const base_points = @as(u32, @intFromFloat(total / 1000.0));
-    
+
     var multiplier: f64 = 1.0;
     switch (tier) {
-        0 => multiplier = 1.0,   // Bronze
-        1 => multiplier = 1.5,   // Silver
-        2 => multiplier = 2.0,   // Gold
+        0 => multiplier = 1.0, // Bronze
+        1 => multiplier = 1.5, // Silver
+        2 => multiplier = 2.0, // Gold
         else => multiplier = 1.0,
     }
-    
+
     return @intFromFloat(@as(f64, @floatFromInt(base_points)) * multiplier);
 }
 
@@ -804,26 +804,26 @@ export fn calculate_loyalty_points(total: f64, tier: u8) u32 {
 /// Result format: count(u32) + [subtotal(f64) discount(f64) tax(f64) total(f64)]*
 export fn batch_calculate(carts_ptr: [*]const u8, carts_len: usize, rules_ptr: [*]const u8, rules_len: usize) usize {
     if (carts_len < 4) return 0;
-    
+
     const cart_count = read_u32(carts_ptr[0..carts_len], 0);
-    
+
     // Allocate result buffer: 4 + (cart_count * 32) bytes
     const result_size = 4 + (cart_count * 32);
     const result_offset = alloc_bytes(result_size);
     if (result_offset == 0) return 0; // OOM
-    
+
     write_u32(memory_buffer[result_offset..], 0, cart_count);
-    
+
     var offset: usize = 4;
     var result_idx: u32 = 0;
-    
+
     while (result_idx < cart_count and offset < carts_len) : (result_idx += 1) {
         // Parse cart
         if (offset + 4 > carts_len) break;
-        
+
         const item_count = read_u32(carts_ptr[0..carts_len], offset);
         offset += 4;
-        
+
         // Create temporary cart
         var temp_cart = Cart{
             .items = undefined,
@@ -833,16 +833,16 @@ export fn batch_calculate(carts_ptr: [*]const u8, carts_len: usize, rules_ptr: [
             .tax_amount = 0.0,
             .total = 0.0,
         };
-        
+
         // Read items
         var i: u32 = 0;
         while (i < item_count and i < 64 and offset + 8 <= carts_len) : (i += 1) {
             const product_id = read_u32(carts_ptr[0..carts_len], offset);
             const qty = read_u32(carts_ptr[0..carts_len], offset + 4);
             offset += 8;
-            
+
             const product = catalog_find(product_id) orelse continue;
-            
+
             temp_cart.items[temp_cart.item_count] = CartItem{
                 .product_id = product_id,
                 .quantity = qty,
@@ -850,33 +850,33 @@ export fn batch_calculate(carts_ptr: [*]const u8, carts_len: usize, rules_ptr: [
             };
             temp_cart.item_count += 1;
         }
-        
+
         // Read tax region
         if (offset >= carts_len) break;
         const tax_region = read_u8(carts_ptr[0..carts_len], offset);
         offset += 1;
-        
+
         // Calculate subtotal
         i = 0;
         while (i < temp_cart.item_count) : (i += 1) {
             const item = &temp_cart.items[i];
             temp_cart.subtotal += item.price_snapshot * @as(f64, @floatFromInt(item.quantity));
         }
-        
+
         // Apply discounts (use global rules)
         const saved_cart = global_cart;
         global_cart = temp_cart;
         _ = apply_discounts(rules_ptr, rules_len);
         temp_cart = global_cart;
         global_cart = saved_cart;
-        
+
         // Calculate tax
         const after_discount = temp_cart.subtotal - temp_cart.discount_amount;
         temp_cart.tax_amount = calculate_tax(after_discount, 0.0, tax_region);
-        
+
         // Calculate total
         temp_cart.total = after_discount + temp_cart.tax_amount;
-        
+
         // Write result
         const res_offset = result_offset + 4 + (result_idx * 32);
         write_f64(memory_buffer[res_offset..], 0, temp_cart.subtotal);
@@ -884,7 +884,7 @@ export fn batch_calculate(carts_ptr: [*]const u8, carts_len: usize, rules_ptr: [
         write_f64(memory_buffer[res_offset..], 16, temp_cart.tax_amount);
         write_f64(memory_buffer[res_offset..], 24, temp_cart.total);
     }
-    
+
     return result_offset;
 }
 
@@ -912,7 +912,7 @@ export fn calculate_total(subtotal: f64, tax_rate: f64, discount_rate: f64) f64 
 export fn compute_benchmark(iterations: u32) f64 {
     var acc: f64 = 0.0;
     var i: u32 = 0;
-    
+
     // Phase 1: Nested loops with math operations
     while (i < iterations) : (i += 1) {
         var j: u32 = 0;
@@ -923,7 +923,7 @@ export fn compute_benchmark(iterations: u32) f64 {
             acc = @mod(acc, 10000.0);
         }
     }
-    
+
     // Phase 2: Struct operations (simulate cart operations)
     var temp_items: [32]CartItem = undefined;
     i = 0;
@@ -934,7 +934,7 @@ export fn compute_benchmark(iterations: u32) f64 {
             .price_snapshot = @as(f64, @floatFromInt(i)) * 1000.0 + 500.0,
         };
     }
-    
+
     // Phase 3: Sorting simulation (bubble sort on price_snapshot)
     var sorted = false;
     while (!sorted) {
@@ -949,13 +949,13 @@ export fn compute_benchmark(iterations: u32) f64 {
             }
         }
     }
-    
+
     // Phase 4: Accumulate sorted prices
     i = 0;
     while (i < 32) : (i += 1) {
         acc += temp_items[i].price_snapshot * @as(f64, @floatFromInt(temp_items[i].quantity));
     }
-    
+
     // Phase 5: Hash lookup simulation (if catalog has items)
     if (catalog_count > 0) {
         i = 0;
@@ -964,7 +964,7 @@ export fn compute_benchmark(iterations: u32) f64 {
             _ = catalog_find(lookup_id);
         }
     }
-    
+
     return acc;
 }
 
@@ -973,40 +973,40 @@ export fn compute_benchmark(iterations: u32) f64 {
 export fn benchmark_cart_operations(iterations: u32) f64 {
     var acc: f64 = 0.0;
     var i: u32 = 0;
-    
+
     while (i < iterations) : (i += 1) {
         // Init cart
         cart_init();
-        
+
         // Add 20 items
         var j: u32 = 0;
         while (j < 20) : (j += 1) {
             const product_id = j % 512;
             _ = cart_add_item(product_id, j % 5 + 1);
         }
-        
+
         // Update 10 items
         j = 0;
         while (j < 10) : (j += 1) {
             _ = cart_update_qty(j, (j % 3) + 2);
         }
-        
+
         // Remove 5 items
         j = 0;
         while (j < 5) : (j += 1) {
             _ = cart_remove_item(0); // Always remove first
         }
-        
+
         // Calculate totals
         var k: u32 = 0;
         var subtotal: f64 = 0.0;
         while (k < global_cart.item_count) : (k += 1) {
             subtotal += global_cart.items[k].price_snapshot * @as(f64, @floatFromInt(global_cart.items[k].quantity));
         }
-        
+
         acc += subtotal;
     }
-    
+
     return acc;
 }
 
@@ -1014,7 +1014,7 @@ export fn benchmark_cart_operations(iterations: u32) f64 {
 export fn benchmark_catalog_query(iterations: u32) u32 {
     var hits: u32 = 0;
     var i: u32 = 0;
-    
+
     while (i < iterations) : (i += 1) {
         var j: u32 = 0;
         while (j < 512) : (j += 1) {
@@ -1022,7 +1022,7 @@ export fn benchmark_catalog_query(iterations: u32) u32 {
             if (product != null) hits += 1;
         }
     }
-    
+
     return hits;
 }
 
