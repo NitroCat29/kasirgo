@@ -1,12 +1,14 @@
 import { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, mkdirSync } from "node:fs";
+import { join, dirname } from "node:path";
 
 // ============================================================
 // SQLite Database Setup
 // ============================================================
-const db = new Database("backend/db/kasirgo.sqlite");
+const dbPath = "backend/db/kasirgo.sqlite";
+mkdirSync(dirname(dbPath), { recursive: true });
+const db = new Database(dbPath);
 db.run("PRAGMA journal_mode = WAL");
 db.run("PRAGMA foreign_keys = ON");
 
