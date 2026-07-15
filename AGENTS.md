@@ -61,7 +61,7 @@ sync     : "Periodik (tag/release) → push ke GitHub mirror + GH Pages"
 
 ```
 wip      : "Dashboard bento + chart + wallet done (Phase 2.x.2)"
-progress : "~65% (Phase 1 + 2 + 2.x + 2.x.1 + 2.x.2 done)"
+progress : "~67% (Phase 1 + 2 + 2.x + 2.x.1 + 2.x.2 done + WASM bugfix)"
 blocker  : "null"
 next     : "Phase 3: Tauri desktop scaffold"
 ```
@@ -223,6 +223,9 @@ next     : "Phase 3: Tauri desktop scaffold"
 - "Dashboard layout: bento box grid — stat cards 4-col, chart 2/3 + wallet 1/3"
 - "Dark/light mode: data-theme='light'|'dark' on <html>, localStorage 'kasir-theme', CSS variables per theme"
 - "Wallet: wallets + wallet_transactions tables, balance in IDR (integer), topup via POST /api/wallet/topup"
+- "WASM input_buffer: separate 64KB input_buffer terpisah dari memory_buffer — mencegah overlap antara data input JS dan output allocation Zig. get_input_ptr() + get_input_size() export."
+- "WASM readFromMemoryBuffer: Zig return offset relatif ke memory_buffer, JS harus tambah get_memory_ptr() untuk absolute address di linear memory."
+- "WASM alloc_bytes: return ?usize (null=OOM), semua call site pakai orelse. Offset 0 valid setelah init_memory()."
 
 ---
 
@@ -266,9 +269,9 @@ Browser (SolidJS SPA)
 | styles/style.css               | done   | Custom CSS (glass, reveal, blob, badge-wasm-*) |
 | kasir.wasm                     | done   | Zig-compiled WASM (647KB) + batch_check_low_stock |
 | zig/                           | done   | Source Zig untuk WASM (main.zig dengan batch_check_low_stock) |
-| assets/kasirku_logo.svg        | done   | Logo favicon 4.5KB, linked di semua HTML |
+| frontend/public/assets/        | done   | Logo favicon (kasirku_logo.svg), single source |
 | build.js                       | done   | Build script: minify JS, copy static, fix paths for GH Pages |
-| package.json                   | done   | Scripts: build (→ dist/), dev (backend) |
+| frontend/package.json           | done   | SolidJS + Vite + Tailwind v4 + @solidjs/router (single package.json) |
 | dist/                          | done   | Production build output, deployed to gh-pages branch |
 | railway.json                   | done   | Railway config: Bun builder, start command, healthcheck |
 | config.js                      | done   | Frontend API config: window.API_BASE (empty = same origin) |
@@ -276,7 +279,6 @@ Browser (SolidJS SPA)
 | Plan.md                        | done   | Arsitektur mode split, framework eval, roadmap 5 fase |
 | CONTRIBUTING.md                 | done   | PR workflow, branch naming, commit convention, agent rule |
 | SECURITY.md                     | done   | Measures, threat model (browser vs desktop), disclosure |
-| frontend/package.json           | done   | SolidJS + Vite + Tailwind v4 + @solidjs/router |
 | frontend/vite.config.ts         | done   | SolidJS plugin, Tailwind plugin, proxy /api → :3456 |
 | frontend/src/App.tsx            | done   | Router: /, /login, /dashboard, * (404) |
 | frontend/src/pages/Landing.tsx  | done   | Hero section, CTA buttons, glassmorphism |
@@ -294,7 +296,7 @@ Browser (SolidJS SPA)
 | shared/types.ts                | done   | Toko, Produk, Transaksi, User, AuditLog, WasmExports interfaces |
 | shared/validation.ts           | done   | 8 validation functions: signup (with email), login (identifier), toko, produk, transaksi + validateEmail (provider whitelist + anti-alias +/.) + isEmailIdentifier
 | shared/db-schema.sql           | done   | 9 CREATE TABLE (+wallets, wallet_transactions), source of truth untuk SQLite schema
-| shared/wasm-bridge.ts          | done   | loadWasm(), calculateTotal(), computeBenchmark(), jsFallback
+| shared/wasm-bridge.ts          | done   | loadWasm(), calculateTotal(), computeBenchmark(), jsFallback, loadProducts(), batchCheckLowStock() — input_buffer based
 | frontend/index.html            | done   | Vite entry + hCaptcha API script (async defer) in head
 | frontend/src/index.css          | done   | Tailwind v4 + theme tokens + light mode [data-theme=light] + glass + liquid glass + GPU accel + content-visibility + prefers-reduced-motion + pointer:coarse + password-strength + field-error + toast + skeleton + empty-state + search + session-timeout + print-friendly
 | backend/routes/wallet.ts        | done   | GET /api/wallet (saldo), POST /api/wallet/topup, GET /api/wallet/history |

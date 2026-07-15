@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
-import { json, parseBody, requireRole, assertCanWrite, logAudit } from "../helpers";
+import { json, parseBody, requireRole, assertCanWrite, logAudit, clientIp, checkWriteRateLimit } from "../helpers";
 
 // ============================================================
 // User Management Routes (admin only)
@@ -55,6 +55,8 @@ export const usersRoutes: Record<string, (req: Request, path: string[]) => Respo
     if (admin instanceof Response) return admin;
     const writeBlocked = assertCanWrite(admin);
     if (writeBlocked) return writeBlocked;
+    const rl = checkWriteRateLimit(clientIp(req));
+    if (!rl.allowed) return json({ error: "Terlalu banyak request, coba lagi nanti" }, 429);
     const { data: body, error } = await parseBody(req);
     if (error) return error;
     const v = validateUserCreate(body);
@@ -86,6 +88,8 @@ export const usersRoutes: Record<string, (req: Request, path: string[]) => Respo
     if (admin instanceof Response) return admin;
     const writeBlocked = assertCanWrite(admin);
     if (writeBlocked) return writeBlocked;
+    const rl = checkWriteRateLimit(clientIp(req));
+    if (!rl.allowed) return json({ error: "Terlalu banyak request, coba lagi nanti" }, 429);
     const id = path[2];
     const existing = db.query("SELECT id, username, nama, role FROM users WHERE id = ?").get(id) as any;
     if (!existing) return json({ error: "User tidak ditemukan" }, 404);
@@ -131,6 +135,8 @@ export const usersRoutes: Record<string, (req: Request, path: string[]) => Respo
     if (admin instanceof Response) return admin;
     const writeBlocked = assertCanWrite(admin);
     if (writeBlocked) return writeBlocked;
+    const rl = checkWriteRateLimit(clientIp(req));
+    if (!rl.allowed) return json({ error: "Terlalu banyak request, coba lagi nanti" }, 429);
     const id = path[2];
 
     // Tidak boleh hapus diri sendiri

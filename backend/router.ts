@@ -69,14 +69,15 @@ export function resolveHandler(req: Request): Handler | null {
   // Simple key (no params)
   const simpleKey = `${method} /${pathSegments[0]}/${pathSegments[1] || ""}`;
 
-  // Param key: /api/toko/:id → "PATCH /api/toko/:id"
-  const paramKey =
-    pathSegments.length >= 3
-      ? `${method} /${pathSegments[0]}/${pathSegments[1]}/:${pathSegments[2]}`
-      : null;
+  // Parametric match: /api/toko/abc-123 → match route key ".../:id"
+  if (pathSegments.length >= 3) {
+    const prefix = `${method} /${pathSegments[0]}/${pathSegments[1]}/`;
+    for (const key of Object.keys(routes)) {
+      if (key.startsWith(prefix) && key.indexOf(":", prefix.length) === prefix.length) {
+        return routes[key];
+      }
+    }
+  }
 
-  return routes[`${method} /${pathSegments.join("/")}`]
-    || routes[simpleKey]
-    || (paramKey ? routes[paramKey] : null)
-    || null;
+  return routes[simpleKey] || null;
 }

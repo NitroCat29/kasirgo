@@ -105,3 +105,92 @@ export function computeBenchmark(iterations: number): { wasm: number | null; js:
     speedup: wasmTime ? jsTime / wasmTime : null,
   };
 }
+
+// ---- Binary helpers (input_buffer) ----
+
+/** Tulis data ke input_buffer, return pointer + length */
+function writeToInputBuffer(bytes: Uint8Array): { ptr: number; len: number } {
+  if (!wasmExports) throw new Error("WASM not loaded");
+  const ptr = wasmExports.get_input_ptr();
+  const maxSize = wasmExports.get_input_size();
+  if (bytes.length > maxSize) throw new Error(`Input too large: ${bytes.length} > ${maxSize}`);
+  new Uint8Array(wasmExports.memory.buffer).set(bytes, ptr);
+  return { ptr, len: bytes.length };
+}
+
+/** Baca data dari memory buffer (untuk output) — Zig return offset relatif ke memory_buffer, tambah get_memory_ptr() */
+function readFromMemoryBuffer(offset: number, length: number): Uint8Array {
+  if (!wasmExports) throw new Error("WASM not loaded");
+  const absOffset = wasmExports.get_memory_ptr() + offset;
+  return new Uint8Array(wasmExports.memory.buffer, absOffset, length);
+}
+
+// ---- High-level WASM functions ----
+
+/**
+ * Load products ke catalog WASM via binary serialization.
+ * Format: count(u32) + [id(u32) price(f64) stock(u32) category(u8) name_len(u32) name_bytes...]
+ * Returns: number of products loaded
+ */
+export function loadProducts(products: { id: number; price: number; stock: number; category: number; name: string }[]): number {
+  if (!wasmReady || !wasmExports?.load_products) return 0;
+
+  const encoder = new TextEncoder();
+  const names = products.map(p => encoder.encode(p.name));
+  const totalSize = 4 + products.reduce((sum, p, i) => sum + 21 + names[i].length, 0);
+  const buf = new Uint8Array(totalSize);
+  const dv = new DataView(buf.buffer);
+
+  dv.setUint32(0, products.length, true);
+  let offset = 4;
+  for (let i = 0; i < products.length; i++) {
+    const p = products[i];
+    dv.setUint32(offset, p.id, true);
+    dv.setFloat64(offset + 4, p.price, true);
+    dv.setUint32(offset + 12, p.stock, true);
+    dv.setUint8(offset + 16, p.category);
+    dv.setUint32(offset + 17, names[i].length, true);
+    buf.set(names[i], offset + 21);
+    offset += 21 + names[i].length;
+  }
+
+  const { ptr, len } = writeToInputBuffer(buf);
+  return wasmExports.load_products(ptr, len);
+}
+
+/**
+ * Batch check low stock via WASM.
+ * Input: { productId, stock, threshold }[]
+ * Returns: product IDs yang stock <= threshold
+ */
+export function batchCheckLowStock(items: { productId: number; stock: number; threshold: number }[]): number[] {
+  if (!wasmReady || !wasmExports?.batch_check_low_stock) return [];
+
+  const buf = new Uint8Array(4 + items.length * 12);
+  const dv = new DataView(buf.buffer);
+
+  dv.setUint32(0, items.length, true);
+  for (let i = 0; i < items.length; i++) {
+    const offset = 4 + i * 12;
+    dv.setUint32(offset, items[i].productId, true);
+    dv.setUint32(offset + 4, items[i].stock, true);
+    dv.setUint32(offset + 8, items[i].threshold, true);
+  }
+
+  const { ptr, len } = writeToInputBuffer(buf);
+  const resultOffset = wasmExports.batch_check_low_stock(ptr, len);
+  if (resultOffset === 0) return [];
+
+  // Read result: count(u32) + [product_id(u32)]*
+  const resultBuf = readFromMemoryBuffer(resultOffset, 4);
+  const count = new DataView(resultBuf.buffer, resultBuf.byteOffset).getUint32(0, true);
+  if (count === 0) return [];
+
+  const ids: number[] = [];
+  const idsBuf = readFromMemoryBuffer(resultOffset + 4, count * 4);
+  const idsDv = new DataView(idsBuf.buffer, idsBuf.byteOffset);
+  for (let i = 0; i < count; i++) {
+    ids.push(idsDv.getUint32(i * 4, true));
+  }
+  return ids;
+}

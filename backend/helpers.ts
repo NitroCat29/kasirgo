@@ -30,6 +30,9 @@ export const config = {
   // Rate limit: verify-code attempts (per IP)
   rateLimitVerifyMax: Number(process.env.RATE_LIMIT_VERIFY_MAX) || 5,
   rateLimitVerifyWindowMs: Number(process.env.RATE_LIMIT_VERIFY_WINDOW_MS) || 60_000,
+  // Rate limit: write endpoints (POST/PATCH/DELETE toko/produk/transaksi/wallet)
+  rateLimitWriteMax: Number(process.env.RATE_LIMIT_WRITE_MAX) || 30,
+  rateLimitWriteWindowMs: Number(process.env.RATE_LIMIT_WRITE_WINDOW_MS) || 10_000,
   // hCaptcha (anti-bot di signup setelah attempt ke-2 dari IP yang sama)
   // Daftar di https://dashboard.hcaptcha.com — dapat site key + secret.
   // Kalau kosong, hCaptcha check di-skip (mode testing).
@@ -66,6 +69,10 @@ export function json(body: unknown, status = 200, req?: Request): Response {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (req) Object.assign(headers, corsHeaders(req));
   return new Response(JSON.stringify(body, null, 2), { status, headers });
+}
+
+export function clientIp(req: Request): string {
+  return req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown";
 }
 
 // ============================================================
@@ -265,6 +272,43 @@ export function cleanupAuthRateLimits() {
   const now = Date.now();
   for (const m of [signupLimitMap, forgotLimitMap, verifyLimitMap]) {
     for (const [k, e] of m) if (now > e.resetAt) m.delete(k);
+  }
+}
+
+// ============================================================
+// Rate Limiter — write endpoints (POST/PATCH/DELETE)
+// ============================================================
+const writeLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+export function checkWriteRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
+  return genericRateLimit(writeLimitMap, ip, config.rateLimitWriteMax, config.rateLimitWriteWindowMs);
+}
+
+export function cleanupWriteRateLimit() {
+  const now = Date.now();
+  for (const [k, e] of writeLimitMap) if (now > e.resetAt) writeLimitMap.delete(k);
+}
+
+// ============================================================
+// Idempotency Key — mencegah duplikasi request (5 detik window)
+// ============================================================
+const idempotencyCache = new Map<string, number>(); // key → timestamp
+const IDEMPOTENCY_WINDOW_MS = 5_000;
+
+export function checkIdempotency(key: string): { allowed: boolean } {
+  const now = Date.now();
+  const existing = idempotencyCache.get(key);
+  if (existing && (now - existing) < IDEMPOTENCY_WINDOW_MS) {
+    return { allowed: false };
+  }
+  idempotencyCache.set(key, now);
+  return { allowed: true };
+}
+
+export function cleanupIdempotencyCache() {
+  const now = Date.now();
+  for (const [k, ts] of idempotencyCache) {
+    if ((now - ts) >= IDEMPOTENCY_WINDOW_MS) idempotencyCache.delete(k);
   }
 }
 

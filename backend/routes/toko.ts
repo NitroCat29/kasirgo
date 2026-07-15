@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
-import { json, parseBody, requireRole, assertCanWrite, logAudit } from "../helpers";
+import { json, parseBody, requireRole, assertCanWrite, logAudit, clientIp, checkWriteRateLimit, checkIdempotency } from "../helpers";
 import { validateTokoCreate, validateTokoUpdate } from "../../shared/validation";
 
 // ============================================================
@@ -27,6 +27,13 @@ export const tokoRoutes: Record<string, (req: Request, path: string[]) => Respon
     if (user instanceof Response) return user;
     const writeBlocked = assertCanWrite(user);
     if (writeBlocked) return writeBlocked;
+    const rl = checkWriteRateLimit(clientIp(req));
+    if (!rl.allowed) return json({ error: "Terlalu banyak request, coba lagi nanti" }, 429);
+    const idemKey = req.headers.get("x-idempotency-key");
+    if (idemKey) {
+      const idem = checkIdempotency(idemKey);
+      if (!idem.allowed) return json({ error: "Request duplikat terdeteksi" }, 409);
+    }
     const { data: body, error } = await parseBody(req);
     if (error) return error;
     const v = validateTokoCreate(body);
@@ -46,6 +53,8 @@ export const tokoRoutes: Record<string, (req: Request, path: string[]) => Respon
     if (user instanceof Response) return user;
     const writeBlocked = assertCanWrite(user);
     if (writeBlocked) return writeBlocked;
+    const rl = checkWriteRateLimit(clientIp(req));
+    if (!rl.allowed) return json({ error: "Terlalu banyak request, coba lagi nanti" }, 429);
     const id = path[2];
     const existing = db.query("SELECT * FROM toko WHERE id = ?").get(id) as any;
     if (!existing) return json({ error: "Toko tidak ditemukan" }, 404);
@@ -67,6 +76,8 @@ export const tokoRoutes: Record<string, (req: Request, path: string[]) => Respon
     if (user instanceof Response) return user;
     const writeBlocked = assertCanWrite(user);
     if (writeBlocked) return writeBlocked;
+    const rl = checkWriteRateLimit(clientIp(req));
+    if (!rl.allowed) return json({ error: "Terlalu banyak request, coba lagi nanti" }, 429);
     const id = path[2];
     const existing = db.query("SELECT nama FROM toko WHERE id = ?").get(id) as any;
     if (!existing) return json({ error: "Toko tidak ditemukan" }, 404);

@@ -27,6 +27,8 @@ Thumbs.db
 zig/*.o
 zig/*.a
 zig/*.wasm
+zig/zig-out/
+zig/.zig-cache/
 
 # Tooling config
 .reasonix/

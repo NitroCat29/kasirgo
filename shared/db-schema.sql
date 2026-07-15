@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS toko (
 CREATE TABLE IF NOT EXISTS produk (
   id TEXT PRIMARY KEY,
   toko_id TEXT NOT NULL,
+  sku TEXT UNIQUE,
   nama TEXT NOT NULL,
   harga INTEGER NOT NULL,
   stok INTEGER NOT NULL DEFAULT 0,
@@ -87,6 +88,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 -- Migration: stock_threshold (idempotent — handled by app layer)
 -- ALTER TABLE produk ADD COLUMN stock_threshold INTEGER NOT NULL DEFAULT 10;
+-- Migration: sku (idempotent — handled by app layer)
+-- ALTER TABLE produk ADD COLUMN sku TEXT UNIQUE;
 
 -- ============================================================
 -- Wallet / Billing / Balance

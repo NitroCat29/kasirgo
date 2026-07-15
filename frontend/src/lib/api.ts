@@ -119,6 +119,11 @@ export async function api<T = any>(
     if (token) headers["x-csrf-token"] = token;
   }
 
+  // Idempotency key untuk POST — mencegah duplikasi kalau user klik ganda
+  if (opts.method && opts.method.toUpperCase() === "POST") {
+    headers["x-idempotency-key"] = crypto.randomUUID();
+  }
+
   const res = await fetch(`${BASE}${path}`, {
     ...opts,
     headers,

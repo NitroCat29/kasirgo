@@ -8,6 +8,7 @@ const Login = lazy(() => import("./pages/Login"));
 const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Kasir = lazy(() => import("./pages/Kasir"));
 
 function NotFound() {
   return (
@@ -67,6 +68,7 @@ export default function App() {
       <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/kasir" component={Kasir} />
       <Route path="*" component={NotFound} />
     </Router>
   );

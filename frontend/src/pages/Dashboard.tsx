@@ -133,6 +133,9 @@ export default function Dashboard() {
     document.documentElement.setAttribute("data-theme", next);
   }
 
+  // Submit debounce — mencegah double-click saat loading
+  const [submitting, setSubmitting] = createSignal(false);
+
   // Modal states
   const [showTokoModal, setShowTokoModal] = createSignal(false);
   const [showProdukModal, setShowProdukModal] = createSignal(false);
@@ -259,6 +262,10 @@ export default function Dashboard() {
     return { "content-type": "application/json", "x-csrf-token": m ? m[1] : "" };
   }
 
+  function writeHeaders(): Record<string, string> {
+    return { ...csrfHeaders(), "x-idempotency-key": crypto.randomUUID() };
+  }
+
   /* ============================================
      CRUD: TOKO
      ============================================ */
@@ -274,12 +281,13 @@ export default function Dashboard() {
       swalWarning("Nama wajib diisi");
       return;
     }
+    setSubmitting(true);
     const method = m.id ? "PATCH" : "POST";
     const url = m.id ? `/api/toko/${m.id}` : "/api/toko";
     try {
       const res = await fetch(url, {
         method,
-        headers: csrfHeaders(),
+        headers: writeHeaders(),
         credentials: "include",
         body: JSON.stringify({ nama: m.nama, alamat: m.alamat, telepon: m.telepon }),
       });
@@ -292,6 +300,8 @@ export default function Dashboard() {
       await Promise.all([loadToko(), loadStats()]);
     } catch (err: any) {
       swalApiError(err);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -324,12 +334,13 @@ export default function Dashboard() {
     const m = modalProduk();
     if (!m.nama || !m.nama.trim()) { swalWarning("Nama wajib diisi"); return; }
     if (!m.toko_id) { swalWarning("Toko wajib dipilih"); return; }
+    setSubmitting(true);
     const method = m.id ? "PATCH" : "POST";
     const url = m.id ? `/api/produk/${m.id}` : "/api/produk";
     try {
       const res = await fetch(url, {
         method,
-        headers: csrfHeaders(),
+        headers: writeHeaders(),
         credentials: "include",
         body: JSON.stringify({ nama: m.nama, harga: Number(m.harga), stok: Number(m.stok), toko_id: m.toko_id }),
       });
@@ -342,6 +353,8 @@ export default function Dashboard() {
       await Promise.all([loadProduk(), loadStats(), loadAlerts()]);
     } catch (err: any) {
       swalApiError(err);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -395,10 +408,11 @@ export default function Dashboard() {
     const f = trxForm();
     if (!f.toko_id) { swalWarning("Pilih toko dulu"); return; }
     if (f.items.length === 0) { swalWarning("Tambahkan minimal 1 item"); return; }
+    setSubmitting(true);
     try {
       const res = await fetch("/api/transaksi", {
         method: "POST",
-        headers: csrfHeaders(),
+        headers: writeHeaders(),
         credentials: "include",
         body: JSON.stringify({ toko_id: f.toko_id, total: trxTotal(), tax_rate: 11, discount_rate: 0, items: f.items }),
       });
@@ -411,6 +425,8 @@ export default function Dashboard() {
       await Promise.all([loadTransaksi(), loadStats()]);
     } catch (err: any) {
       swalApiError(err);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -443,6 +459,7 @@ export default function Dashboard() {
     const m = modalUser();
     if (!m.username || !m.nama) { swalWarning("Username & nama wajib diisi"); return; }
     if (!m.id && !m.password) { swalWarning("Password wajib diisi untuk user baru"); return; }
+    setSubmitting(true);
     const method = m.id ? "PATCH" : "POST";
     const url = m.id ? `/api/users/${m.id}` : "/api/users";
 
@@ -456,7 +473,7 @@ export default function Dashboard() {
     try {
       const res = await fetch(url, {
         method,
-        headers: csrfHeaders(),
+        headers: writeHeaders(),
         credentials: "include",
         body: JSON.stringify({
           username: m.username,
@@ -474,6 +491,8 @@ export default function Dashboard() {
       await loadUsers();
     } catch (err: any) {
       swalApiError(err);
+    } finally {
+      setSubmitting(false);
     }
   }
 

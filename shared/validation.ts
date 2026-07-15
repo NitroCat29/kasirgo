@@ -88,30 +88,43 @@ export function validateTokoUpdate(body: Record<string, unknown>): ValidationRes
 
 // ---- Produk validation ----
 
-export function validateProdukCreate(body: Record<string, unknown>): ValidationResult<{ nama: string; toko_id: string; harga?: number; stok?: number; stock_threshold?: number }> {
+export function validateProdukCreate(body: Record<string, unknown>): ValidationResult<{ nama: string; toko_id: string; sku?: string; harga?: number; stok?: number; stock_threshold?: number }> {
   if (!body.nama || typeof body.nama !== "string" || (body.nama as string).trim().length === 0) return fail("Nama produk wajib diisi");
   if (!body.toko_id || typeof body.toko_id !== "string") return fail("toko_id wajib diisi");
+  if (body.sku !== undefined && (typeof body.sku !== "string" || (body.sku as string).trim().length === 0)) return fail("SKU tidak boleh kosong");
   if (body.harga !== undefined && (typeof body.harga !== "number" || body.harga < 0)) return fail("Harga harus angka >= 0");
   if (body.stok !== undefined && (typeof body.stok !== "number" || body.stok < 0)) return fail("Stok harus angka >= 0");
   if (body.stock_threshold !== undefined && (typeof body.stock_threshold !== "number" || body.stock_threshold < 0)) return fail("stock_threshold harus angka >= 0");
-  return ok({ nama: (body.nama as string).trim(), toko_id: body.toko_id as string, harga: body.harga as number | undefined, stok: body.stok as number | undefined, stock_threshold: body.stock_threshold as number | undefined });
+  return ok({ nama: (body.nama as string).trim(), toko_id: body.toko_id as string, sku: body.sku !== undefined ? (body.sku as string).trim().toUpperCase() : undefined, harga: body.harga as number | undefined, stok: body.stok as number | undefined, stock_threshold: body.stock_threshold as number | undefined });
 }
 
-export function validateProdukUpdate(body: Record<string, unknown>): ValidationResult<{ nama?: string; harga?: number; stok?: number; stock_threshold?: number }> {
+export function validateProdukUpdate(body: Record<string, unknown>): ValidationResult<{ nama?: string; sku?: string; harga?: number; stok?: number; stock_threshold?: number }> {
   if (body.nama !== undefined && (typeof body.nama !== "string" || (body.nama as string).trim().length === 0)) return fail("Nama produk tidak boleh kosong");
+  if (body.sku !== undefined && (typeof body.sku !== "string" || (body.sku as string).trim().length === 0)) return fail("SKU tidak boleh kosong");
   if (body.harga !== undefined && (typeof body.harga !== "number" || body.harga < 0)) return fail("Harga harus angka >= 0");
   if (body.stok !== undefined && (typeof body.stok !== "number" || body.stok < 0)) return fail("Stok harus angka >= 0");
   if (body.stock_threshold !== undefined && (typeof body.stock_threshold !== "number" || body.stock_threshold < 0)) return fail("stock_threshold harus angka >= 0");
-  return ok({ nama: body.nama !== undefined ? (body.nama as string).trim() : undefined, harga: body.harga as number | undefined, stok: body.stok as number | undefined, stock_threshold: body.stock_threshold as number | undefined });
+  return ok({ nama: body.nama !== undefined ? (body.nama as string).trim() : undefined, sku: body.sku !== undefined ? (body.sku as string).trim().toUpperCase() : undefined, harga: body.harga as number | undefined, stok: body.stok as number | undefined, stock_threshold: body.stock_threshold as number | undefined });
 }
 
 // ---- Transaksi validation ----
 
-export function validateTransaksiCreate(body: Record<string, unknown>): ValidationResult<{ toko_id: string; total: number; tax_rate?: number; discount_rate?: number; items: unknown[] }> {
+export function validateTransaksiCreate(body: Record<string, unknown>): ValidationResult<{ toko_id: string; total: number; tax_rate?: number; discount_rate?: number; items: Array<{ nama: string; harga: number; qty: number; diskon?: number }> }> {
   if (!body.toko_id || typeof body.toko_id !== "string") return fail("toko_id wajib diisi");
   if (body.total === undefined || typeof body.total !== "number" || body.total < 0) return fail("total wajib diisi (angka >= 0)");
   if (!body.items || !Array.isArray(body.items)) return fail("items wajib berupa array");
-  return ok({ toko_id: body.toko_id as string, total: body.total as number, tax_rate: body.tax_rate as number | undefined, discount_rate: body.discount_rate as number | undefined, items: body.items as unknown[] });
+  // Validasi struktur per-item
+  const items: Array<{ nama: string; harga: number; qty: number; diskon?: number }> = [];
+  for (const item of body.items as unknown[]) {
+    if (!item || typeof item !== "object") return fail("Setiap item harus berupa object");
+    const i = item as Record<string, unknown>;
+    if (!i.nama || typeof i.nama !== "string") return fail("Item nama wajib diisi");
+    if (i.harga === undefined || typeof i.harga !== "number" || i.harga < 0) return fail("Item harga harus angka >= 0");
+    if (i.qty === undefined || typeof i.qty !== "number" || i.qty < 1) return fail("Item qty harus angka >= 1");
+    if (i.diskon !== undefined && (typeof i.diskon !== "number" || i.diskon < 0 || i.diskon > 100)) return fail("Item diskon harus 0-100");
+    items.push({ nama: i.nama as string, harga: i.harga as number, qty: i.qty as number, diskon: i.diskon as number | undefined });
+  }
+  return ok({ toko_id: body.toko_id as string, total: body.total as number, tax_rate: body.tax_rate as number | undefined, discount_rate: body.discount_rate as number | undefined, items });
 }
 
 export function validateTransaksiUpdate(body: Record<string, unknown>): ValidationResult<{ total?: number; tax_rate?: number; discount_rate?: number; items?: unknown[] }> {

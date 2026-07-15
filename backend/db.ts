@@ -39,6 +39,24 @@ if (!cols.find((c) => c.name === "stock_threshold")) {
   );
 }
 
+// Migration: add sku column if missing
+if (!cols.find((c) => c.name === "sku")) {
+  db.run("ALTER TABLE produk ADD COLUMN sku TEXT");
+}
+
+// Backfill sku for products that don't have one
+const skulessProduk = db.query("SELECT id FROM produk WHERE sku IS NULL").all() as { id: string }[];
+for (const p of skulessProduk) {
+  const sku = `PRD-${randomUUID().slice(0, 8).toUpperCase()}`;
+  db.run("UPDATE produk SET sku = ? WHERE id = ?", [sku, p.id]);
+}
+if (skulessProduk.length > 0) {
+  console.log(`✅ Backfill SKU untuk ${skulessProduk.length} produk`);
+}
+
+// Add unique index on sku if not exists
+db.run("CREATE UNIQUE INDEX IF NOT EXISTS idx_produk_sku ON produk(sku) WHERE sku IS NOT NULL");
+
 // Migration: add email + verified columns to users (idempotent)
 const userCols = db.query("PRAGMA table_info(users)").all() as any[];
 if (!userCols.find((c) => c.name === "email")) {
@@ -59,7 +77,7 @@ if (tokoCount.c === 0) {
     "INSERT INTO toko (id, nama, alamat, telepon) VALUES (?, ?, ?, ?)",
   );
   const insProduk = db.prepare(
-    "INSERT INTO produk (id, toko_id, nama, harga, stok) VALUES (?, ?, ?, ?, ?)",
+    "INSERT INTO produk (id, toko_id, sku, nama, harga, stok) VALUES (?, ?, ?, ?, ?, ?)",
   );
 
   const t1 = randomUUID();
@@ -91,8 +109,10 @@ if (tokoCount.c === 0) {
     [randomUUID(), t2, "Jus Alpukat", 12000, 60],
   ];
 
-  for (const p of produkData) {
-    insProduk.run(p[0], p[1], p[2], p[3], p[4]);
+  for (let i = 0; i < produkData.length; i++) {
+    const p = produkData[i];
+    const sku = `PRD-${randomUUID().slice(0, 8).toUpperCase()}`;
+    insProduk.run(p[0], p[1], sku, p[2], p[3], p[4]);
   }
   console.log("✅ Seed data berhasil diinsert (2 toko, 10 produk)");
 }
