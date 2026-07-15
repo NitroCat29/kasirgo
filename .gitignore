@@ -30,6 +30,13 @@ zig/*.wasm
 zig/zig-out/
 zig/.zig-cache/
 
+# Tauri / Rust build artifacts
+src-tauri/target/
+src-tauri/gen/
+*.rlib
+*.d
+*.pdb
+
 # Tooling config
 .reasonix/
 reasonix.toml
