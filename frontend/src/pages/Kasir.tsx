@@ -108,35 +108,41 @@ function highlightMatch(text: string, query: string): string {
 
 
 
-  // Cart
-  const [cart, setCart] = createSignal<CartItem[]>(() => {
+  // Helpers for initial values (IIFE so signal gets plain value, not () => T)
+  function loadCartInitial(): CartItem[] {
     try {
       const stored = localStorage.getItem("kasir-cart");
       const parsed = stored ? JSON.parse(stored) : [];
       return Array.isArray(parsed) ? parsed : [];
     } catch { return []; }
-  });
-  // Persist cart to localStorage on change
+  }
+  function loadNum(key: string): number {
+    try { return Number(localStorage.getItem(key)) || 0; } catch { return 0; }
+  }
+
+  // Cart
+  const [cart, setCart] = createSignal<CartItem[]>(loadCartInitial());
   createEffect(() => {
     const items = cart();
     localStorage.setItem("kasir-cart", JSON.stringify(items));
-    // Update tab title with cart count
     const totalQty = items.reduce((sum, c) => sum + c.qty, 0);
     document.title = totalQty > 0 ? `(${totalQty}) KasirGo` : "KasirGo";
   });
 
   // Summary
-  const [globalDiskon, setGlobalDiskon] = createSignal(() => {
-    try { return Number(localStorage.getItem("kasir-diskon")) || 0; } catch { return 0; }
-  });
-  createEffect(() => localStorage.setItem("kasir-diskon", String(globalDiskon()))); // 0-100
-  const [pajakRate, setPajakRate] = createSignal(() => {
-    try { return Number(localStorage.getItem("kasir-ppn")) || 0; } catch { return 0; }
-  });
-  createEffect(() => localStorage.setItem("kasir-ppn", String(pajakRate()))); // default 0% — PPN, aktif via checkbox
-  const [ppnEnabled, setPpnEnabled] = createSignal(() => {
-    try { return localStorage.getItem("kasir-ppn-enabled") === "true"; } catch { return false; }
-  });
+  const [globalDiskon, setGlobalDiskon] = createSignal<number>(loadNum("kasir-diskon"));
+  createEffect(() => localStorage.setItem("kasir-diskon", String(globalDiskon())));
+  const [pajakRate, setPajakRate] = createSignal<number>(loadNum("kasir-ppn"));
+  createEffect(() => localStorage.setItem("kasir-ppn", String(pajakRate())));
+  const [ppnEnabled, setPpnEnabled] = createSignal<boolean>(
+    (() => {
+      try {
+        return localStorage.getItem("kasir-ppn-enabled") === "true";
+      } catch {
+        return false;
+      }
+    })()
+  );
   createEffect(() => localStorage.setItem("kasir-ppn-enabled", String(ppnEnabled())));
 
   // Custom dropdown toko state
@@ -480,12 +486,6 @@ function highlightMatch(text: string, query: string): string {
             Logout
           </button>
         </div>
-          {/* Last transaction info */}
-          <Show when={lastTx()}>
-            <span class="text-xs text-kasir-muted hidden sm:inline">
-              Terakhir: {formatRupiah(lastTx()!.total)} ({new Date(lastTx()!.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })})
-            </span>
-          </Show>
       </header>
 
       {/* Main content */}
@@ -572,9 +572,8 @@ function highlightMatch(text: string, query: string): string {
           </div>
 
         </div>
-
         {/* Right: Cart + Summary + Pay — fixed panel */}
-        <div class="w-full md:w-80 border-t md:border-t-0 md:border-l border-kasir-border flex flex-col bg-kasir-surface shrink-0 h-0 md:h-auto">
+        <div class="w-full md:w-80 border-t md:border-t-0 md:border-l border-kasir-border flex flex-col bg-kasir-surface shrink-0 md:h-full md:max-h-full h-[55vh]">
           {/* Cart header */}
           <div class="px-4 py-3 border-b border-kasir-border font-semibold shrink-0">
             🛒 Keranjang ({cart().length} item)
