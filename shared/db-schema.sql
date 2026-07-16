@@ -24,6 +24,11 @@ CREATE TABLE IF NOT EXISTS produk (
   FOREIGN KEY (toko_id) REFERENCES toko(id) ON DELETE CASCADE
 );
 
+-- Index untuk live search produk (nama & sku per toko)
+CREATE INDEX IF NOT EXISTS idx_produk_sku ON produk(sku) WHERE sku IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_produk_nama_toko ON produk(toko_id, nama);
+CREATE INDEX IF NOT EXISTS idx_produk_sku_toko ON produk(toko_id, sku);
+
 CREATE TABLE IF NOT EXISTS transaksi (
   id TEXT PRIMARY KEY,
   toko_id TEXT NOT NULL,

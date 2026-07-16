@@ -57,6 +57,10 @@ if (skulessProduk.length > 0) {
 // Add unique index on sku if not exists
 db.run("CREATE UNIQUE INDEX IF NOT EXISTS idx_produk_sku ON produk(sku) WHERE sku IS NOT NULL");
 
+// Index composite untuk search cepat per toko (live search produk)
+db.run("CREATE INDEX IF NOT EXISTS idx_produk_nama_toko ON produk(toko_id, nama)");
+db.run("CREATE INDEX IF NOT EXISTS idx_produk_sku_toko ON produk(toko_id, sku)");
+
 // Migration: add email + verified columns to users (idempotent)
 const userCols = db.query("PRAGMA table_info(users)").all() as any[];
 if (!userCols.find((c) => c.name === "email")) {

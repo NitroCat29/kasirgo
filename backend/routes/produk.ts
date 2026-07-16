@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { db } from "../db";
 import { json, parseBody, requireRole, assertCanWrite, logAudit, clientIp, checkWriteRateLimit, checkIdempotency } from "../helpers";
 import { validateProdukCreate, validateProdukUpdate } from "../../shared/validation";
+import { searchCacheGet, searchCacheSet, searchCacheInvalidateToko } from "../cache";
 
 // ============================================================
 // Produk Routes
@@ -11,20 +12,33 @@ export const produkRoutes: Record<string, (req: Request, path: string[]) => Resp
     const user = requireRole(req, ["admin", "manajer", "kasir"]);
     if (user instanceof Response) return user;
     const url = new URL(req.url);
-    const tokoId = url.searchParams.get("toko_id");
+    const tokoId = url.searchParams.get("toko_id") || "";
     const search = url.searchParams.get("search");
     let rows;
+    let cacheHit = false;
     if (search) {
+      // Cek cache dulu (per toko + query) — skip cache kalau tokoId kosong
+      if (tokoId) {
+        const cached = searchCacheGet<unknown[]>(tokoId, search);
+        if (cached) {
+          const res = json(cached);
+          res.headers.set("x-cache-hit", "true");
+          return res;
+        }
+      }
       const q = `%${search}%`;
       rows = tokoId
-        ? db.query("SELECT * FROM produk WHERE toko_id = ? AND (nama LIKE ? OR sku LIKE ?) ORDER BY nama LIMIT 20").all(tokoId, q, q)
-        : db.query("SELECT * FROM produk WHERE nama LIKE ? OR sku LIKE ? ORDER BY nama LIMIT 20").all(q, q);
+        ? db.query("SELECT * FROM produk WHERE toko_id = ? AND (nama LIKE ? COLLATE NOCASE OR sku LIKE ? COLLATE NOCASE) ORDER BY nama LIMIT 20").all(tokoId, q, q)
+        : db.query("SELECT * FROM produk WHERE nama LIKE ? COLLATE NOCASE OR sku LIKE ? COLLATE NOCASE ORDER BY nama LIMIT 20").all(q, q);
+      if (tokoId) searchCacheSet(tokoId, search, rows);
     } else {
       rows = tokoId
         ? db.query("SELECT * FROM produk WHERE toko_id = ? ORDER BY created_at DESC").all(tokoId)
         : db.query("SELECT * FROM produk ORDER BY created_at DESC").all();
     }
-    return json(rows);
+    const res = json(rows);
+    if (search) res.headers.set("x-cache-hit", "false");
+    return res;
   },
 
   "GET /api/produk/:id": (req, path) => {
@@ -61,6 +75,7 @@ export const produkRoutes: Record<string, (req: Request, path: string[]) => Resp
       [id, v.data.toko_id, sku, v.data.nama, v.data.harga || 0, v.data.stok || 0, v.data.stock_threshold ?? 10]
     );
     logAudit({ user_id: user.id, username: user.username, action: "CREATE", entity_type: "produk", entity_id: id, details: { nama: v.data.nama, toko_id: v.data.toko_id } });
+    searchCacheInvalidateToko(v.data.toko_id);
     const row = db.query("SELECT * FROM produk WHERE id = ?").get(id);
     return json(row, 201);
   },
@@ -83,6 +98,7 @@ export const produkRoutes: Record<string, (req: Request, path: string[]) => Resp
       v.data.nama ?? e.nama, v.data.sku ?? e.sku, v.data.harga ?? e.harga, v.data.stok ?? e.stok, v.data.stock_threshold ?? e.stock_threshold, id,
     ]);
     logAudit({ user_id: user.id, username: user.username, action: "UPDATE", entity_type: "produk", entity_id: id, details: { nama: v.data.nama || e.nama, stok: v.data.stok ?? e.stok } });
+    searchCacheInvalidateToko(e.toko_id);
     const row = db.query("SELECT * FROM produk WHERE id = ?").get(id);
     return json(row);
   },
@@ -95,10 +111,11 @@ export const produkRoutes: Record<string, (req: Request, path: string[]) => Resp
     const rl = checkWriteRateLimit(clientIp(req));
     if (!rl.allowed) return json({ error: "Terlalu banyak request, coba lagi nanti" }, 429);
     const id = path[2];
-    const existing = db.query("SELECT nama FROM produk WHERE id = ?").get(id) as any;
+    const existing = db.query("SELECT nama, toko_id FROM produk WHERE id = ?").get(id) as any;
     if (!existing) return json({ error: "Produk tidak ditemukan" }, 404);
     const r = db.run("DELETE FROM produk WHERE id = ?", [id]);
     if (r.changes === 0) return json({ error: "Produk tidak ditemukan" }, 404);
+    searchCacheInvalidateToko(existing.toko_id || "");
     logAudit({ user_id: user.id, username: user.username, action: "DELETE", entity_type: "produk", entity_id: id, details: { nama: existing.nama } });
     return json({ ok: true });
   },

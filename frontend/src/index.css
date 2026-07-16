@@ -2352,8 +2352,420 @@ input[type="range"]::-moz-range-thumb {
 }
 
 /* ============================================
-   PRINT-FRIENDLY (bonus)
+   KASIR POS — Input number, PPN checkbox, custom dropdown, blur overlay
    ============================================ */
+/* Hilangkan native spinner dari input number (diskon & PPN) */
+.kasir-input,
+input[type="number"].kasir-input,
+.input-xs[type="number"],
+.input[type="number"] {
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+  appearance: none;
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Outline tipis kontras lembut dari background */
+.kasir-input {
+  border: 1px solid var(--color-kasir-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--color-kasir-fg);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  font-family: var(--font-sans);
+}
+[data-theme="light"] .kasir-input {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: var(--color-kasir-border);
+}
+.kasir-input:focus {
+  border-color: var(--color-kasir-accent);
+  box-shadow: 0 0 0 2px rgba(0, 217, 163, 0.15);
+}
+[data-theme="light"] .kasir-input:focus {
+  border-color: var(--color-kasir-accent); /* amber dark */
+  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.18);
+}
+.kasir-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* PPN checkbox — accent-aware */
+.ppn-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-kasir-accent);
+  cursor: pointer;
+}
+
+/* Custom dropdown (toko selector) — backdrop blur + grain overlay */
+.kasir-dropdown-wrap {
+  position: relative;
+}
+.kasir-dropdown-trigger {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px; font-weight: 600;
+  background: transparent;
+  color: var(--color-kasir-fg);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: background 0.15s, border-color 0.15s;
+  min-width: 160px;
+}
+[data-theme="light"] .kasir-dropdown-trigger {
+  border-color: rgba(0, 0, 0, 0.12);
+}
+.kasir-dropdown-trigger:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+[data-theme="light"] .kasir-dropdown-trigger:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+.kasir-dropdown-trigger .caret {
+  transition: transform 0.2s;
+}
+.kasir-dropdown-trigger.open .caret {
+  transform: rotate(180deg);
+}
+.kasir-dropdown-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 100%;
+  max-height: 240px;
+  overflow-y: auto;
+  border-radius: 10px;
+  border: 1px solid var(--color-kasir-border);
+  background: rgba(15, 20, 36, 0.72);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  z-index: 60;
+  padding: 6px;
+}
+[data-theme="light"] .kasir-dropdown-panel {
+  background: rgba(255, 250, 240, 0.82);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+}
+/* Grain overlay tipis di belakang panel */
+.kasir-dropdown-panel::before {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: 10px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: 0.04;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+.kasir-dropdown-option {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--color-kasir-fg);
+  cursor: pointer;
+  transition: background 0.12s;
+  position: relative;
+  z-index: 1;
+}
+.kasir-dropdown-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+[data-theme="light"] .kasir-dropdown-option:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+.kasir-dropdown-option.selected {
+  background: rgba(0, 217, 163, 0.12);
+  color: var(--color-kasir-accent);
+}
+[data-theme="light"] .kasir-dropdown-option.selected {
+  background: rgba(217, 119, 6, 0.14);
+}
+
+/* Product Catalog Grid */
+.kasir-catalog {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+.kasir-kategori-bar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 4px 0 8px;
+}
+.kasir-kategori-bar button {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--color-kasir-border);
+  background: transparent;
+  color: var(--color-kasir-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.kasir-kategori-bar button:hover {
+  border-color: var(--color-kasir-accent);
+  color: var(--color-kasir-accent);
+}
+.kasir-kategori-bar button.active {
+  background: var(--color-kasir-accent);
+  border-color: var(--color-kasir-accent);
+  color: #fff;
+  font-weight: 600;
+}
+.kasir-catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  padding: 4px 0;
+}
+.kasir-catalog-card {
+  background: rgba(15, 20, 36, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--color-kasir-border);
+  border-radius: 12px;
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+  overflow: hidden;
+}
+.kasir-catalog-card:hover:not(:disabled) {
+  border-color: var(--color-kasir-accent);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 217, 163, 0.15);
+}
+.kasir-catalog-card:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.kasir-catalog-card:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.kasir-catalog-in-cart {
+  border-color: var(--color-kasir-accent);
+  box-shadow: 0 0 0 1px var(--color-kasir-accent);
+}
+.kasir-catalog-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.kasir-catalog-sku {
+  font-size: 11px;
+  color: var(--color-kasir-muted);
+  font-family: monospace;
+}
+.kasir-catalog-stok {
+  font-size: 11px;
+  color: var(--color-kasir-muted);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.kasir-catalog-stok-low {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+}
+.kasir-catalog-stok-warn {
+  font-size: 10px;
+  font-weight: 600;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 4px;
+  text-align: center;
+}
+@keyframes catalog-bounce {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+.kasir-catalog-quickqty {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+.kasir-catalog-quickqty button {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 0;
+  border-radius: 6px;
+  border: 1px solid var(--color-kasir-border);
+  background: rgba(0, 217, 163, 0.08);
+  color: var(--color-kasir-accent);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.kasir-catalog-quickqty button:hover {
+  background: rgba(0, 217, 163, 0.2);
+}
+.kasir-catalog-quickqty button:active {
+  transform: scale(0.95);
+}
+[data-theme="light"] .kasir-catalog-quickqty button {
+  background: rgba(0, 150, 100, 0.08);
+}
+.kasir-catalog-bounce {
+  animation: catalog-bounce 0.3s ease;
+}
+.kasir-highlight {
+  background: rgba(0, 217, 163, 0.25);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+[data-theme="light"] .kasir-highlight {
+  background: rgba(0, 150, 100, 0.2);
+}
+.kasir-catalog-nama {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.kasir-catalog-harga {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-kasir-accent);
+}
+.kasir-catalog-badge {
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-kasir-accent);
+  background: rgba(0, 217, 163, 0.1);
+  padding: 3px 8px;
+  border-radius: 6px;
+  text-align: center;
+}
+[data-theme="light"] .kasir-catalog-card {
+  background: rgba(255, 250, 240, 0.75);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+[data-theme="light"] .kasir-catalog-card:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+}
+@media (max-width: 640px) {
+  .kasir-catalog-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+  }
+  .kasir-catalog-card {
+    padding: 10px;
+  }
+}
+
+/* Tombol Bayar — gradient senada landing + active scale */
+.btn-bayar {
+  background: linear-gradient(135deg, #00d9a3, #6366f1);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  padding: 16px;
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+  width: 100%;
+  transition: transform 0.15s, box-shadow 0.15s, filter 0.15s;
+  font-family: var(--font-sans);
+  box-shadow: 0 8px 24px -6px rgba(0, 217, 163, 0.4);
+}
+[data-theme="light"] .btn-bayar {
+  color: #fff;
+  background: linear-gradient(135deg, #059669, #4f46e5);
+  box-shadow: 0 8px 24px -6px rgba(5, 150, 105, 0.35);
+}
+.btn-bayar:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 32px -6px rgba(0, 217, 163, 0.5);
+  filter: brightness(1.08);
+}
+[data-theme="light"] .btn-bayar:hover {
+  box-shadow: 0 12px 32px -6px rgba(5, 150, 105, 0.45);
+}
+.btn-bayar:active {
+  transform: scale(0.97);
+  box-shadow: 0 4px 12px -4px rgba(0, 217, 163, 0.3);
+}
+[data-theme="light"] .btn-bayar:active {
+  box-shadow: 0 4px 12px -4px rgba(5, 150, 105, 0.25);
+}
+.btn-bayar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  filter: grayscale(0.4);
+}
+
+/* Payment modal — backdrop blur lebih kuat */
+.payment-overlay {
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px) saturate(1.1);
+  -webkit-backdrop-filter: blur(8px) saturate(1.1);
+}
+.payment-modal-box {
+  background: rgba(19, 24, 38, 0.85);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  border: 1px solid var(--color-kasir-border);
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  position: relative;
+}
+[data-theme="light"] .payment-modal-box {
+  background: rgba(255, 250, 240, 0.9);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+}
+.payment-modal-box::before {
+  content: "";
+  position: absolute; inset: 0;
+  border-radius: 18px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+
+/* Avatar Kasir */
+.kasir-avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid rgba(0, 217, 163, 0.4);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 217, 163, 0.2);
+}
+[data-theme="light"] .kasir-avatar {
+  border-color: rgba(217, 119, 6, 0.45);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(217, 119, 6, 0.18);
+}
+
+
 @media print {
   .blob, .aurora, .grid-bg, .noise::before, .pulse-dot,
   .scroll-progress, .toast-container, .session-timeout-modal {

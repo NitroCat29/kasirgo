@@ -1,5 +1,6 @@
 import { createSignal, onMount, onCleanup, Show, For } from "solid-js";
 import { A } from "@solidjs/router";
+import { user, fetchMe, logout } from "../lib/auth";
 import { loadWasm, wasmReady, calculateTotal, computeBenchmark } from "../lib/wasm";
 import { initAllAnimations } from "../lib/animations";
 
@@ -148,6 +149,8 @@ export default function Landing() {
 
   onMount(() => {
     loadWasm();
+    // Sync auth state — navbar menampilkan status login
+    void fetchMe().catch(() => {});
     const observer = setupReveal();
     void initAllAnimations(wasmReady).catch((err) => {
       console.error("[Landing v2] initAllAnimations error:", err);
@@ -249,8 +252,19 @@ export default function Landing() {
           </div>
 
           <div class="hidden md:flex items-center gap-3">
-            <A href="/login" class="text-sm text-slate-300 hover:text-white transition-colors">Masuk</A>
-            <A href="/login" class="text-sm px-4 py-2 rounded-lg bg-kasir-accent text-slate-900 font-semibold hover:bg-emerald-300 transition-all btn-glow">Coba Gratis</A>
+            <Show when={user()} fallback={
+              <>
+                <A href="/login" class="text-sm text-slate-300 hover:text-white transition-colors">Masuk</A>
+                <A href="/login" class="text-sm px-4 py-2 rounded-lg bg-kasir-accent text-slate-900 font-semibold hover:bg-emerald-300 transition-all btn-glow">Coba Gratis</A>
+              </>
+            }>
+              <span class="text-sm text-kasir-muted">{user()?.nama}</span>
+              <Show when={user()?.role === "admin" || user()?.role === "manajer"}>
+                <A href="/dashboard" class="text-sm text-slate-300 hover:text-white transition-colors">Dashboard</A>
+              </Show>
+              <A href="/kasir" class="text-sm text-slate-300 hover:text-white transition-colors">Kasir</A>
+              <button class="text-sm text-slate-300 hover:text-white transition-colors" onClick={() => logout()}>Logout</button>
+            </Show>
           </div>
 
           <button onClick={() => setMobileMenuOpen(!mobileMenuOpen())} class="md:hidden p-2 text-slate-200" aria-label="Menu">
@@ -270,7 +284,18 @@ export default function Landing() {
               <a href="#cara-kerja" onClick={() => setMobileMenuOpen(false)} class="py-2 text-slate-300">Cara Kerja</a>
               <a href="#harga" onClick={() => setMobileMenuOpen(false)} class="py-2 text-slate-300">Harga</a>
               <a href="#faq" onClick={() => setMobileMenuOpen(false)} class="py-2 text-slate-300">FAQ</a>
-              <A href="/login" class="mt-2 py-2 text-center rounded-lg bg-kasir-accent text-slate-900 font-semibold">Coba Gratis</A>
+              <Show when={user()} fallback={
+                <A href="/login" class="mt-2 py-2 text-center rounded-lg bg-kasir-accent text-slate-900 font-semibold">Coba Gratis</A>
+              }>
+                <div class="mt-2 flex flex-col gap-1 pt-2 border-t border-white/5">
+                  <span class="py-2 text-slate-300">{user()?.nama}</span>
+                  <Show when={user()?.role === "admin" || user()?.role === "manajer"}>
+                    <A href="/dashboard" class="py-2 text-slate-300">Dashboard</A>
+                  </Show>
+                  <A href="/kasir" class="py-2 text-slate-300">Kasir</A>
+                  <button class="py-2 text-left text-slate-300" onClick={() => { setMobileMenuOpen(false); logout(); }}>Logout</button>
+                </div>
+              </Show>
             </div>
           </div>
         </Show>

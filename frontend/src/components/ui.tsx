@@ -70,11 +70,12 @@ const EMPTY_ICONS: Record<string, string> = {
   transaksi: '<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
   audit: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
   search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  cart: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',
 };
 
 export function EmptyState(props: {
   type?: keyof typeof EMPTY_ICONS | "search";
-  title: string;
+  title?: string;
   description?: string;
   action?: { label: string; onClick: () => void };
 }) {
@@ -83,7 +84,9 @@ export function EmptyState(props: {
       <div class="empty-state-icon">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" innerHTML={EMPTY_ICONS[props.type ?? "search"] ?? EMPTY_ICONS.search} />
       </div>
-      <div class="empty-state-title">{props.title}</div>
+      <Show when={props.title}>
+        <div class="empty-state-title">{props.title}</div>
+      </Show>
       <Show when={props.description}>
         <div class="empty-state-desc">{props.description}</div>
       </Show>

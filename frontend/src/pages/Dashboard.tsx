@@ -1,7 +1,7 @@
 import { createSignal, createEffect, onMount, Show, For } from "solid-js";
 import { useNavigate, A } from "@solidjs/router";
 import { user, logout, fetchMe } from "../lib/auth";
-import { api } from "../lib/api";
+import { api, csrfHeaders } from "../lib/api";
 import { swalConfirm, swalSuccess, swalApiError, swalToast, swalWarning, swalInfo } from "../lib/swal";
 import { calculateTotal, loadWasm } from "../lib/wasm";
 import { useSessionTimeout } from "../lib/session-timeout";
@@ -257,10 +257,6 @@ export default function Dashboard() {
     return t ? t.nama : id.slice(0, 8) + "...";
   }
 
-  function csrfHeaders(): Record<string, string> {
-    const m = document.cookie.match(/csrf_token=([^;]+)/);
-    return { "content-type": "application/json", "x-csrf-token": m ? m[1] : "" };
-  }
 
   function writeHeaders(): Record<string, string> {
     return { ...csrfHeaders(), "x-idempotency-key": crypto.randomUUID() };

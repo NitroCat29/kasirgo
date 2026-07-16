@@ -60,8 +60,8 @@ sync     : "Periodik (tag/release) → push ke GitHub mirror + GH Pages"
 ## 2. STATUS SEKARANG
 
 ```
-wip      : "Dashboard bento + chart + wallet done (Phase 2.x.2)"
-progress : "~67% (Phase 1 + 2 + 2.x + 2.x.1 + 2.x.2 done + WASM bugfix)"
+wip      : "POS UX polish + bugfix (Group A+B done)"
+progress : "~72% (Phase 1+2+2.x.1+2.x.2 done + Group A backend + Group B UI)"
 blocker  : "null"
 next     : "Phase 3: Tauri desktop scaffold"
 ```
@@ -226,6 +226,11 @@ next     : "Phase 3: Tauri desktop scaffold"
 - "WASM input_buffer: separate 64KB input_buffer terpisah dari memory_buffer — mencegah overlap antara data input JS dan output allocation Zig. get_input_ptr() + get_input_size() export."
 - "WASM readFromMemoryBuffer: Zig return offset relatif ke memory_buffer, JS harus tambah get_memory_ptr() untuk absolute address di linear memory."
 - "WASM alloc_bytes: return ?usize (null=OOM), semua call site pakai orelse. Offset 0 valid setelah init_memory()."
+- "POS search: pure backend SQL (NOT WASM) — index idx_produk_nama_toko (toko_id, nama), avg 0.081ms/query, in-memory cache TTL 10s per toko_id+query, cache-hit header (x-cache-hit)"
+- "URL-synced search: useSearchParams ?q= synced live, auto-search on page load if ?q= present"
+- "DiceBear shapes style: geometric avatar, palette emerald/indigo/amber, deterministic per nama kasir"
+- "Diskon/PPN input: type=text inputmode=numeric (bukan type=number) — hilangkan spinner native"
+- "PPN default 0% disabled, checkbox toggle enable/disable"
 
 ---
 
@@ -255,7 +260,7 @@ Browser (SolidJS SPA)
 | backend/router.ts              | done   | Route registry + handler resolver + auditRoutes + alertsRoutes
 | backend/routes/auth.ts         | done   | Auth handlers: signup, login, logout, me
 | backend/routes/toko.ts         | done   | CRUD handlers toko + RBAC + audit logging
-| backend/routes/produk.ts       | done   | CRUD handlers produk + RBAC + audit logging + stock_threshold
+| backend/routes/produk.ts       | done   | CRUD handlers produk + RBAC + audit logging + stock_threshold + search cache (TTL 10s) + cache-hit header + COLLATE NOCASE
 | backend/routes/transaksi.ts    | done   | CRUD handlers transaksi + RBAC + audit logging
 | backend/routes/audit.ts        | done   | GET /api/audit-logs (admin only)
 | backend/routes/alerts.ts       | done   | GET /api/alerts/low-stock, GET /api/alerts/summary
@@ -284,24 +289,26 @@ Browser (SolidJS SPA)
 | frontend/src/pages/Landing.tsx  | done   | Hero section, CTA buttons, glassmorphism |
 | frontend/src/pages/Login.tsx    | done   | Login/signup form, SHA-256 hash, error handling |
 | frontend/src/pages/Dashboard.tsx | done   | Bento box layout, stat cards, chart+wallet, theme toggle, CRUD toko/produk/transaksi |
-| frontend/src/lib/api.ts         | done   | Fetch wrapper, CSRF token, credentials include |
+| frontend/src/lib/api.ts         | done   | Fetch wrapper, CSRF token, credentials include, csrfHeaders export |
 | frontend/src/lib/auth.ts        | done   | SolidJS signals: user() (with email+verified), login (identifier), signup (with email + hcaptchaToken), verifyEmailByToken/Code, resendVerification, forgotPassword, verifyResetCodeByToken/Code, resetPassword, logout, fetchMe, getHcaptchaConfig
 | frontend/src/lib/wasm.ts        | done   | loadWasm(), calculateTotal(), jsFallback, wasmReady signal
 | frontend/src/lib/toast.ts       | done   | Toast store (success/error/info/warning, auto-dismiss + progress bar) + calcPasswordStrength (4-level weak/fair/good/strong)
 | frontend/src/lib/session-timeout.ts | done | useSessionTimeout hook (idle 25 menit + warning 2 menit countdown + auto-logout + /api/auth/me polling 60s)
 | frontend/src/components/AuthShell.tsx | done | Shared wrapper (background+logo+card+footer, eliminate duplikasi 200+ lines) + useAutoFocus hook + PasswordField (show/hide eye toggle) + ResendCooldown (60s countdown)
-| frontend/src/components/ui.tsx   | done   | ToastContainer + Skeleton/SkeletonStatCard/SkeletonRow + EmptyState (5 type icon) + SearchInput + PasswordStrengthMeter + FieldError + SessionTimeoutModal
+| frontend/src/components/ui.tsx   | done   | ToastContainer + Skeleton/SkeletonStatCard/SkeletonRow + EmptyState (7 type icon: users/toko/produk/transaksi/audit/search/cart) + SearchInput + PasswordStrengthMeter + FieldError + SessionTimeoutModal
 | frontend/src/lib/wasm.ts        | done   | loadWasm(), calculateTotal(), jsFallback, wasmReady signal |
 | sync-gh.sh                     | done   | Script sync Codeberg → GitHub mirror + GH Pages |
 | shared/types.ts                | done   | Toko, Produk, Transaksi, User, AuditLog, WasmExports interfaces |
 | shared/validation.ts           | done   | 8 validation functions: signup (with email), login (identifier), toko, produk, transaksi + validateEmail (provider whitelist + anti-alias +/.) + isEmailIdentifier
-| shared/db-schema.sql           | done   | 9 CREATE TABLE (+wallets, wallet_transactions), source of truth untuk SQLite schema
+| shared/db-schema.sql           | done   | 9 CREATE TABLE (+wallets, wallet_transactions) + 3 index (idx_produk_sku, idx_produk_nama_toko, idx_produk_sku_toko), source of truth untuk SQLite schema
 | shared/wasm-bridge.ts          | done   | loadWasm(), calculateTotal(), computeBenchmark(), jsFallback, loadProducts(), batchCheckLowStock() — input_buffer based
 | frontend/index.html            | done   | Vite entry + hCaptcha API script (async defer) in head
-| frontend/src/index.css          | done   | Tailwind v4 + theme tokens + light mode [data-theme=light] + glass + liquid glass + GPU accel + content-visibility + prefers-reduced-motion + pointer:coarse + password-strength + field-error + toast + skeleton + empty-state + search + session-timeout + print-friendly
+| frontend/src/index.css          | done   | Tailwind v4 + theme tokens + light mode + glass + liquid glass + GPU accel + content-visibility + prefers-reduced-motion + pointer:coarse + password-strength + field-error + toast + skeleton + empty-state + search + session-timeout + print-friendly + kasir-input + ppn-checkbox + kasir-dropdown + btn-bayar + payment-overlay + kasir-avatar
 | backend/routes/wallet.ts        | done   | GET /api/wallet (saldo), POST /api/wallet/topup, GET /api/wallet/history |
 | frontend/src/components/RevenueChart.tsx | done | uPlot bar chart, daily revenue, theme-aware colors |
+| backend/cache.ts               | done   | In-memory search cache (Map, TTL 10s), searchCacheGet/Set/InvalidateToko/Clear |
 | frontend/src/components/WalletCard.tsx | done | Saldo display, top-up modal, tx history accordion |
+| frontend/src/pages/Kasir.tsx   | done   | POS page: live search (debounce 200ms, URL ?q= sync), cart, custom dropdown toko (GSAP), PPN toggle, DiceBear shapes avatar, btn-bayar gradient emerald→indigo, blur+grain overlay + product catalog grid (client-side filter), cart+summary+pay in fixed right panel, keyboard shortcuts (Ctrl+K/Esc/Enter), mobile responsive (stack layout), qty inline edit, toast feedback |
 ```
 
 `active_file: "AGENTS.md"`
@@ -380,3 +387,4 @@ dari model lain tanpa setup ulang context dari nol.
 
 - all
 - save sebagai persistent memory isi chat ini, agar bisa digunakan di sesi baru
+- all

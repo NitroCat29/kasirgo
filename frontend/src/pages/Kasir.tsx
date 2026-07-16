@@ -1,11 +1,15 @@
-import { createSignal, createEffect, onMount, Show, For } from "solid-js";
-import { useNavigate, A } from "@solidjs/router";
+import { createSignal, createEffect, onMount, onCleanup, Show, For } from "solid-js";
+import { toast } from "../lib/toast";
+import { useNavigate, A, useSearchParams } from "@solidjs/router";
 import { user, logout, fetchMe } from "../lib/auth";
 import { api, csrfHeaders } from "../lib/api";
 import { swalConfirm, swalSuccess, swalApiError, swalToast, swalWarning } from "../lib/swal";
 import { calculateTotal } from "../lib/wasm";
 import { useSessionTimeout } from "../lib/session-timeout";
 import { SessionTimeoutModal, EmptyState } from "../components/ui";
+import gsap from "gsap";
+import { createAvatar } from "@dicebear/core";
+import { shapes } from "@dicebear/collection";
 
 /* ============================================
    TYPES
@@ -57,9 +61,7 @@ export default function Kasir() {
   const nav = useNavigate();
 
   // Session timeout
-  const { showTimeout, secondsLeft, extendSession, logoutNow } = useSessionTimeout({
-    idleMs: 25 * 60 * 1000,
-    warningMs: 2 * 60 * 1000,
+  const { showWarning, secondsLeft, extend, logoutNow } = useSessionTimeout({
     onTimeout: () => nav("/login"),
   });
 
@@ -67,18 +69,80 @@ export default function Kasir() {
   const [daftarToko, setDaftarToko] = createSignal<Toko[]>([]);
   const [selectedTokoId, setSelectedTokoId] = createSignal<string>("");
 
-  // Product search
-  const [searchQuery, setSearchQuery] = createSignal("");
-  const [searchResults, setSearchResults] = createSignal<Produk[]>([]);
-  const [showSearchDropdown, setShowSearchDropdown] = createSignal(false);
-  const [searching, setSearching] = createSignal(false);
+  // URL-synced search query
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Product catalog + search filter
+  const [catalogProduk, setCatalogProduk] = createSignal<Produk[]>([]);
+  const [searchQuery, setSearchQuery] = createSignal((searchParams as any).q || "");
+  const [kategoriFilter, setKategoriFilter] = createSignal<string>("");
+
+function highlightMatch(text: string, query: string): string {
+    if (!query.trim()) return text;
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\$&");
+    const regex = new RegExp(`(${escaped})`, "gi");
+    return text.replace(regex, '<mark class="kasir-highlight">$1</mark>');
+  }
+
+  // Extract unique categories from SKU prefix (e.g., "BRG-001" → "BRG")
+  function kategoriList(): string[] {
+    const prefixes = new Set<string>();
+    catalogProduk().forEach((p) => {
+      const prefix = p.sku.split("-")[0] || p.sku.substring(0, 3);
+      prefixes.add(prefix);
+    });
+    return Array.from(prefixes).sort();
+  }
+
+  // Enhanced filter: search query + kategori
+  function filteredCatalog(): Produk[] {
+    const q = searchQuery().toLowerCase().trim();
+    const kat = kategoriFilter();
+    return catalogProduk().filter((p) => {
+      const matchSearch = !q || p.nama.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
+      const matchKat = !kat || p.sku.startsWith(kat);
+      return matchSearch && matchKat;
+    });
+  }
+  const [catalogLoading, setCatalogLoading] = createSignal(false);
+
+
 
   // Cart
-  const [cart, setCart] = createSignal<CartItem[]>([]);
+  const [cart, setCart] = createSignal<CartItem[]>(() => {
+    try {
+      const stored = localStorage.getItem("kasir-cart");
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  });
+  // Persist cart to localStorage on change
+  createEffect(() => {
+    const items = cart();
+    localStorage.setItem("kasir-cart", JSON.stringify(items));
+    // Update tab title with cart count
+    const totalQty = items.reduce((sum, c) => sum + c.qty, 0);
+    document.title = totalQty > 0 ? `(${totalQty}) KasirGo` : "KasirGo";
+  });
 
   // Summary
-  const [globalDiskon, setGlobalDiskon] = createSignal(0); // 0-100
-  const [pajakRate, setPajakRate] = createSignal(11); // default 11%
+  const [globalDiskon, setGlobalDiskon] = createSignal(() => {
+    try { return Number(localStorage.getItem("kasir-diskon")) || 0; } catch { return 0; }
+  });
+  createEffect(() => localStorage.setItem("kasir-diskon", String(globalDiskon()))); // 0-100
+  const [pajakRate, setPajakRate] = createSignal(() => {
+    try { return Number(localStorage.getItem("kasir-ppn")) || 0; } catch { return 0; }
+  });
+  createEffect(() => localStorage.setItem("kasir-ppn", String(pajakRate()))); // default 0% — PPN, aktif via checkbox
+  const [ppnEnabled, setPpnEnabled] = createSignal(() => {
+    try { return localStorage.getItem("kasir-ppn-enabled") === "true"; } catch { return false; }
+  });
+  createEffect(() => localStorage.setItem("kasir-ppn-enabled", String(ppnEnabled())));
+
+  // Custom dropdown toko state
+  const [showTokoDropdown, setShowTokoDropdown] = createSignal(false);
+  let tokoDropdownPanel: HTMLDivElement | undefined;
+  let tokoDropdownTrigger: HTMLButtonElement | undefined;
 
   // Payment modal
   const [showPaymentModal, setShowPaymentModal] = createSignal(false);
@@ -99,8 +163,72 @@ export default function Kasir() {
   }
 
   /* ============================================
+     CUSTOM DROPDOWN TOKO (GSAP animasi)
+     ============================================ */
+  function toggleTokoDropdown() {
+    const open = !showTokoDropdown();
+    setShowTokoDropdown(open);
+    if (tokoDropdownTrigger) tokoDropdownTrigger.classList.toggle("open", open);
+    if (tokoDropdownPanel) {
+      if (open) {
+        gsap.fromTo(tokoDropdownPanel, { opacity: 0, y: -8 }, { opacity: 1, y: 0, duration: 0.2, ease: "power2.out" });
+      } else {
+        gsap.to(tokoDropdownPanel, { opacity: 0, y: -8, duration: 0.15, ease: "power2.in", onComplete: () => setShowTokoDropdown(false) });
+      }
+    }
+  }
+  function selectToko(id: string) {
+    setSelectedTokoId(id);
+    setSearchQuery("");
+    setSearchParams({}); // clear URL param
+    toggleTokoDropdown(); // tutup
+    loadCatalog(id); // reload catalog untuk toko baru
+  }
+
+  /* ============================================
+     AVATAR KASIR (DiceBear shapes, deterministic)
+     ============================================ */
+  function avatarDataUri(nama: string): string {
+    const seed = nama || "Kasir";
+    // Palette theme: emerald accent + indigo + amber + accent2 (orange)
+    const avatar = createAvatar(shapes, {
+      seed,
+      backgroundColor: ["0a0e1a", "131826", "1a2033"],
+      shape1Color: ["00d9a3", "10b981"],
+      shape2Color: ["6366f1", "8b5cf6"],
+      shape3Color: ["ff8a3d", "f59e0b"],
+      backgroundType: ["solid"],
+    });
+    return avatar.toDataUri();
+  }
+
+  /* ============================================
      INIT
      ============================================ */
+  // Keyboard shortcuts
+  function handleKeydown(e: KeyboardEvent) {
+    const search = document.getElementById("product-search");
+    if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+      e.preventDefault();
+      search?.focus();
+      return;
+    }
+    if (e.key === "Escape" && document.activeElement === search) {
+      setSearchQuery("");
+      setSearchParams({});
+      (search as HTMLInputElement).blur();
+      return;
+    }
+    if (e.key === "Enter" && document.activeElement === search) {
+      e.preventDefault();
+      const first = filteredCatalog()[0];
+      if (first && first.stok > 0) addToCart(first);
+      return;
+    }
+  }
+  document.addEventListener("keydown", handleKeydown);
+  onCleanup(() => document.removeEventListener("keydown", handleKeydown));
+
   createEffect(async () => {
     if (!user()) {
       const me = await fetchMe();
@@ -110,6 +238,11 @@ export default function Kasir() {
       }
     }
     await loadToko();
+    // Load full catalog untuk toko terpilih
+    await loadCatalog(selectedTokoId());
+    // Jika ada ?q= di URL, set search query (client-side filter otomatis jalan)
+    const initQ = (searchParams as any).q;
+    if (initQ) setSearchQuery(initQ);
   });
 
   async function loadToko() {
@@ -123,32 +256,26 @@ export default function Kasir() {
   }
 
   /* ============================================
-     PRODUCT SEARCH
+     PRODUCT CATALOG (load all, client-side filter)
      ============================================ */
-  let searchTimeout: ReturnType<typeof setTimeout>;
+  async function loadCatalog(tokoId: string) {
+    if (!tokoId) return;
+    setCatalogLoading(true);
+    try {
+      const data = await api<Produk[]>(`/api/produk?toko_id=${tokoId}`);
+      setCatalogProduk(data);
+    } catch {
+      setCatalogProduk([]);
+    } finally {
+      setCatalogLoading(false);
+    }
+  }
+
   function onSearchInput(e: Event) {
     const val = (e.target as HTMLInputElement).value;
     setSearchQuery(val);
-    clearTimeout(searchTimeout);
-    if (val.trim().length < 2) {
-      setSearchResults([]);
-      setShowSearchDropdown(false);
-      return;
-    }
-    searchTimeout = setTimeout(() => doSearch(val), 300);
-  }
-
-  async function doSearch(q: string) {
-    setSearching(true);
-    try {
-      const data = await api<Produk[]>(`/api/produk?search=${encodeURIComponent(q)}&toko_id=${selectedTokoId()}`);
-      setSearchResults(data);
-      setShowSearchDropdown(data.length > 0);
-    } catch {
-      setSearchResults([]);
-    } finally {
-      setSearching(false);
-    }
+    if (val.trim()) setSearchParams({ q: val.trim() });
+    else setSearchParams({});
   }
 
   function addToCart(p: Produk) {
@@ -162,11 +289,12 @@ export default function Kasir() {
     } else {
       setCart([...cart(), { produk_id: p.id, sku: p.sku, nama: p.nama, harga: p.harga, qty: 1, diskon: 0, stok_tersedia: p.stok }]);
     }
-    setSearchQuery("");
-    setSearchResults([]);
-    setShowSearchDropdown(false);
-    // Focus back to search
-    setTimeout(() => document.getElementById("product-search")?.focus(), 50);
+    toast.success(`${p.nama} ditambahkan ke keranjang`);
+    // Scroll cart to bottom to show new item
+    setTimeout(() => {
+      const cartBody = document.querySelector(".kasir-cart-scroll");
+      if (cartBody) cartBody.scrollTop = cartBody.scrollHeight;
+    }, 50);
   }
 
   function updateQty(idx: number, delta: number) {
@@ -295,7 +423,7 @@ export default function Kasir() {
      RENDER
      ============================================ */
   return (
-    <div class="min-h-screen bg-kasir-bg flex flex-col">
+    <div class="h-screen bg-kasir-bg flex flex-col overflow-hidden">
       {/* Header */}
       <header class="bg-kasir-surface border-b border-kasir-border px-4 py-3 flex items-center justify-between">
         <div class="flex items-center gap-4">
@@ -306,22 +434,42 @@ export default function Kasir() {
           <span class="text-sm text-kasir-muted">| POS</span>
         </div>
         <div class="flex items-center gap-3">
-          {/* Toko selector */}
-          <select
-            class="input-sm w-48"
-            value={selectedTokoId()}
-            onChange={(e) => setSelectedTokoId(e.currentTarget.value)}
-          >
-            <For each={daftarToko()}>
-              {(t) => <option value={t.id}>{t.nama}</option>}
-            </For>
-          </select>
+          {/* Toko selector — custom dropdown */}
+          <div class="kasir-dropdown-wrap">
+            <button
+              ref={tokoDropdownTrigger}
+              class="kasir-dropdown-trigger"
+              onClick={toggleTokoDropdown}
+              onBlur={() => setTimeout(() => { if (showTokoDropdown()) toggleTokoDropdown(); }, 180)}
+            >
+              <span class="truncate">{daftarToko().find((t) => t.id === selectedTokoId())?.nama || "Pilih toko"}</span>
+              <svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <Show when={showTokoDropdown()}>
+              <div ref={tokoDropdownPanel} class="kasir-dropdown-panel">
+                <For each={daftarToko()}>
+                  {(t) => (
+                    <div
+                      class={`kasir-dropdown-option ${t.id === selectedTokoId() ? "selected" : ""}`}
+                      onMouseDown={(e) => { e.preventDefault(); selectToko(t.id); }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>
+                      <span class="truncate">{t.nama}</span>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
+          </div>
           {/* Theme toggle */}
           <button class="btn-sm btn-ghost" onClick={toggleTheme}>
             {theme() === "dark" ? "☀️" : "🌙"}
           </button>
-          {/* User info */}
-          <span class="text-sm text-kasir-muted">{user()?.nama}</span>
+          {/* User info — avatar DiceBear initials */}
+          <div class="flex items-center gap-2">
+            <img class="kasir-avatar" src={avatarDataUri(user()?.nama || "")} alt={user()?.nama || "Kasir"} />
+            <span class="text-sm text-kasir-muted hidden sm:inline">{user()?.nama}</span>
+          </div>
           {/* Nav to dashboard if admin/manajer */}
           <Show when={user()?.role === "admin" || user()?.role === "manajer"}>
             <A href="/dashboard" class="btn-sm btn-ghost">
@@ -332,184 +480,257 @@ export default function Kasir() {
             Logout
           </button>
         </div>
+          {/* Last transaction info */}
+          <Show when={lastTx()}>
+            <span class="text-xs text-kasir-muted hidden sm:inline">
+              Terakhir: {formatRupiah(lastTx()!.total)} ({new Date(lastTx()!.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })})
+            </span>
+          </Show>
       </header>
 
       {/* Main content */}
-      <div class="flex-1 flex">
-        {/* Left: Product search + cart */}
-        <div class="flex-1 flex flex-col p-4 gap-4">
-          {/* Product search */}
-          <div class="relative">
-            <input
-              id="product-search"
-              type="text"
-              class="input w-full"
-              placeholder="Cari produk (nama atau SKU)..."
-              value={searchQuery()}
-              onInput={onSearchInput}
-              onFocus={() => searchResults().length > 0 && setShowSearchDropdown(true)}
-              onBlur={() => setTimeout(() => setShowSearchDropdown(false), 200)}
-              autofocus
-            />
-            <Show when={searching()}>
-              <span class="absolute right-3 top-1/2 -translate-y-1/2 text-kasir-muted">Mencari...</span>
+      <div class="flex-1 flex flex-col md:flex-row">
+        {/* Left: Product search + catalog grid */}
+        <div class="flex-1 flex flex-col p-4 gap-4 overflow-y-auto min-h-0">
+          {/* Search bar */}
+          <input
+            id="product-search"
+            type="text"
+            class="kasir-input w-full"
+            placeholder="Filter produk (nama atau SKU)..."
+            value={searchQuery()}
+            onInput={onSearchInput}
+            autofocus
+          />
+
+          {/* Product catalog grid */}
+          <div class="kasir-catalog">
+            <Show when={catalogLoading()}>
+              <div class="text-center py-8 text-kasir-muted">Memuat produk...</div>
             </Show>
-            {/* Search dropdown */}
-            <Show when={showSearchDropdown()}>
-              <div class="absolute top-full left-0 right-0 mt-1 bg-kasir-surface border border-kasir-border rounded-lg shadow-lg max-h-64 overflow-y-auto z-50">
-                <For each={searchResults()}>
-                  {(p) => (
-                    <button
-                      class="w-full px-4 py-3 text-left hover:bg-kasir-hover flex justify-between items-center border-b border-kasir-border last:border-0"
-                      onClick={() => addToCart(p)}
-                    >
-                      <div>
-                        <div class="font-medium">{p.nama}</div>
-                        <div class="text-xs text-kasir-muted">SKU: {p.sku}</div>
-                      </div>
-                      <div class="text-right">
-                        <div class="text-kasir-accent font-semibold">{formatRupiah(p.harga)}</div>
-                        <div class="text-xs text-kasir-muted">Stok: {p.stok}</div>
-                      </div>
-                    </button>
+            <Show when={!catalogLoading() && filteredCatalog().length === 0}>
+              <EmptyState type="search" title="Tidak Ada Produk" description={searchQuery() ? `Tidak ada produk cocok dengan "${searchQuery()}"` : "Belum ada produk di toko ini."} />
+            </Show>
+            <Show when={kategoriList().length > 1}>
+              <div class="kasir-kategori-bar">
+                <button classList={{ active: kategoriFilter() === "" }} onClick={() => setKategoriFilter("")}>Semua</button>
+                <For each={kategoriList()}>
+                  {(kat) => (
+                    <button classList={{ active: kategoriFilter() === kat }} onClick={() => setKategoriFilter(kat)}>{kat}</button>
                   )}
+                </For>
+              </div>
+            </Show>
+            <Show when={!catalogLoading() && filteredCatalog().length > 0}>
+              <div class="kasir-catalog-grid">
+                <For each={filteredCatalog()}>
+                  {(p) => {
+                    const inCart = () => cart().find((c) => c.produk_id === p.id);
+                    return (
+                      <button
+                        class="kasir-catalog-card"
+                        classList={{ "kasir-catalog-in-cart": !!inCart() }}
+                        onClick={(e) => {
+                          addToCart(p);
+                          const btn = e.currentTarget;
+                          btn.classList.add("kasir-catalog-bounce");
+                          setTimeout(() => btn.classList.remove("kasir-catalog-bounce"), 300);
+                        }}
+                        disabled={p.stok === 0}
+                      >
+                        <div class="kasir-catalog-card-header">
+                          <span class="kasir-catalog-sku" innerHTML={highlightMatch(p.sku, searchQuery())}></span>
+                          <span class="kasir-catalog-stok" classList={{ "kasir-catalog-stok-low": p.stok <= 5 }}>
+                            Stok: {p.stok}
+                          </span>
+                        </div>
+                        <div class="kasir-catalog-nama" innerHTML={highlightMatch(p.nama, searchQuery())}></div>
+                        <div class="kasir-catalog-harga">{formatRupiah(p.harga)}</div>
+                        <Show when={p.stok > 0}>
+                          <div class="kasir-catalog-quickqty" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => addToCart(p)}>+1</button>
+                            <Show when={p.stok >= 5}>
+                              <button onClick={() => { for (let i = 0; i < 5; i++) addToCart(p); }}>+5</button>
+                            </Show>
+                            <Show when={p.stok >= 10}>
+                              <button onClick={() => { for (let i = 0; i < 10; i++) addToCart(p); }}>+10</button>
+                            </Show>
+                          </div>
+                        </Show>
+                        <Show when={p.stok > 0 && p.stok <= 5}>
+                          <div class="kasir-catalog-stok-warn">Stok hampir habis!</div>
+                        </Show>
+                        <Show when={!!inCart()}>
+                          <div class="kasir-catalog-badge">{inCart()!.qty}x di keranjang</div>
+                        </Show>
+                      </button>
+                    );
+                  }}
                 </For>
               </div>
             </Show>
           </div>
 
-          {/* Cart */}
-          <div class="flex-1 bg-kasir-surface rounded-xl border border-kasir-border overflow-hidden flex flex-col">
-            <div class="px-4 py-3 border-b border-kasir-border font-semibold">
-              🛒 Keranjang ({cart().length} item)
-            </div>
-            <div class="flex-1 overflow-y-auto">
-              <Show when={cart().length === 0}>
-                <EmptyState type="cart" description="Keranjang kosong. Cari produk untuk mulai transaksi." />
-              </Show>
-              <Show when={cart().length > 0}>
-                <table class="w-full">
-                  <thead class="bg-kasir-bg sticky top-0">
-                    <tr class="text-left text-sm text-kasir-muted">
-                      <th class="px-4 py-2">Produk</th>
-                      <th class="px-4 py-2 text-right">Harga</th>
-                      <th class="px-4 py-2 text-center">Qty</th>
-                      <th class="px-4 py-2 text-center">Diskon %</th>
-                      <th class="px-4 py-2 text-right">Subtotal</th>
-                      <th class="px-4 py-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <For each={cart()}>
-                      {(item, idx) => (
-                        <tr class="border-t border-kasir-border hover:bg-kasir-hover">
-                          <td class="px-4 py-3">
-                            <div class="font-medium">{item.nama}</div>
-                            <div class="text-xs text-kasir-muted">{item.sku}</div>
-                          </td>
-                          <td class="px-4 py-3 text-right">{formatRupiah(item.harga)}</td>
-                          <td class="px-4 py-3">
-                            <div class="flex items-center justify-center gap-1">
-                              <button class="btn-xs btn-ghost" onClick={() => updateQty(idx(), -1)}>−</button>
-                              <input
-                                type="number"
-                                class="input-xs w-14 text-center"
-                                value={item.qty}
-                                onChange={(e) => {
-                                  const val = Number(e.currentTarget.value);
-                                  if (val >= 1 && val <= item.stok_tersedia) {
-                                    setCart(cart().map((c, i) => (i === idx() ? { ...c, qty: val } : c)));
-                                  }
-                                }}
-                              />
-                              <button class="btn-xs btn-ghost" onClick={() => updateQty(idx(), 1)}>+</button>
-                            </div>
-                          </td>
-                          <td class="px-4 py-3">
-                            <input
-                              type="number"
-                              class="input-xs w-16 text-center"
-                              min="0"
-                              max="100"
-                              value={item.diskon}
-                              onChange={(e) => updateDiskon(idx(), e.currentTarget.value)}
-                            />
-                          </td>
-                          <td class="px-4 py-3 text-right font-semibold">{formatRupiah(itemSubtotal(item))}</td>
-                          <td class="px-4 py-3">
-                            <button class="btn-xs btn-red" onClick={() => removeFromCart(idx())}>✕</button>
-                          </td>
-                        </tr>
-                      )}
-                    </For>
-                  </tbody>
-                </table>
-              </Show>
-            </div>
-          </div>
         </div>
 
-        {/* Right: Summary + Pay button */}
-        <div class="w-80 bg-kasir-surface border-l border-kasir-border p-4 flex flex-col gap-4">
-          <h3 class="font-semibold text-lg">Ringkasan</h3>
-
-          <div class="space-y-2 text-sm">
-            <div class="flex justify-between">
-              <span class="text-kasir-muted">Subtotal</span>
-              <span>{formatRupiah(subtotal())}</span>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-kasir-muted">Diskon</span>
-              <div class="flex items-center gap-2">
-                <input
-                  type="number"
-                  class="input-xs w-16 text-right"
-                  min="0"
-                  max="100"
-                  value={globalDiskon()}
-                  onChange={(e) => setGlobalDiskon(Math.max(0, Math.min(100, Number(e.currentTarget.value) || 0)))}
-                />
-                <span>%</span>
-              </div>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-kasir-muted">PPN</span>
-              <div class="flex items-center gap-2">
-                <input
-                  type="number"
-                  class="input-xs w-16 text-right"
-                  min="0"
-                  max="100"
-                  value={pajakRate()}
-                  onChange={(e) => setPajakRate(Math.max(0, Math.min(100, Number(e.currentTarget.value) || 0)))}
-                />
-                <span>%</span>
-              </div>
-            </div>
-            <div class="border-t border-kasir-border pt-2 mt-2">
-              <div class="flex justify-between text-lg font-bold">
-                <span>TOTAL</span>
-                <span class="text-kasir-accent">{formatRupiah(total())}</span>
-              </div>
-            </div>
+        {/* Right: Cart + Summary + Pay — fixed panel */}
+        <div class="w-full md:w-80 border-t md:border-t-0 md:border-l border-kasir-border flex flex-col bg-kasir-surface shrink-0 h-0 md:h-auto">
+          {/* Cart header */}
+          <div class="px-4 py-3 border-b border-kasir-border font-semibold shrink-0">
+            🛒 Keranjang ({cart().length} item)
           </div>
 
-          <div class="flex-1"></div>
+          {/* Cart items — scrollable */}
+          <div class="flex-1 overflow-y-auto min-h-0 overscroll-contain kasir-cart-scroll">
+            <Show when={cart().length === 0}>
+              <EmptyState type="cart" title="Keranjang Kosong" description="Pilih produk dari katalog untuk mulai transaksi." />
+            </Show>
+            <Show when={cart().length > 0}>
+              <table class="w-full">
+                <thead class="bg-kasir-bg sticky top-0">
+                  <tr class="text-left text-sm text-kasir-muted">
+                    <th class="px-3 py-2">Produk</th>
+                    <th class="px-3 py-2 text-center">Qty</th>
+                    <th class="px-3 py-2 text-right">Subtotal</th>
+                    <th class="px-3 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <For each={cart()}>
+                    {(item, idx) => (
+                      <tr class="border-t border-kasir-border hover:bg-kasir-hover">
+                        <td class="px-3 py-2">
+                          <div class="font-medium text-sm">{item.nama}</div>
+                          <div class="text-xs text-kasir-muted">{formatRupiah(item.harga)}{item.diskon > 0 && ` (-${item.diskon}%)`}</div>
+                        </td>
+                        <td class="px-3 py-2">
+                          <div class="flex items-center justify-center gap-1">
+                            <button class="btn-xs btn-ghost" onClick={() => updateQty(idx(), -1)}>−</button>
+                            <input
+                              type="text"
+                              inputmode="numeric"
+                              class="w-8 text-center text-sm font-medium bg-transparent border-b border-kasir-border focus:border-kasir-accent outline-none"
+                              value={item.qty}
+                              onFocus={(e) => e.currentTarget.select()}
+                              onBlur={(e) => {
+                                const val = parseInt(e.currentTarget.value) || 1;
+                                const clamped = Math.max(1, Math.min(item.stok_tersedia, val));
+                                setCart(cart().map((c, i) => i === idx() ? { ...c, qty: clamped } : c));
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                              }}
+                            />
+                            <button
+                              class="btn-xs btn-ghost"
+                              onClick={() => updateQty(idx(), 1)}
+                              onMouseDown={(e) => {
+                                const interval = setInterval(() => updateQty(idx(), 1), 200);
+                                const up = () => { clearInterval(interval); window.removeEventListener("mouseup", up); };
+                                window.addEventListener("mouseup", up);
+                              }}
+                              onTouchStart={(e) => {
+                                const interval = setInterval(() => updateQty(idx(), 1), 200);
+                                const end = () => { clearInterval(interval); window.removeEventListener("touchend", end); };
+                                window.addEventListener("touchend", end);
+                              }}
+                            >+</button>
+                          </div>
+                        </td>
+                        <td class="px-3 py-2 text-right text-sm font-semibold">{formatRupiah(itemSubtotal(item))}</td>
+                        <td class="px-3 py-2">
+                          <button class="btn-xs btn-red" onClick={() => removeFromCart(idx())}>✕</button>
+                        </td>
+                      </tr>
+                    )}
+                  </For>
+                </tbody>
+              </table>
+            </Show>
+          </div>
 
-          <button class="btn btn-indigo w-full text-lg py-4" onClick={openPaymentModal} disabled={cart().length === 0}>
-            💰 Bayar
-          </button>
+          {/* Summary — fixed bottom */}
+          <div class="border-t border-kasir-border p-4 space-y-2 shrink-0 bg-kasir-surface">
+            <h3 class="font-semibold text-lg">Ringkasan</h3>
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between">
+                <span class="text-kasir-muted">Subtotal</span>
+                <span>{formatRupiah(subtotal())}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-kasir-muted">Diskon</span>
+                <div class="flex items-center gap-2">
+                  <input
+                    type="text"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    class="input-xs w-16 text-right kasir-input"
+                    value={globalDiskon()}
+                    onInput={(e) => {
+                      const raw = e.currentTarget.value.replace(/[^0-9]/g, "");
+                      const clamped = Math.max(0, Math.min(100, Number(raw) || 0));
+                      e.currentTarget.value = String(clamped);
+                      setGlobalDiskon(clamped);
+                    }}
+                  />
+                  <span>%</span>
+                </div>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-kasir-muted">PPN</span>
+                <div class="flex items-center gap-2">
+                  <input
+                    type="text"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    class="input-xs w-16 text-right kasir-input"
+                    value={pajakRate()}
+                    disabled={!ppnEnabled()}
+                    onInput={(e) => {
+                      const raw = e.currentTarget.value.replace(/[^0-9]/g, "");
+                      const clamped = Math.max(0, Math.min(100, Number(raw) || 0));
+                      e.currentTarget.value = String(clamped);
+                      setPajakRate(clamped);
+                    }}
+                  />
+                  <span>%</span>
+                  <label class="flex items-center gap-1 cursor-pointer select-none ml-1">
+                    <input
+                      type="checkbox"
+                      class="ppn-checkbox"
+                      checked={ppnEnabled()}
+                      onChange={(e) => {
+                        const en = e.currentTarget.checked;
+                        setPpnEnabled(en);
+                        if (!en) setPajakRate(0);
+                      }}
+                    />
+                    <span class="text-xs text-kasir-muted">Aktifkan</span>
+                  </label>
+                </div>
+              </div>
+              <div class="border-t border-kasir-border pt-2 mt-2">
+                <div class="flex justify-between text-lg font-bold">
+                  <span>TOTAL</span>
+                  <span class="text-kasir-accent">{formatRupiah(total())}</span>
+                </div>
+              </div>
+            </div>
 
-          <button class="btn btn-ghost w-full" onClick={() => setCart([])} disabled={cart().length === 0}>
-            🗑️ Kosongkan Keranjang
-          </button>
+            <button class="btn-bayar w-full" onClick={openPaymentModal} disabled={cart().length === 0}>
+              💰 Bayar
+            </button>
+            <button class="btn btn-ghost w-full" onClick={() => { if (cart().length === 0) return; if (confirm("Yakin kosongkan keranjang?")) { setCart([]); toast.info("Keranjang dikosongkan"); } }} disabled={cart().length === 0}>
+              🗑️ Kosongkan
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Payment Modal */}
       <Show when={showPaymentModal()}>
-        <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowPaymentModal(false)}>
-          <div class="bg-kasir-surface rounded-xl p-6 w-96 max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
+        <div class="fixed inset-0 payment-overlay flex items-center justify-center z-50" onClick={() => setShowPaymentModal(false)}>
+          <div class="payment-modal-box p-6 w-96 max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
             <h3 class="text-xl font-bold mb-4">Pembayaran</h3>
 
             <div class="mb-4">
@@ -574,7 +795,7 @@ export default function Kasir() {
               <button class="btn btn-ghost flex-1" onClick={() => setShowPaymentModal(false)}>
                 Batal
               </button>
-              <button class="btn btn-indigo flex-1" onClick={processPayment}>
+              <button class="btn-bayar flex-1" onClick={processPayment} style={{ "font-size": "15px", padding: "12px" }}>
                 Proses
               </button>
             </div>
@@ -652,9 +873,9 @@ export default function Kasir() {
 
       {/* Session Timeout Modal */}
       <SessionTimeoutModal
-        show={showTimeout()}
+        show={showWarning()}
         secondsLeft={secondsLeft()}
-        onExtend={extendSession}
+        onExtend={extend}
         onLogout={logoutNow}
       />
     </div>
