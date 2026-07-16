@@ -388,3 +388,4 @@ dari model lain tanpa setup ulang context dari nol.
 - all
 - save sebagai persistent memory isi chat ini, agar bisa digunakan di sesi baru
 - all
+- all
