@@ -2555,7 +2555,8 @@ input[type="number"] {
 .kasir-catalog-card:active:not(:disabled) {
   transform: scale(0.97);
 }
-.kasir-catalog-card:disabled {
+.kasir-catalog-card:disabled,
+.kasir-catalog-card-disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }

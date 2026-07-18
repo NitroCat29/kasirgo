@@ -5,7 +5,7 @@
 // Dipakai frontend saat jalan di Tauri webview (offline mode).
 // Browser mode tetap pakai lib/api.ts (fetch ke Bun backend).
 
-import type { Database } from "@tauri-apps/plugin-sql";
+import type Database from "@tauri-apps/plugin-sql";
 
 /** True kalau jalan di Tauri webview. */
 export const isTauri =
@@ -16,9 +16,10 @@ let db: Database | null = null;
 /** Load SQLite database (singleton). Kalau sudah loaded, return cached. */
 export async function getDb(): Promise<Database> {
   if (db) return db;
-  const Database = (await import("@tauri-apps/plugin-sql")).Database;
-  db = await Database.load("sqlite:kasirgo.db");
-  return db;
+  const mod = await import("@tauri-apps/plugin-sql");
+  const Database = (mod as any).default ?? (mod as any).Database;
+  db = await Database.load("sqlite:kasirgo.db") as Database;
+  return db!;
 }
 
 /** Execute write query (INSERT/UPDATE/DELETE). Return rows affected. */

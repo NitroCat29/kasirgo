@@ -39,6 +39,22 @@ if (!cols.find((c) => c.name === "stock_threshold")) {
   );
 }
 
+// Migration: add harga_modal column if missing
+if (!cols.find((c) => c.name === "harga_modal")) {
+  db.run("ALTER TABLE produk ADD COLUMN harga_modal INTEGER NOT NULL DEFAULT 0");
+}
+
+// Migration: add merk, kategori, satuan columns if missing
+if (!cols.find((c) => c.name === "merk")) {
+  db.run("ALTER TABLE produk ADD COLUMN merk TEXT DEFAULT ''");
+}
+if (!cols.find((c) => c.name === "kategori")) {
+  db.run("ALTER TABLE produk ADD COLUMN kategori TEXT DEFAULT ''");
+}
+if (!cols.find((c) => c.name === "satuan")) {
+  db.run("ALTER TABLE produk ADD COLUMN satuan TEXT DEFAULT ''");
+}
+
 // Migration: add sku column if missing
 if (!cols.find((c) => c.name === "sku")) {
   db.run("ALTER TABLE produk ADD COLUMN sku TEXT");
@@ -71,98 +87,32 @@ if (!userCols.find((c) => c.name === "verified")) {
 }
 
 // ============================================================
-// Seed Mockup Data (jalankan sekali saat DB kosong)
-// ============================================================
-const tokoCount = db.query("SELECT COUNT(*) as c FROM toko").get() as {
-  c: number;
-};
-if (tokoCount.c === 0) {
-  const insToko = db.prepare(
-    "INSERT INTO toko (id, nama, alamat, telepon) VALUES (?, ?, ?, ?)",
-  );
-  const insProduk = db.prepare(
-    "INSERT INTO produk (id, toko_id, sku, nama, harga, stok) VALUES (?, ?, ?, ?, ?, ?)",
-  );
-
-  const t1 = randomUUID();
-  const t2 = randomUUID();
-
-  insToko.run(
-    t1,
-    "Toko Berkah Jaya",
-    "Jl. Melati No. 12, Jakarta Pusat",
-    "0812-3456-7890",
-  );
-  insToko.run(
-    t2,
-    "Warung Selera Nusantara",
-    "Jl. Kenanga No. 45, Bandung",
-    "0877-1122-3344",
-  );
-
-  const produkData: [string, string, string, number, number][] = [
-    [randomUUID(), t1, "Kopi Susu Gula Aren", 18000, 50],
-    [randomUUID(), t1, "Roti Bakar Coklat", 15000, 30],
-    [randomUUID(), t1, "Air Mineral 600ml", 5000, 100],
-    [randomUUID(), t1, "Snack Kentang", 12500, 40],
-    [randomUUID(), t1, "Nasi Goreng Spesial", 25000, 20],
-    [randomUUID(), t2, "Es Teh Manis", 5000, 200],
-    [randomUUID(), t2, "Mie Goreng Telur", 14000, 35],
-    [randomUUID(), t2, "Pisang Goreng (5pcs)", 10000, 25],
-    [randomUUID(), t2, "Soto Ayam", 22000, 15],
-    [randomUUID(), t2, "Jus Alpukat", 12000, 60],
-  ];
-
-  for (let i = 0; i < produkData.length; i++) {
-    const p = produkData[i];
-    const sku = `PRD-${randomUUID().slice(0, 8).toUpperCase()}`;
-    insProduk.run(p[0], p[1], sku, p[2], p[3], p[4]);
-  }
-  console.log("✅ Seed data berhasil diinsert (2 toko, 10 produk)");
-}
-
-// ============================================================
-// Seed Users (idempotent — check by username)
+// Seed Admin (hanya akun Ebril — DB mulai kosong, tanpa mockup toko/produk)
 // ============================================================
 // Login flow: client sends sha256(password) -> backend Bun.password.hash() it.
 // Jadi seed memakai sha256 hex string sebagai input ke Bun.password.hash().
-
-// Hapus admin demo lama (cascade hapus sessions via FK ON DELETE CASCADE)
-db.run("DELETE FROM users WHERE username = 'admin'");
-
-// Mark seed users verified=1 (backwards-compat: login tanpa email verification)
-db.run("UPDATE users SET verified = 1 WHERE username IN ('Ebril', 'demo')");
-
-// Admin real (privileged) — Ebril
-// sha256("zmJW#j.6x507l}ST") = 6c32e5981dd32a7bb76586a5063db7cd69b15e8e1ea50b6c22a64244d07b52e9
+// Password plaintext "apaajaaada" -> sha256 di client, hash lagi di sini.
 const ebrilExists = db
   .query("SELECT id FROM users WHERE username = ?")
   .get("Ebril");
 if (!ebrilExists) {
-  const ebrilHash = await Bun.password.hash(
-    "6c32e5981dd32a7bb76586a5063db7cd69b15e8e1ea50b6c22a64244d07b52e9",
-  );
+  // sha256("apaajaaada")
+  const shaHex = Array.from(
+    new Uint8Array(
+      await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode("apaajaaada"),
+      ),
+    ),
+  )
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  const ebrilHash = await Bun.password.hash(shaHex);
   db.run(
     "INSERT INTO users (id, username, password_hash, nama, role, verified) VALUES (?, ?, ?, ?, ?, 1)",
     [randomUUID(), "Ebril", ebrilHash, "Ebril", "admin"],
   );
-  // console.log('✅ seed user: Ebril (admin)');
-}
-
-// Akun demo — fake-admin (read-only, akses view layaknya admin tapi tidak bisa write)
-// sha256("demo123") = d3ad9315b7be5dd53b31a273b3b3aba5defe700808305aa16a3062b76658a791
-const demoExists = db
-  .query("SELECT id FROM users WHERE username = ?")
-  .get("demo");
-if (!demoExists) {
-  const demoHash = await Bun.password.hash(
-    "d3ad9315b7be5dd53b31a273b3b3aba5defe700808305aa16a3062b76658a791",
-  );
-  db.run(
-    "INSERT INTO users (id, username, password_hash, nama, role, verified) VALUES (?, ?, ?, ?, ?, 1)",
-    [randomUUID(), "demo", demoHash, "Demo Akun (Read-Only)", "fake-admin"],
-  );
-  console.log("✅ Seed user: demo / demo123 (fake-admin, read-only)");
+  console.log("✅ Seed admin: Ebril (admin)");
 }
 
 // ============================================================
@@ -178,32 +128,6 @@ for (const u of allUsers) {
       "INSERT INTO wallet_transactions (id, wallet_id, type, amount, description) VALUES (?, ?, 'topup', ?, ?)",
       randomUUID(), wid, 500_000, "Saldo awal (seed)"
     );
-  }
-}
-
-// ============================================================
-// Seed Transaksi harian (30 hari) — only if transaksi table empty
-// ============================================================
-const trxCountSeed = (db.query("SELECT COUNT(*) as c FROM transaksi").get() as any).c;
-if (trxCountSeed === 0) {
-  const allToko = db.query("SELECT id FROM toko").all() as { id: string }[];
-  if (allToko.length > 0) {
-    const baseToko = allToko[0].id;
-    // Generate 2-6 transaksi per day over past 30 days
-    for (let d = 29; d >= 0; d--) {
-      const trxCount = 2 + Math.floor(Math.random() * 5);
-      for (let t = 0; t < trxCount; t++) {
-        const total = 15000 + Math.floor(Math.random() * 185000); // Rp 15rb — 200rb
-        const hour = 8 + Math.floor(Math.random() * 12);
-        const min = Math.floor(Math.random() * 60);
-        const items = JSON.stringify([{ nama: "Produk Acak", harga: total, qty: 1 }]);
-        db.run(
-          `INSERT INTO transaksi (id, toko_id, total, tax_rate, discount_rate, items_json, created_at) VALUES (?, ?, ?, 11, 0, ?, datetime('now', '-' || ? || ' days', '+' || ? || ' hours', '+' || ? || ' minutes'))`,
-          randomUUID(), baseToko, total, items, d, hour, min
-        );
-      }
-    }
-    console.log("✅ Seed transaksi 30 hari berhasil");
   }
 }
 

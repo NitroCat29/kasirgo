@@ -18,7 +18,7 @@ export default function VerifyEmail() {
   const [codeErr, setCodeErr] = createSignal("");
 
   onMount(async () => {
-    const token = params.token;
+    const token = params.token as string | undefined;
     if (!token) {
       setNeedsManual(true);
       return;

@@ -18,6 +18,9 @@ export interface Produk {
   toko_id: string;
   sku: string;
   nama: string;
+  merk: string;
+  kategori: string;
+  satuan: string;
   harga: number;
   stok: number;
   stock_threshold: number;

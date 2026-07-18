@@ -146,7 +146,6 @@ export default function RevenueChart(props: { data: DailyData[]; loading?: boole
               return d.toLocaleDateString("id-ID", { day: "2-digit", month: "short" });
             }),
           font: "11px 'Space Grotesk', sans-serif",
-          color: textColor,
         },
         {
           stroke: fgColor,
@@ -155,7 +154,6 @@ export default function RevenueChart(props: { data: DailyData[]; loading?: boole
           values: (_u, vals) => vals.map(formatRupiah),
           size: 58,
           font: "11px 'JetBrains Mono', monospace",
-          color: textColor,
         },
       ],
       series: [
@@ -181,7 +179,7 @@ export default function RevenueChart(props: { data: DailyData[]; loading?: boole
                   const dayStr = new Date(xdata[i] * 1000).toISOString().slice(0, 10);
                   const dayData = props.data.find((d) => d.day === dayStr);
                   const exp = dayData ? expenseFor(dayData) : 0;
-                  revPts.push({ x: u.valToPos(xdata[i], "x", true), y: u.valToPos(revData[i], "y", true) });
+                  revPts.push({ x: u.valToPos(xdata[i], "x", true), y: u.valToPos(revData![i] ?? 0, "y", true) });
                   expPts.push({ x: u.valToPos(xdata[i], "x", true), y: u.valToPos(exp, "y", true) });
                 }
 
@@ -258,7 +256,7 @@ export default function RevenueChart(props: { data: DailyData[]; loading?: boole
                 const exp = dayData ? expenseFor(dayData) : 0;
 
                 const cx = u.valToPos(ts, "x", true);
-                const cy = u.valToPos(rev, "y", true);
+                const cy = u.valToPos(rev ?? 0, "y", true);
                 const chartRect = containerRef?.getBoundingClientRect();
                 if (!chartRect) return;
 
@@ -266,7 +264,7 @@ export default function RevenueChart(props: { data: DailyData[]; loading?: boole
                   <div style="font-size:11px;opacity:0.65;margin-bottom:4px;">${formatDateFull(dayStr)}</div>
                   <div style="display:flex;align-items:center;gap:6px;font-weight:700;font-size:13px;color:${GREEN.line};">
                     <span style="width:7px;height:7px;border-radius:50%;background:${GREEN.line};display:inline-block;"></span>
-                    ${formatRupiahFull(rev)}
+                    ${formatRupiahFull(rev ?? 0)}
                   </div>
                   <div style="display:flex;align-items:center;gap:6px;font-weight:600;font-size:12px;color:${RED.line};margin-top:2px;">
                     <span style="width:7px;height:7px;border-radius:50%;background:${RED.line};display:inline-block;"></span>
@@ -306,7 +304,7 @@ export default function RevenueChart(props: { data: DailyData[]; loading?: boole
                 ctx.setLineDash([]);
 
                 const ydata = u.data[1];
-                const cy = u.valToPos(ydata[idx], "y", true);
+                const cy = u.valToPos(ydata?.[idx] ?? 0, "y", true);
                 ctx.beginPath();
                 ctx.arc(cx, cy, 9, 0, Math.PI * 2);
                 ctx.fillStyle = "rgba(16, 224, 160, 0.18)";

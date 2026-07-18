@@ -349,6 +349,31 @@ export function cleanupExpiredSessions() {
 }
 
 // ============================================================
+// Wallet deduction helper (used in inventory purchase / restock)
+// Must be called inside an active SQL transaction.
+// ============================================================
+export function deductWallet(
+  userId: string,
+  amount: number,
+  description: string,
+): { ok: true; walletId: string; newBalance: number } | { ok: false; error: string } {
+  if (amount <= 0) return { ok: true, walletId: "", newBalance: 0 };
+  const wallet = db.query("SELECT id, balance FROM wallets WHERE user_id = ?").get(userId) as any;
+  if (!wallet) return { ok: false, error: "Wallet tidak ditemukan" };
+  if (wallet.balance < amount) return { ok: false, error: "Saldo tidak mencukupi" };
+  const newBalance = wallet.balance - amount;
+  db.run("UPDATE wallets SET balance = ?, updated_at = datetime('now') WHERE id = ?", newBalance, wallet.id);
+  db.run(
+    "INSERT INTO wallet_transactions (id, wallet_id, type, amount, description) VALUES (?, ?, 'purchase', ?, ?)",
+    randomUUID(),
+    wallet.id,
+    amount,
+    description,
+  );
+  return { ok: true, walletId: wallet.id, newBalance };
+}
+
+// ============================================================
 // Audit Logging
 // ============================================================
 export function logAudit(opts: {

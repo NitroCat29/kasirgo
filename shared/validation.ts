@@ -88,23 +88,31 @@ export function validateTokoUpdate(body: Record<string, unknown>): ValidationRes
 
 // ---- Produk validation ----
 
-export function validateProdukCreate(body: Record<string, unknown>): ValidationResult<{ nama: string; toko_id: string; sku?: string; harga?: number; stok?: number; stock_threshold?: number }> {
+export function validateProdukCreate(body: Record<string, unknown>): ValidationResult<{ nama: string; toko_id?: string; sku?: string; harga?: number; harga_modal?: number; stok?: number; stock_threshold?: number; merk?: string; kategori?: string; satuan?: string }> {
   if (!body.nama || typeof body.nama !== "string" || (body.nama as string).trim().length === 0) return fail("Nama produk wajib diisi");
-  if (!body.toko_id || typeof body.toko_id !== "string") return fail("toko_id wajib diisi");
+  if (body.toko_id !== undefined && typeof body.toko_id !== "string") return fail("toko_id harus teks");
   if (body.sku !== undefined && (typeof body.sku !== "string" || (body.sku as string).trim().length === 0)) return fail("SKU tidak boleh kosong");
   if (body.harga !== undefined && (typeof body.harga !== "number" || body.harga < 0)) return fail("Harga harus angka >= 0");
+  if (body.harga_modal !== undefined && (typeof body.harga_modal !== "number" || body.harga_modal < 0)) return fail("Harga modal harus angka >= 0");
   if (body.stok !== undefined && (typeof body.stok !== "number" || body.stok < 0)) return fail("Stok harus angka >= 0");
   if (body.stock_threshold !== undefined && (typeof body.stock_threshold !== "number" || body.stock_threshold < 0)) return fail("stock_threshold harus angka >= 0");
-  return ok({ nama: (body.nama as string).trim(), toko_id: body.toko_id as string, sku: body.sku !== undefined ? (body.sku as string).trim().toUpperCase() : undefined, harga: body.harga as number | undefined, stok: body.stok as number | undefined, stock_threshold: body.stock_threshold as number | undefined });
+  if (body.merk !== undefined && typeof body.merk !== "string") return fail("Merk harus teks");
+  if (body.kategori !== undefined && typeof body.kategori !== "string") return fail("Kategori harus teks");
+  if (body.satuan !== undefined && typeof body.satuan !== "string") return fail("Satuan harus teks");
+  return ok({ nama: (body.nama as string).trim(), toko_id: body.toko_id !== undefined ? (body.toko_id as string).trim() || "" : "", sku: body.sku !== undefined ? (body.sku as string).trim().toUpperCase() : undefined, harga: body.harga as number | undefined, harga_modal: body.harga_modal as number | undefined, stok: body.stok as number | undefined, stock_threshold: body.stock_threshold as number | undefined, merk: body.merk !== undefined ? (body.merk as string).trim() : undefined, kategori: body.kategori !== undefined ? (body.kategori as string).trim() : undefined, satuan: body.satuan !== undefined ? (body.satuan as string).trim() : undefined });
 }
 
-export function validateProdukUpdate(body: Record<string, unknown>): ValidationResult<{ nama?: string; sku?: string; harga?: number; stok?: number; stock_threshold?: number }> {
+export function validateProdukUpdate(body: Record<string, unknown>): ValidationResult<{ nama?: string; sku?: string; harga?: number; harga_modal?: number; stok?: number; stock_threshold?: number; merk?: string; kategori?: string; satuan?: string }> {
   if (body.nama !== undefined && (typeof body.nama !== "string" || (body.nama as string).trim().length === 0)) return fail("Nama produk tidak boleh kosong");
   if (body.sku !== undefined && (typeof body.sku !== "string" || (body.sku as string).trim().length === 0)) return fail("SKU tidak boleh kosong");
   if (body.harga !== undefined && (typeof body.harga !== "number" || body.harga < 0)) return fail("Harga harus angka >= 0");
+  if (body.harga_modal !== undefined && (typeof body.harga_modal !== "number" || body.harga_modal < 0)) return fail("Harga modal harus angka >= 0");
   if (body.stok !== undefined && (typeof body.stok !== "number" || body.stok < 0)) return fail("Stok harus angka >= 0");
   if (body.stock_threshold !== undefined && (typeof body.stock_threshold !== "number" || body.stock_threshold < 0)) return fail("stock_threshold harus angka >= 0");
-  return ok({ nama: body.nama !== undefined ? (body.nama as string).trim() : undefined, sku: body.sku !== undefined ? (body.sku as string).trim().toUpperCase() : undefined, harga: body.harga as number | undefined, stok: body.stok as number | undefined, stock_threshold: body.stock_threshold as number | undefined });
+  if (body.merk !== undefined && typeof body.merk !== "string") return fail("Merk harus teks");
+  if (body.kategori !== undefined && typeof body.kategori !== "string") return fail("Kategori harus teks");
+  if (body.satuan !== undefined && typeof body.satuan !== "string") return fail("Satuan harus teks");
+  return ok({ nama: body.nama !== undefined ? (body.nama as string).trim() : undefined, sku: body.sku !== undefined ? (body.sku as string).trim().toUpperCase() : undefined, harga: body.harga as number | undefined, harga_modal: body.harga_modal as number | undefined, stok: body.stok as number | undefined, stock_threshold: body.stock_threshold as number | undefined, merk: body.merk !== undefined ? (body.merk as string).trim() : undefined, kategori: body.kategori !== undefined ? (body.kategori as string).trim() : undefined, satuan: body.satuan !== undefined ? (body.satuan as string).trim() : undefined });
 }
 
 // ---- Transaksi validation ----

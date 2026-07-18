@@ -17,7 +17,11 @@ CREATE TABLE IF NOT EXISTS produk (
   toko_id TEXT NOT NULL,
   sku TEXT UNIQUE,
   nama TEXT NOT NULL,
+  merk TEXT DEFAULT '',
+  kategori TEXT DEFAULT '',
+  satuan TEXT DEFAULT '',
   harga INTEGER NOT NULL,
+  harga_modal INTEGER NOT NULL DEFAULT 0,
   stok INTEGER NOT NULL DEFAULT 0,
   stock_threshold INTEGER NOT NULL DEFAULT 10,
   created_at TEXT DEFAULT (datetime('now')),
@@ -93,6 +97,10 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 -- Migration: stock_threshold (idempotent — handled by app layer)
 -- ALTER TABLE produk ADD COLUMN stock_threshold INTEGER NOT NULL DEFAULT 10;
+-- Migration: merk, kategori, satuan (idempotent — handled by app layer)
+-- ALTER TABLE produk ADD COLUMN merk TEXT DEFAULT '';
+-- ALTER TABLE produk ADD COLUMN kategori TEXT DEFAULT '';
+-- ALTER TABLE produk ADD COLUMN satuan TEXT DEFAULT '';
 -- Migration: sku (idempotent — handled by app layer)
 -- ALTER TABLE produk ADD COLUMN sku TEXT UNIQUE;
 
