@@ -16,7 +16,11 @@ export interface Toko {
 export interface Produk {
   id: string;
   toko_id: string;
+  sku: string;
   nama: string;
+  merk: string;
+  kategori: string;
+  satuan: string;
   harga: number;
   stok: number;
   stock_threshold: number;
@@ -28,6 +32,7 @@ export interface TransaksiItem {
   name: string;
   price: number;
   qty: number;
+  diskon: number; // 0-100 (persen)
 }
 
 export interface Transaksi {
@@ -96,5 +101,8 @@ export interface WasmExports {
   compute_benchmark: (iterations: number) => number;
   batch_check_low_stock: (...args: number[]) => number;
   memory: WebAssembly.Memory;
+  get_input_ptr: () => number;
+  get_input_size: () => number;
+  load_products: (ptr: number, len: number) => number;
   [key: string]: unknown;
 }

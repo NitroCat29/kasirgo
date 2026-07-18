@@ -17,6 +17,15 @@ export function getCsrfToken(): string {
   return csrfToken;
 }
 
+// Helper: header untuk POST/PUT/PATCH/DELETE — sertakan CSRF token dari
+// memory (getCsrfToken) atau cookie. Dipakai bareng Kasir.tsx + Dashboard.tsx.
+export function csrfHeaders(): Record<string, string> {
+  const m = document.cookie.match(/csrf_token=([^;]+)/);
+  const cookieToken = m ? m[1] : "";
+  const token = csrfToken || cookieToken;
+  return { "content-type": "application/json", "x-csrf-token": token };
+}
+
 // Direct CORS mode: frontend fetch langsung ke backend.
 // Dev: VITE_API_BASE=http://localhost:3456 (atau default).
 // Production: VITE_API_BASE kosong → same-origin (frontend served from backend).
@@ -53,7 +62,7 @@ function mockAuthResponse<T = any>(path: string, opts: RequestInit): T {
       return { ...MOCK_USER } as T;
 
     case "/api/auth/login":
-      return { ...MOCK_USER, csrf_token: "dev-csrf" } as T;
+      return { ...MOCK_USER, csrf_token: "dev-csrf-token" } as T;
 
     case "/api/auth/signup":
       return { id: "dev-pending", pending_verification: true, email: body.email || "" } as T;
@@ -63,7 +72,7 @@ function mockAuthResponse<T = any>(path: string, opts: RequestInit): T {
       return { enabled: false, site_key: null } as T;
 
     case "/api/auth/verify-email":
-      return { ...MOCK_USER, csrf_token: "dev-csrf" } as T;
+      return { ...MOCK_USER, csrf_token: "dev-csrf-token" } as T;
 
     case "/api/auth/resend-verification":
     case "/api/auth/forgot-password":
@@ -71,7 +80,7 @@ function mockAuthResponse<T = any>(path: string, opts: RequestInit): T {
       return { ok: true } as T;
 
     case "/api/auth/verify-reset-code":
-      return { valid: true, reset_token: "dev-reset" } as T;
+      return { valid: true, reset_token: "dev-reset-token" } as T;
 
     case "/api/auth/logout":
       return { ok: true } as T;
@@ -117,6 +126,11 @@ export async function api<T = any>(
   if (opts.method && !["GET", "HEAD"].includes(opts.method.toUpperCase())) {
     const token = getCsrfToken();
     if (token) headers["x-csrf-token"] = token;
+  }
+
+  // Idempotency key untuk POST — mencegah duplikasi kalau user klik ganda
+  if (opts.method && opts.method.toUpperCase() === "POST") {
+    headers["x-idempotency-key"] = crypto.randomUUID();
   }
 
   const res = await fetch(`${BASE}${path}`, {

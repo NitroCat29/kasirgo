@@ -29,7 +29,7 @@ export async function initLenis() {
         const target = document.querySelector(href);
         if (target) {
           e.preventDefault();
-          lenis.scrollTo(target, { offset: -80, duration: 1.4 });
+          lenis.scrollTo(target as HTMLElement, { offset: -80, duration: 1.4 });
         }
       });
     });

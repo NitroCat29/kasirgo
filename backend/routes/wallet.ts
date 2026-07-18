@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
-import { json, parseBody, getUser, requireRole } from "../helpers";
+import { json, parseBody, getUser, requireRole, clientIp, checkWriteRateLimit, checkIdempotency } from "../helpers";
 
 // ============================================================
 // Wallet Routes — saldo, top-up, transaksi wallet
@@ -24,6 +24,13 @@ export const walletRoutes: Record<string, (req: Request, path: string[]) => Resp
   "POST /api/wallet/topup": async (req) => {
     const user = getUser(req);
     if (!user) return json({ error: "Belum login" }, 401);
+    const rl = checkWriteRateLimit(clientIp(req));
+    if (!rl.allowed) return json({ error: "Terlalu banyak request, coba lagi nanti" }, 429);
+    const idemKey = req.headers.get("x-idempotency-key");
+    if (idemKey) {
+      const idem = checkIdempotency(idemKey);
+      if (!idem.allowed) return json({ error: "Request duplikat terdeteksi" }, 409);
+    }
     const { data: body, error: parseErr } = await parseBody(req);
     if (parseErr) return parseErr;
     const amount = Number(body.amount);

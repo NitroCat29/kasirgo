@@ -97,14 +97,31 @@ export fn get_memory_size() usize {
     return MEMORY_SIZE;
 }
 
+// ============================================================================
+// INPUT BUFFER — Separate region for JS → WASM data passing
+// ============================================================================
+
+/// Separate input buffer for JS to write data (prevents overlap with memory_buffer)
+var input_buffer: [64 * 1024]u8 align(8) = undefined;
+
+/// Get pointer to input buffer for JS to write data into
+export fn get_input_ptr() [*]u8 {
+    return &input_buffer;
+}
+
+/// Get input buffer size
+export fn get_input_size() usize {
+    return input_buffer.len;
+}
+
 /// Simple bump allocator — allocate n bytes, return offset
-/// Returns 0 if OOM
-fn alloc_bytes(n: usize) usize {
+/// Returns null if OOM
+fn alloc_bytes(n: usize) ?usize {
     // Align to 8 bytes
     const aligned_n = (n + 7) & ~@as(usize, 7);
 
     if (memory_offset + aligned_n > MEMORY_SIZE) {
-        return 0; // OOM
+        return null; // OOM
     }
 
     const offset = memory_offset;
@@ -312,8 +329,7 @@ export fn load_products(data_ptr: [*]const u8, data_len: usize) u32 {
         if (offset + name_len > data_len) break;
 
         // Allocate space for name in memory buffer
-        const name_offset = alloc_bytes(name_len);
-        if (name_offset == 0) break; // OOM
+        const name_offset = alloc_bytes(name_len) orelse break; // OOM
 
         // Copy name to memory buffer
         @memcpy(memory_buffer[name_offset..][0..name_len], data_ptr[offset..][0..name_len]);
@@ -343,8 +359,7 @@ export fn get_product(id: u32) usize {
     const product = catalog_find(id) orelse return 0;
 
     // Allocate 32 bytes for serialized product
-    const offset = alloc_bytes(32);
-    if (offset == 0) return 0; // OOM
+    const offset = alloc_bytes(32) orelse return 0; // OOM
 
     serialize_product(product, memory_buffer[offset..][0..32]);
     return offset;
@@ -401,8 +416,7 @@ export fn batch_check_low_stock(data_ptr: [*]const u8, data_len: usize) usize {
 
     // Allocate result buffer: 4 + (count * 4) bytes max
     const max_result_size = 4 + (count * 4);
-    const result_offset = alloc_bytes(max_result_size);
-    if (result_offset == 0) return 0; // OOM
+    const result_offset = alloc_bytes(max_result_size) orelse return 0; // OOM
 
     var low_count: u32 = 0;
     var i: u32 = 0;
@@ -539,8 +553,7 @@ export fn cart_get_items() usize {
 
     // Calculate size: 4 bytes (count) + 16 bytes per item
     const size = 4 + (global_cart.item_count * 16);
-    const offset = alloc_bytes(size);
-    if (offset == 0) return 0; // OOM
+    const offset = alloc_bytes(size) orelse return 0; // OOM
 
     // Write item count
     write_u32(memory_buffer[offset..], 0, global_cart.item_count);
@@ -560,8 +573,7 @@ export fn cart_get_items() usize {
 export fn cart_get_totals() usize {
     if (!cart_initialized) return 0;
 
-    const offset = alloc_bytes(32);
-    if (offset == 0) return 0;
+    const offset = alloc_bytes(32) orelse return 0; // OOM
 
     write_f64(memory_buffer[offset..], 0, global_cart.subtotal);
     write_f64(memory_buffer[offset..], 8, global_cart.discount_amount);
@@ -580,8 +592,7 @@ export fn get_cart_view() usize {
 
     const float_count = 5 + (global_cart.item_count * 3);
     const size = float_count * 8; // 8 bytes per f64
-    const offset = alloc_bytes(size);
-    if (offset == 0) return 0;
+    const offset = alloc_bytes(size) orelse return 0; // OOM
 
     // Write header (5 floats)
     write_f64(memory_buffer[offset..], 0, global_cart.subtotal);
@@ -626,8 +637,7 @@ export fn get_last_error() u32 {
 export fn get_last_error_msg() usize {
     if (last_error_len == 0) return 0;
 
-    const offset = alloc_bytes(last_error_len);
-    if (offset == 0) return 0;
+    const offset = alloc_bytes(last_error_len) orelse return 0; // OOM
 
     @memcpy(memory_buffer[offset..][0..last_error_len], last_error_msg[0..last_error_len]);
     return offset;
@@ -809,8 +819,7 @@ export fn batch_calculate(carts_ptr: [*]const u8, carts_len: usize, rules_ptr: [
 
     // Allocate result buffer: 4 + (cart_count * 32) bytes
     const result_size = 4 + (cart_count * 32);
-    const result_offset = alloc_bytes(result_size);
-    if (result_offset == 0) return 0; // OOM
+    const result_offset = alloc_bytes(result_size) orelse return 0; // OOM
 
     write_u32(memory_buffer[result_offset..], 0, cart_count);
 
@@ -956,14 +965,9 @@ export fn compute_benchmark(iterations: u32) f64 {
         acc += temp_items[i].price_snapshot * @as(f64, @floatFromInt(temp_items[i].quantity));
     }
 
-    // Phase 5: Hash lookup simulation (if catalog has items)
-    if (catalog_count > 0) {
-        i = 0;
-        while (i < 1000) : (i += 1) {
-            const lookup_id = i % 512;
-            _ = catalog_find(lookup_id);
-        }
-    }
+    // NOTE: Phase 5 (catalog hash lookup) dihapus — JS fallback nggak punya,
+    // bikin benchmark asimetris. Workload sekarang 4 fase, apples-to-apples
+    // dengan shared/wasm-bridge.ts jsFallback.compute_benchmark.
 
     return acc;
 }

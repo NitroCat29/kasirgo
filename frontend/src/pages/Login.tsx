@@ -131,7 +131,7 @@ export default function Login() {
     try {
       const u = await login(identifier(), password());
       toast.success(`Selamat datang, ${u.nama}!`);
-      nav("/dashboard");
+      nav(u.role === "kasir" ? "/kasir" : "/dashboard");
     } catch (err: any) {
       if (err.message.includes("belum diverifikasi")) {
         setError(err.message);

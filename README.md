@@ -32,9 +32,16 @@ bun run dev
 ## Cara jalanin
 
 ```bash
-bun install
-bun run dev        # backend Bun di :3456 + static serving
-bun run build      # build produksi → dist/ (untuk GitHub Pages)
+cd frontend && bun install    # install frontend dependencies
+
+# Terminal 1: backend
+bun --hot backend/server.ts   # backend Bun di :3456
+
+# Terminal 2: frontend
+cd frontend && bun run dev    # Vite dev server di :5173
+
+# Build produksi
+cd frontend && bun run build  # → frontend/dist/
 ```
 
 ## Sync ke GitHub (mirror)

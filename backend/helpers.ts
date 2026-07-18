@@ -30,6 +30,9 @@ export const config = {
   // Rate limit: verify-code attempts (per IP)
   rateLimitVerifyMax: Number(process.env.RATE_LIMIT_VERIFY_MAX) || 5,
   rateLimitVerifyWindowMs: Number(process.env.RATE_LIMIT_VERIFY_WINDOW_MS) || 60_000,
+  // Rate limit: write endpoints (POST/PATCH/DELETE toko/produk/transaksi/wallet)
+  rateLimitWriteMax: Number(process.env.RATE_LIMIT_WRITE_MAX) || 30,
+  rateLimitWriteWindowMs: Number(process.env.RATE_LIMIT_WRITE_WINDOW_MS) || 10_000,
   // hCaptcha (anti-bot di signup setelah attempt ke-2 dari IP yang sama)
   // Daftar di https://dashboard.hcaptcha.com — dapat site key + secret.
   // Kalau kosong, hCaptcha check di-skip (mode testing).
@@ -66,6 +69,10 @@ export function json(body: unknown, status = 200, req?: Request): Response {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (req) Object.assign(headers, corsHeaders(req));
   return new Response(JSON.stringify(body, null, 2), { status, headers });
+}
+
+export function clientIp(req: Request): string {
+  return req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown";
 }
 
 // ============================================================
@@ -269,6 +276,43 @@ export function cleanupAuthRateLimits() {
 }
 
 // ============================================================
+// Rate Limiter — write endpoints (POST/PATCH/DELETE)
+// ============================================================
+const writeLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+export function checkWriteRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
+  return genericRateLimit(writeLimitMap, ip, config.rateLimitWriteMax, config.rateLimitWriteWindowMs);
+}
+
+export function cleanupWriteRateLimit() {
+  const now = Date.now();
+  for (const [k, e] of writeLimitMap) if (now > e.resetAt) writeLimitMap.delete(k);
+}
+
+// ============================================================
+// Idempotency Key — mencegah duplikasi request (5 detik window)
+// ============================================================
+const idempotencyCache = new Map<string, number>(); // key → timestamp
+const IDEMPOTENCY_WINDOW_MS = 5_000;
+
+export function checkIdempotency(key: string): { allowed: boolean } {
+  const now = Date.now();
+  const existing = idempotencyCache.get(key);
+  if (existing && (now - existing) < IDEMPOTENCY_WINDOW_MS) {
+    return { allowed: false };
+  }
+  idempotencyCache.set(key, now);
+  return { allowed: true };
+}
+
+export function cleanupIdempotencyCache() {
+  const now = Date.now();
+  for (const [k, ts] of idempotencyCache) {
+    if ((now - ts) >= IDEMPOTENCY_WINDOW_MS) idempotencyCache.delete(k);
+  }
+}
+
+// ============================================================
 // Verification Code Generator (8-digit) + Token
 // ============================================================
 export function generate8DigitCode(): string {
@@ -302,6 +346,31 @@ export function validateCsrf(req: Request): boolean {
 // ============================================================
 export function cleanupExpiredSessions() {
   db.run("DELETE FROM sessions WHERE expires_at < datetime('now')");
+}
+
+// ============================================================
+// Wallet deduction helper (used in inventory purchase / restock)
+// Must be called inside an active SQL transaction.
+// ============================================================
+export function deductWallet(
+  userId: string,
+  amount: number,
+  description: string,
+): { ok: true; walletId: string; newBalance: number } | { ok: false; error: string } {
+  if (amount <= 0) return { ok: true, walletId: "", newBalance: 0 };
+  const wallet = db.query("SELECT id, balance FROM wallets WHERE user_id = ?").get(userId) as any;
+  if (!wallet) return { ok: false, error: "Wallet tidak ditemukan" };
+  if (wallet.balance < amount) return { ok: false, error: "Saldo tidak mencukupi" };
+  const newBalance = wallet.balance - amount;
+  db.run("UPDATE wallets SET balance = ?, updated_at = datetime('now') WHERE id = ?", newBalance, wallet.id);
+  db.run(
+    "INSERT INTO wallet_transactions (id, wallet_id, type, amount, description) VALUES (?, ?, 'purchase', ?, ?)",
+    randomUUID(),
+    wallet.id,
+    amount,
+    description,
+  );
+  return { ok: true, walletId: wallet.id, newBalance };
 }
 
 // ============================================================

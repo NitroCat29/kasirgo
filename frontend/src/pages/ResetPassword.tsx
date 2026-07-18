@@ -25,7 +25,7 @@ export default function ResetPassword() {
   const [confirmPassErr, setConfirmPassErr] = createSignal("");
 
   onMount(async () => {
-    const token = params.token;
+    const token = params.token as string | undefined;
     if (!token) { setStage("manual"); return; }
     setLoading(true);
     try {

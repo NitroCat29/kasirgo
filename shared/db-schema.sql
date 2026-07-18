@@ -15,13 +15,23 @@ CREATE TABLE IF NOT EXISTS toko (
 CREATE TABLE IF NOT EXISTS produk (
   id TEXT PRIMARY KEY,
   toko_id TEXT NOT NULL,
+  sku TEXT UNIQUE,
   nama TEXT NOT NULL,
+  merk TEXT DEFAULT '',
+  kategori TEXT DEFAULT '',
+  satuan TEXT DEFAULT '',
   harga INTEGER NOT NULL,
+  harga_modal INTEGER NOT NULL DEFAULT 0,
   stok INTEGER NOT NULL DEFAULT 0,
   stock_threshold INTEGER NOT NULL DEFAULT 10,
   created_at TEXT DEFAULT (datetime('now')),
   FOREIGN KEY (toko_id) REFERENCES toko(id) ON DELETE CASCADE
 );
+
+-- Index untuk live search produk (nama & sku per toko)
+CREATE INDEX IF NOT EXISTS idx_produk_sku ON produk(sku) WHERE sku IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_produk_nama_toko ON produk(toko_id, nama);
+CREATE INDEX IF NOT EXISTS idx_produk_sku_toko ON produk(toko_id, sku);
 
 CREATE TABLE IF NOT EXISTS transaksi (
   id TEXT PRIMARY KEY,
@@ -87,6 +97,12 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 -- Migration: stock_threshold (idempotent — handled by app layer)
 -- ALTER TABLE produk ADD COLUMN stock_threshold INTEGER NOT NULL DEFAULT 10;
+-- Migration: merk, kategori, satuan (idempotent — handled by app layer)
+-- ALTER TABLE produk ADD COLUMN merk TEXT DEFAULT '';
+-- ALTER TABLE produk ADD COLUMN kategori TEXT DEFAULT '';
+-- ALTER TABLE produk ADD COLUMN satuan TEXT DEFAULT '';
+-- Migration: sku (idempotent — handled by app layer)
+-- ALTER TABLE produk ADD COLUMN sku TEXT UNIQUE;
 
 -- ============================================================
 -- Wallet / Billing / Balance
