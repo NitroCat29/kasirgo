@@ -1,5 +1,6 @@
-import { createSignal, createMemo, onMount, onCleanup } from "solid-js";
+import { createSignal, createMemo } from "solid-js";
 import { api } from "../../lib/api";
+import { theme, toggleTheme, initTheme } from "../../lib/theme";
 import { formatRupiah } from "../../lib/format";
 import { usePolling } from "../../lib/usePolling";
 import {
@@ -44,17 +45,6 @@ export function useDashboardData() {
   const [stats, setStats] = createSignal<Stats | null>(null);
   const [submitting, setSubmitting] = createSignal(false);
   const [walletRefresh, setWalletRefresh] = createSignal(0);
-
-  // --- Theme ---
-  const [theme, setTheme] = createSignal<"dark" | "light">(
-    (localStorage.getItem("kasir-theme") as "dark" | "light") || "dark",
-  );
-  function toggleTheme() {
-    const next = theme() === "dark" ? "light" : "dark";
-    setTheme(next);
-    localStorage.setItem("kasir-theme", next);
-    document.documentElement.setAttribute("data-theme", next);
-  }
 
   // --- Toko ---
   const [daftarToko, setDaftarToko] = createSignal<Toko[]>([]);
@@ -157,6 +147,77 @@ export function useDashboardData() {
 
   // Quick restock popover state
   const [bulkSubmitting, setBulkSubmitting] = createSignal(false);
+
+  // --- Multi-select ---
+  const [selectedProdukIds, setSelectedProdukIds] = createSignal<Set<string>>(new Set());
+  const [showBulkRestockModal, setShowBulkRestockModal] = createSignal(false);
+  const selectedProdukCount = createMemo(() => selectedProdukIds().size);
+  const isAllProdukSelected = createMemo(() => {
+    const list = daftarProduk();
+    if (list.length === 0) return false;
+    const sel = selectedProdukIds();
+    return list.every((p) => sel.has(p.id));
+  });
+
+  function toggleProdukSelection(id: string) {
+    setSelectedProdukIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAllProduk() {
+    const ids = daftarProduk().map((p) => p.id);
+    setSelectedProdukIds(new Set(ids));
+  }
+
+  function clearProdukSelection() {
+    setSelectedProdukIds(new Set());
+  }
+
+  async function bulkDeleteProduk() {
+    const ids = Array.from(selectedProdukIds());
+    const confirmed = await swalConfirm(`Hapus ${ids.length} produk?`, `Aksi ini tidak bisa dibatalkan. ${ids.length} produk akan dihapus permanen.`, "Ya, hapus semua");
+    if (!confirmed) return;
+    let ok = 0;
+    let fail = 0;
+    for (const id of ids) {
+      try {
+        await api<unknown>(`/api/produk/${id}`, { method: "DELETE" });
+        ok++;
+      } catch { fail++; }
+    }
+    clearProdukSelection();
+    await Promise.all([loadProduk(), loadStats(), loadAlerts()]);
+    swalToast("success", `Berhasil hapus ${ok} produk${fail ? `, ${fail} gagal` : ""}`);
+  }
+
+  async function bulkRestockProduk(qtyMap: Record<string, number>) {
+    const items = Object.entries(qtyMap)
+      .filter(([, qty]) => qty > 0)
+      .map(([produk_id, qty]) => ({
+        produk_id,
+        qty,
+        harga_modal: 0, // default; backend will accept
+      }));
+    if (items.length === 0) {
+      swalWarning("Tidak ada item dengan qty > 0");
+      return;
+    }
+    const res = await api<{ restocked: number; errors: string[] }>("/api/produk/bulk-restock", {
+      method: "POST",
+      body: JSON.stringify({ items }),
+    });
+    clearProdukSelection();
+    setShowBulkRestockModal(false);
+    await Promise.all([loadProduk(), loadStats(), loadAlerts()]);
+    swalToast("success", `Restock ${res.restocked} produk berhasil`);
+    if (res.errors?.length) {
+      console.warn("Bulk restock errors:", res.errors);
+    }
+  }
 
   function openQuickRestock(p: Produk) {
     setModalProduk({ ...p, qty: "0", _skuEdited: true });
@@ -296,8 +357,11 @@ export function useDashboardData() {
         current = {};
         continue;
       }
-      const match = trimmed.match(/^(\w+)\s*=\s*"?(.+?)"?\s*$/);
-      if (match) current[match[1]] = match[2];
+      // Key=value: quoted (tolerate unclosed) or unquoted
+      const quoted = trimmed.match(/^(\w+)\s*=\s*"([^"]*)"\s*$/);
+      if (quoted) { current[quoted[1]] = quoted[2]; continue; }
+      const unquoted = trimmed.match(/^(\w+)\s*=\s*(\S+)\s*$/);
+      if (unquoted) current[unquoted[1]] = unquoted[2];
     }
     if (Object.keys(current).length > 0 && current.nama) {
       // Validate satuan against whitelist (case-insensitive)
@@ -335,14 +399,29 @@ export function useDashboardData() {
       let success = 0;
       let failed = 0;
       for (const item of items) {
+        // Resolve toko nama → UUID jika perlu
+        const tokoResolved = daftarToko().find(
+          (t) => t.id === item.toko_id || t.nama === item.toko_id,
+        );
+        if (!tokoResolved) {
+          swalWarning(`Toko "${item.toko_id}" tidak ditemukan untuk produk "${item.nama}". Import dibatalkan.`);
+          break;
+        }
+        const payload = Object.fromEntries(
+          Object.entries({ ...item, toko_id: tokoResolved.id }).filter(
+            ([k, v]) => v !== "" && v !== undefined,
+          ),
+        );
         try {
           await api<unknown>("/api/produk", {
             method: "POST",
-            body: JSON.stringify(item),
+            body: JSON.stringify(payload),
           });
           success++;
-        } catch {
+        } catch (err: any) {
           failed++;
+          swalWarning(`Gagal import "${item.nama}": ${err.message || "Unknown error"}`);
+          break; // stop on first error
         }
       }
       setShowProdukModal(false);
@@ -582,7 +661,7 @@ export function useDashboardData() {
 
   async function loadUsers() {
     try {
-      const data = await api<UserRow[]>("/api/auth/users");
+      const data = await api<UserRow[]>("/api/users");
       setDaftarUsers(data);
     } catch {}
   }
@@ -643,7 +722,7 @@ export function useDashboardData() {
     const ok = await swalConfirm("Hapus user?", `User "${nama}" akan dihapus permanen.`);
     if (!ok) return;
     try {
-      await api<unknown>(`/api/auth/users/${id}`, { method: "DELETE" });
+      await api<unknown>(`/api/users/${id}`, { method: "DELETE" });
       swalToast("success", "User dihapus");
       await loadUsers();
     } catch (err: any) {
@@ -670,11 +749,14 @@ export function useDashboardData() {
   const [lowStockItems, setLowStockItems] = createSignal<LowStockItem[]>([]);
   const [showLowStockModal, setShowLowStockModal] = createSignal(false);
 
+  const [chartDays, _setChartDays] = createSignal(30);
+  function setChartDays(n: number) { _setChartDays(n); setTimeout(loadDailyRevenue, 0); }
+
   async function loadDailyRevenue() {
     setChartLoading(true);
     try {
       const d = await api<{ days: number; data: DailyRevenue[] }>(
-        "/api/stats/daily-revenue?days=30",
+        `/api/stats/daily-revenue?days=${chartDays()}`,
       );
       setDailyRevenue(d.data);
     } catch {
@@ -710,36 +792,33 @@ export function useDashboardData() {
   // --- Realtime polling (via usePolling, auto-cleanup) ---
   let activeTab = "overview";
   let realtimeStarted = false;
+  let pollingDisposers: (() => void)[] = [];
 
   function startRealtime() {
     if (realtimeStarted) return;
     realtimeStarted = true;
     // Transaksi: 5s
-    usePolling(() => loadTransaksi(), 5000, () => activeTab === "tx");
+    pollingDisposers.push(usePolling(() => loadTransaksi(), 5000, () => activeTab === "tx"));
     // Audit: 5s
-    usePolling(() => loadAudit(auditFilter()), 5000, () => activeTab === "audit");
+    pollingDisposers.push(usePolling(() => loadAudit(auditFilter()), 5000, () => activeTab === "audit"));
     // Stok / low-stock + stats: 10s
-    usePolling(
-      () => {
-        loadProduk();
-        loadAlerts();
-      },
+    pollingDisposers.push(usePolling(
+      () => { loadProduk(); loadAlerts(); },
       10000,
       () => activeTab === "produk",
-    );
+    ));
     // Overview: stats + low stock count 10s
-    usePolling(
-      () => {
-        loadStats();
-        loadAlerts();
-      },
+    pollingDisposers.push(usePolling(
+      () => { loadStats(); loadAlerts(); },
       10000,
       () => activeTab === "overview",
-    );
+    ));
   }
 
   function stopRealtime() {
-    realtimeStarted = false; // interval di-clear otomatis oleh onCleanup usePolling
+    pollingDisposers.forEach((d) => d());
+    pollingDisposers = [];
+    realtimeStarted = false;
   }
 
   function setActiveTabRealtime(id: string) {
@@ -767,11 +846,10 @@ export function useDashboardData() {
   }
 
   function initOnMount() {
+    initTheme();
     loadWasm();
-    document.documentElement.setAttribute("data-theme", theme());
     loadDailyRevenue();
     startRealtime();
-    onCleanup(() => stopRealtime());
   }
 
   return {
@@ -793,6 +871,11 @@ export function useDashboardData() {
     bulkSubmitting,
     openQuickRestock,
     produkMode,
+    // Multi-select
+    selectedProdukIds, selectedProdukCount, isAllProdukSelected,
+    toggleProdukSelection, selectAllProduk, clearProdukSelection,
+    bulkDeleteProduk, bulkRestockProduk,
+    showBulkRestockModal, setShowBulkRestockModal,
     // Suggestions
     merkList, kategoriListAll, satuanListAll, SATUAN_WHITELIST,
     // Transaksi
@@ -808,7 +891,7 @@ export function useDashboardData() {
     // Audit
     daftarAudit, auditFilter, setAuditFilter, loadAudit,
     // Overview
-    dailyRevenue, chartLoading,
+    dailyRevenue, chartDays, setChartDays, chartLoading,
     lowStockCount, lowStockItems, showLowStockModal, setShowLowStockModal,
     loadDailyRevenue, loadStats, loadAlerts, loadLowStockItems,
     walletRefresh,

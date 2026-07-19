@@ -1,20 +1,16 @@
-import { onCleanup, onMount } from "solid-js";
-
 /**
- * Polling interval generik dengan auto-cleanup.
- * fn dijalankan tiap `ms` (langsung 1x saat mount), lalu tiap interval.
- * enabled=false → tidak jalan.
+ * Polling interval generik — return disposer function.
+ * fn dijalankan langsung 1x, lalu tiap `ms` (hanya jika enabled true).
  */
-export function usePolling(fn: () => void, ms: number, enabled: () => boolean = () => true): void {
-  let timer: ReturnType<typeof setInterval> | undefined;
-  onMount(() => {
-    const tick = () => {
-      if (enabled()) fn();
-    };
-    tick();
-    timer = setInterval(tick, ms);
-  });
-  onCleanup(() => {
-    if (timer) clearInterval(timer);
-  });
+export function usePolling(
+  fn: () => void,
+  ms: number,
+  enabled: () => boolean = () => true,
+): () => void {
+  const tick = () => {
+    if (enabled()) fn();
+  };
+  tick();
+  const timer = setInterval(tick, ms);
+  return () => clearInterval(timer);
 }

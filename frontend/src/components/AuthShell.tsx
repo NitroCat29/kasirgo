@@ -45,7 +45,7 @@ export function AuthShell(props: AuthShellProps) {
                 <div class="absolute inset-0 rounded-xl bg-kasir-accent/40 blur-lg group-hover:bg-kasir-accent/60 transition-colors" />
                 <img src="/assets/kasirku_logo.svg" alt="KasirGo" class="relative w-11 h-11 rounded-xl transition-transform group-hover:scale-105" />
               </div>
-              <span class="text-[28px] font-bold tracking-tight text-white">
+              <span class="text-[28px] font-bold tracking-tight text-white auth-text-heading">
                 Kasir<span class="text-kasir-accent neon-text">Go</span>
               </span>
             </A>

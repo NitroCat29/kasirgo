@@ -309,20 +309,20 @@ export default function Login() {
               </svg>
             </div>
           </div>
-          <h3 class="text-lg font-bold text-white">Cek Email Kamu</h3>
+          <h3 class="text-lg font-bold text-white auth-text-heading">Cek Email Kamu</h3>
           <p class="text-sm text-kasir-muted leading-relaxed">
             Kode verifikasi 8-digit + magic link telah dikirim ke:<br />
             <span class="text-kasir-accent font-mono">{pendingEmail() || "email kamu"}</span>
           </p>
           <p class="text-xs text-kasir-muted/70">Kode berlaku 30 menit. Cek folder spam kalau tidak ada di inbox.</p>
-          <a href="/verify-email" class="block text-center py-2.5 rounded-lg glass text-slate-200 font-semibold text-sm hover:bg-white/5 transition-all mt-4 no-underline">Saya punya kode — verifikasi sekarang</a>
+          <a href="/verify-email" class="block text-center py-2.5 rounded-lg glass text-slate-200 font-semibold text-sm hover:bg-white/5 transition-all mt-4 no-underline auth-link-surface">Saya punya kode — verifikasi sekarang</a>
           <a href="#" onClick={(e) => { e.preventDefault(); setView("login"); }} class="block text-center text-sm text-kasir-muted hover:text-kasir-accent transition-colors mt-2 no-underline">← Kembali ke login</a>
         </div>
       </Show>
 
       {/* Demo credentials chip (only on login view) */}
       <Show when={view() === "login"}>
-        <div class="mt-6 pt-5 border-t border-white/[0.06] flex justify-center">
+        <div class="mt-6 pt-5 border-t border-white/[0.06] flex justify-center auth-divider">
           <div class="liquid-chip">
             <span class="chip-dot" />
             <span>Demo (read-only):</span>

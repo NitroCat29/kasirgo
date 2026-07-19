@@ -7,7 +7,6 @@ import Swal, { type SweetAlertIcon } from "sweetalert2";
 const baseConfig = {
   background: "rgba(19, 24, 38, 0.95)",
   color: "#e8edf5",
-  backdrop: "rgba(10, 14, 26, 0.7)",
   confirmButtonColor: "#00d9a3",
   cancelButtonColor: "#3a4258",
   customClass: {
@@ -34,19 +33,19 @@ export function swalToast(icon: SweetAlertIcon, title: string, timer = 2500) {
 }
 
 export function swalSuccess(title: string, text?: string) {
-  return Swal.fire({ ...baseConfig, icon: "success", title, text });
+  return Swal.fire({ ...baseConfig, backdrop: "rgba(10, 14, 26, 0.7)", icon: "success", title, text });
 }
 
 export function swalError(title: string, text?: string) {
-  return Swal.fire({ ...baseConfig, icon: "error", title, text });
+  return Swal.fire({ ...baseConfig, backdrop: "rgba(10, 14, 26, 0.7)", icon: "error", title, text });
 }
 
 export function swalWarning(title: string, text?: string) {
-  return Swal.fire({ ...baseConfig, icon: "warning", title, text });
+  return Swal.fire({ ...baseConfig, backdrop: "rgba(10, 14, 26, 0.7)", icon: "warning", title, text });
 }
 
 export function swalInfo(title: string, text?: string) {
-  return Swal.fire({ ...baseConfig, icon: "info", title, text });
+  return Swal.fire({ ...baseConfig, backdrop: "rgba(10, 14, 26, 0.7)", icon: "info", title, text });
 }
 
 // Konfirmasi delete — return Promise<boolean> (true = confirm)
@@ -58,6 +57,7 @@ export async function swalConfirm(
 ): Promise<boolean> {
   const result = await Swal.fire({
     ...baseConfig,
+    backdrop: "rgba(10, 14, 26, 0.7)",
     icon: "warning",
     title,
     text,

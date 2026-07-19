@@ -1,7 +1,7 @@
 // ============================================================
 // KasirGo — WASM Bridge (SolidJS)
 // ============================================================
-import { createSignal } from "solid-js";
+import { createSignal, createRoot } from "solid-js";
 
 type WasmExports = {
   init_memory: () => void;
@@ -12,7 +12,7 @@ type WasmExports = {
   [key: string]: unknown;
 };
 
-const [wasmReady, setWasmReady] = createSignal(false);
+const [wasmReady, setWasmReady] = createRoot(() => createSignal(false));
 export { wasmReady };
 
 let wasmExports: WasmExports | null = null;

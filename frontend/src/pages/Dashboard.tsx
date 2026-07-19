@@ -1,4 +1,4 @@
-import { createSignal, onMount, Show, type JSX } from "solid-js";
+import { createSignal, onCleanup, onMount, Show, type JSX } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { user, logout, fetchMe } from "../lib/auth";
 import { useSessionTimeout } from "../lib/session-timeout";
@@ -19,6 +19,7 @@ import ProdukModal from "../features/dashboard/modals/ProdukModal";
 import UserModal from "../features/dashboard/modals/UserModal";
 import TrxModal from "../features/dashboard/modals/TrxModal";
 import LowStockModal from "../features/dashboard/modals/LowStockModal";
+import BulkRestockModal from "../features/dashboard/modals/BulkRestockModal";
 
 /* ============================================
    COMPONENT
@@ -80,6 +81,8 @@ export default function Dashboard() {
     await d.init();
     d.initOnMount();
   });
+
+  onCleanup(() => d.stopRealtime());
 
   // --- Local handlers (bundling agar JSX rapi) ---
   const closeProdukModal = () => {
@@ -149,11 +152,6 @@ export default function Dashboard() {
                 </svg>
               </button>
               <h1 class="text-2xl font-bold text-white">Dashboard</h1>
-              <p class="text-sm text-zinc-500 mt-1">
-                <Show when={user()}>
-                  Selamat datang, {user()!.nama}
-                </Show>
-              </p>
             </div>
             <div class="flex items-center gap-3">
               <button class="btn-sm btn-ghost" onClick={d.toggleTheme}>
@@ -170,12 +168,15 @@ export default function Dashboard() {
             <OverviewTab
               stats={d.stats}
               dailyRevenue={d.dailyRevenue}
+              chartDays={d.chartDays}
               chartLoading={d.chartLoading}
               lowStockCount={d.lowStockCount}
               lowStockItems={d.lowStockItems}
               loadLowStockItems={d.loadLowStockItems}
               userRole={() => user()?.role}
+              userName={() => user()?.nama}
               walletRefresh={d.walletRefresh}
+              setChartDays={d.setChartDays}
             />
           </Show>
           <Show when={tab() === "toko"}>
@@ -198,6 +199,14 @@ export default function Dashboard() {
               onEdit={d.editProduk}
               onDelete={d.hapusProduk}
               onQuickRestock={d.openQuickRestock}
+              selectedProdukIds={d.selectedProdukIds}
+              selectedProdukCount={d.selectedProdukCount}
+              isAllProdukSelected={d.isAllProdukSelected}
+              toggleProdukSelection={d.toggleProdukSelection}
+              selectAllProduk={d.selectAllProduk}
+              clearProdukSelection={d.clearProdukSelection}
+              bulkDeleteProduk={d.bulkDeleteProduk}
+              setShowBulkRestockModal={d.setShowBulkRestockModal}
             />
           </Show>
           <Show when={tab() === "transaksi"}>
@@ -266,6 +275,17 @@ export default function Dashboard() {
         show={d.showLowStockModal()}
         onClose={() => d.setShowLowStockModal(false)}
         lowStockItems={d.lowStockItems}
+      />
+
+      {/* Bulk Restock */}
+      <BulkRestockModal
+        show={d.showBulkRestockModal}
+        onClose={() => d.setShowBulkRestockModal(false)}
+        items={() => {
+          const sel = d.selectedProdukIds();
+          return d.daftarProduk().filter((p) => sel.has(p.id));
+        }}
+        onSubmit={d.bulkRestockProduk}
       />
 
       {/* Session Timeout */}

@@ -2,6 +2,7 @@ import { createSignal, onMount, onCleanup, Show } from "solid-js";
 import { A, useNavigate } from "@solidjs/router";
 import { user, logout, fetchMe } from "../lib/auth";
 import { api } from "../lib/api";
+import { theme, toggleTheme, initTheme } from "../lib/theme";
 import { useSessionTimeout } from "../lib/session-timeout";
 import { SessionTimeoutModal } from "../components/ui";
 import TokoDropdown from "../features/kasir/TokoDropdown";
@@ -74,9 +75,6 @@ export default function Kasir() {
   // Local state
   const [daftarToko, setDaftarToko] = createSignal<Toko[]>([]);
   const [selectedTokoId, setSelectedTokoId] = createSignal("");
-  const [theme, setTheme] = createSignal<"dark" | "light">(
-    (localStorage.getItem("kasir-theme") as "dark" | "light") || "dark",
-  );
   const [showCart, setShowCart] = createSignal(true);
 
   // Jasa fotocopy: 1 jenis, 4 box preset qty, toggle 1/2 sisi
@@ -85,13 +83,6 @@ export default function Kasir() {
     cart: cart.cart,
     setCart: cart.setCart,
   });
-
-  function toggleTheme() {
-    const next = theme() === "dark" ? "light" : "dark";
-    setTheme(next);
-    localStorage.setItem("kasir-theme", next);
-    document.documentElement.setAttribute("data-theme", next);
-  }
 
   // Toko selection handler
   function selectToko(id: string) {
@@ -153,6 +144,7 @@ export default function Kasir() {
 
   // Keyboard shortcuts
   onMount(() => {
+    initTheme();
     function handleKeydown(e: KeyboardEvent) {
       const search = document.getElementById("product-search");
       if (e.key === "/" && document.activeElement !== search) {

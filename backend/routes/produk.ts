@@ -124,7 +124,7 @@ export const produkRoutes: Record<string, (req: Request, path: string[]) => Resp
     const tokoId = v.data.toko_id || "";
     if (tokoId) {
       const toko = db.query("SELECT id FROM toko WHERE id = ?").get(tokoId);
-      if (!toko) return json({ error: "Toko tidak ditemukan" }, 400);
+      if (!toko) return json({ error: `Toko tidak ditemukan (id: "${tokoId}")` }, 400);
     }
 
     const qty = v.data.stok || 0;
@@ -206,6 +206,79 @@ export const produkRoutes: Record<string, (req: Request, path: string[]) => Resp
     searchCacheInvalidateToko(e.toko_id);
     const row = db.query("SELECT * FROM produk WHERE id = ?").get(produkId);
     return json(row);
+  },
+
+  // ---- POST /api/produk/bulk-restock — restock multiple produk sekaligus ----
+  "POST /api/produk/bulk-restock": async (req) => {
+    const user = requireRole(req, ["admin", "manajer"]);
+    if (user instanceof Response) return user;
+    const writeBlocked = assertCanWrite(user);
+    if (writeBlocked) return writeBlocked;
+    const rl = checkWriteRateLimit(clientIp(req));
+    if (!rl.allowed) return json({ error: "Terlalu banyak request, coba lagi nanti" }, 429);
+    const idemKey = req.headers.get("x-idempotency-key");
+    if (idemKey) {
+      const idem = checkIdempotency(idemKey);
+      if (!idem.allowed) return json({ error: "Request duplikat terdeteksi" }, 409);
+    }
+    const { data: body, error } = await parseBody(req);
+    if (error) return error;
+    if (!Array.isArray(body.items) || body.items.length === 0) {
+      return json({ error: "items harus array dan tidak boleh kosong" }, 400);
+    }
+
+    const results = { restocked: 0, errors: [] as string[] };
+    const affectedTokoIds = new Set<string>();
+
+    for (let i = 0; i < body.items.length; i++) {
+      const item = body.items[i];
+      try {
+        const produkId = item.produk_id;
+        const qty = Number(item.qty);
+        const modal = Number(item.harga_modal);
+
+        if (!produkId || typeof produkId !== "string") {
+          results.errors.push(`Item ${i + 1}: produk_id wajib diisi`);
+          continue;
+        }
+        if (!Number.isFinite(qty) || qty <= 0) {
+          results.errors.push(`Item ${i + 1}: qty harus angka > 0`);
+          continue;
+        }
+        if (!Number.isFinite(modal) || modal < 0) {
+          results.errors.push(`Item ${i + 1}: harga_modal harus angka >= 0`);
+          continue;
+        }
+
+        const e = db.query("SELECT * FROM produk WHERE id = ?").get(produkId) as any;
+        if (!e) {
+          results.errors.push(`Item ${i + 1}: Produk '${produkId}' tidak ditemukan`);
+          continue;
+        }
+
+        const totalCost = qty * modal;
+        db.run("UPDATE produk SET stok = stok + ? WHERE id = ?", qty, produkId);
+        if (totalCost > 0) {
+          const deduction = deductWallet(user.id, totalCost, `Bulk restock: ${e.nama} (+${qty} @ ${modal})`);
+          if (!deduction.ok) {
+            results.errors.push(`Item ${i + 1} (${e.nama}): ${deduction.error}`);
+            continue;
+          }
+        }
+
+        logAudit({ user_id: user.id, username: user.username, action: "UPDATE", entity_type: "produk", entity_id: produkId, details: { nama: e.nama, restock_qty: qty, harga_modal: modal, cost: totalCost } });
+        affectedTokoIds.add(e.toko_id);
+        results.restocked++;
+      } catch (err: any) {
+        results.errors.push(`Item ${i + 1}: ${err.message}`);
+      }
+    }
+
+    for (const tokoId of affectedTokoIds) {
+      searchCacheInvalidateToko(tokoId);
+    }
+
+    return json(results);
   },
 
   "POST /api/produk/bulk": async (req) => {

@@ -81,7 +81,7 @@ function pathFromCurves(ctx: CanvasRenderingContext2D, pts: { x: number; y: numb
 const GREEN = { line: "#10e0a0", lineSoft: "#5df5c4", fillTop: "rgba(16, 224, 160, 0.38)", fillMid: "rgba(16, 224, 160, 0.14)" };
 const RED = { line: "#f4685c", lineSoft: "#ff9b90", fillTop: "rgba(244, 104, 92, 0.28)", fillMid: "rgba(244, 104, 92, 0.08)" };
 
-export default function RevenueChart(props: { data: DailyData[]; loading?: boolean }) {
+export default function RevenueChart(props: { data: DailyData[]; days: number; loading?: boolean }) {
   let containerRef: HTMLDivElement | undefined;
   let tooltipRef: HTMLDivElement | undefined;
   let chart: uPlot | null = null;
@@ -125,12 +125,16 @@ export default function RevenueChart(props: { data: DailyData[]; loading?: boole
     const fgColor = light ? "#1a1612" : "#8b95a8";
     const gridColor = light ? "rgba(0,0,0,0.035)" : "rgba(255,255,255,0.035)";
     const textColor = light ? "#7a7066" : "#52525b";
+    const nowSec = Date.now() / 1000;
 
     return {
       width: width - 16,
       height: 260,
       padding: [18, 12, 4, 8],
-      scales: { y: { range: [0, maxVal * 1.15] } },
+      scales: {
+        x: { time: true, range: [nowSec - (props.days || 30) * 86400, nowSec] },
+        y: { range: [0, maxVal * 1.15] },
+      },
       axes: [
         {
           stroke: fgColor,
@@ -139,11 +143,11 @@ export default function RevenueChart(props: { data: DailyData[]; loading?: boole
           values: (_u, vals) =>
             vals.map((v: number) => {
               const d = new Date(v * 1000);
-              if (dataLen > 15) {
-                const day = d.getDate();
-                if (day !== 1 && day !== 15) return "";
-              }
-              return d.toLocaleDateString("id-ID", { day: "2-digit", month: "short" });
+              const day = d.getDate();
+              // Show label on 1st, 10th, 20th to avoid clutter on 30-day window
+              if (day === 1 || day === 10 || day === 20)
+                return d.toLocaleDateString("id-ID", { day: "2-digit", month: "short" });
+              return "";
             }),
           font: "11px 'Space Grotesk', sans-serif",
         },

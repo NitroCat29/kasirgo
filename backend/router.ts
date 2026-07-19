@@ -44,6 +44,8 @@ routes["GET /api/stats/daily-revenue"] = (req) => {
   if (!user) return json({ error: "Belum login" }, 401);
   const url = new URL(req.url);
   const days = Math.min(Math.max(Number(url.searchParams.get("days")) || 30, 1), 90);
+
+  // Raw rows from DB — only days with at least one transaction
   const rows = db.query(`
     SELECT date(created_at) as day, COALESCE(SUM(total),0) as revenue, COUNT(*) as count
     FROM transaksi
@@ -51,7 +53,24 @@ routes["GET /api/stats/daily-revenue"] = (req) => {
     GROUP BY date(created_at)
     ORDER BY day ASC
   `).all(days) as { day: string; revenue: number; count: number }[];
-  return json({ days, data: rows });
+
+  // Build lookup
+  const map = new Map<string, { revenue: number; count: number }>();
+  for (const r of rows) map.set(r.day, { revenue: r.revenue, count: r.count });
+
+  // Pad with zero-revenue days so chart x-axis is not misleading
+  const data: { day: string; revenue: number; count: number }[] = [];
+  const start = new Date();
+  start.setDate(start.getDate() - days + 1);
+  for (let i = 0; i < days; i++) {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i);
+    const key = d.toISOString().slice(0, 10);
+    const hit = map.get(key);
+    data.push(hit || { day: key, revenue: 0, count: 0 });
+  }
+
+  return json({ days, data });
 };
 
 // ============================================================

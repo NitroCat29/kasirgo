@@ -3,140 +3,253 @@
 // ============================================================
 // Validasi input yang dipakai backend routes + frontend + desktop.
 // Return { ok: true, data } atau { ok: false, error: string }
+//
+// Struktur: field-validator generik (str/num/optional) dijalankan
+// lewat `validate(body, schema)`. Bulk (array of item) tinggal
+// bungkus validator single-item dengan `bulk(...)`.
 
-// ---- Validation result types ----
+// ---- Result types ----
 
 export type ValidationOk<T> = { ok: true; data: T };
 export type ValidationFail = { ok: false; error: string };
 export type ValidationResult<T> = ValidationOk<T> | ValidationFail;
 
-// ---- Helpers ----
+const ok = <T>(data: T): ValidationOk<T> => ({ ok: true, data });
+const fail = (error: string): ValidationFail => ({ ok: false, error });
 
-function fail(error: string): ValidationFail {
-  return { ok: false, error };
+// ---- Field-level validators ----
+
+type FieldResult<T> = { ok: true; value: T } | { ok: false; error: string };
+type FieldValidator<T> = (value: unknown, label: string) => FieldResult<T>;
+
+function str(opts: {
+  min?: number;
+  max?: number;
+  upper?: boolean;
+  trim?: boolean;
+  allowEmpty?: boolean;
+  requiredMsg?: string;
+  pattern?: RegExp;
+  patternMsg?: string;
+} = {}): FieldValidator<string> {
+  const trim = opts.trim !== false;
+  return (value, label) => {
+    if (value === undefined) return { ok: false, error: opts.requiredMsg ?? `${label} wajib diisi` };
+    if (typeof value !== "string") return { ok: false, error: `${label} harus teks` };
+    let v = trim ? value.trim() : value;
+    if (!opts.allowEmpty && v.length === 0) return { ok: false, error: opts.requiredMsg ?? `${label} wajib diisi` };
+    if (opts.min !== undefined && v.length < opts.min) return { ok: false, error: `${label} minimal ${opts.min} karakter` };
+    if (opts.max !== undefined && v.length > opts.max) return { ok: false, error: `${label} maksimal ${opts.max} karakter` };
+    if (opts.pattern && !opts.pattern.test(v)) return { ok: false, error: opts.patternMsg ?? `${label} format tidak valid` };
+    if (opts.upper) v = v.toUpperCase();
+    return { ok: true, value: v };
+  };
 }
 
-function ok<T>(data: T): ValidationOk<T> {
-  return { ok: true, data };
+function num(opts: { min?: number; max?: number } = {}): FieldValidator<number> {
+  const range =
+    opts.min !== undefined && opts.max !== undefined ? `${opts.min}-${opts.max}`
+    : opts.min !== undefined ? `>= ${opts.min}`
+    : opts.max !== undefined ? `<= ${opts.max}`
+    : "";
+  return (value, label) => {
+    const bad =
+      typeof value !== "number" ||
+      Number.isNaN(value) ||
+      (opts.min !== undefined && value < opts.min) ||
+      (opts.max !== undefined && value > opts.max);
+    if (bad) return { ok: false, error: `${label} harus angka${range ? " " + range : ""}` };
+    return { ok: true, value };
+  };
 }
 
-// ---- Email validation ----
+function optional<T>(validator: FieldValidator<T>): FieldValidator<T | undefined> {
+  return (value, label) => (value === undefined ? { ok: true, value: undefined } : validator(value, label));
+}
+
+// ---- Schema runner ----
+// schema: { fieldKey: [label, validator] } -> ValidationResult<{ fieldKey: T }>
+
+type Schema<T> = { [K in keyof T]: [string, FieldValidator<T[K]>] };
+
+function validate<T>(body: Record<string, unknown>, schema: Schema<T>): ValidationResult<T> {
+  const out = {} as T;
+  for (const key in schema) {
+    const [label, validator] = schema[key];
+    const res = validator(body?.[key], label);
+    if (!res.ok) return fail(res.error);
+    (out as Record<string, unknown>)[key] = res.value;
+  }
+  return ok(out);
+}
+
+// ---- Bulk combinator ----
+// Ubah validator single-item jadi validator array, dengan pesan error per index.
+// Contoh: export const validateProdukBulkCreate = bulk(validateProdukCreate);
+
+function bulk<T>(validateOne: (body: Record<string, unknown>) => ValidationResult<T>) {
+  return (body: unknown): ValidationResult<T[]> => {
+    if (!Array.isArray(body)) return fail("Body harus berupa array");
+    if (body.length === 0) return fail("Array tidak boleh kosong");
+    const out: T[] = [];
+    for (let i = 0; i < body.length; i++) {
+      const item = body[i];
+      if (!item || typeof item !== "object") return fail(`Item ke-${i + 1} harus berupa object`);
+      const res = validateOne(item as Record<string, unknown>);
+      if (!res.ok) return fail(`Item ke-${i + 1}: ${res.error}`);
+      out.push(res.data);
+    }
+    return ok(out);
+  };
+}
+
+// ---- Email ----
 // Provider whitelist: Gmail, Outlook/Live/Hotmail, Proton.
 // Block alias: local part tidak boleh mengandung '+' atau '.'.
-const EMAIL_PROVIDERS = [
-  "gmail.com",
-  "outlook.com",
-  "live.com",
-  "hotmail.com",
-  "proton.me",
-  "protonmail.com",
-];
 
-export function validateEmail(email: unknown): ValidationResult<string> {
-  if (typeof email !== "string" || email.trim().length === 0) return fail("Email wajib diisi");
-  const e = email.trim().toLowerCase();
-  // Format check sederhana: local@domain
+const EMAIL_PROVIDERS = ["gmail.com", "outlook.com", "live.com", "hotmail.com", "proton.me", "protonmail.com"];
+
+const emailField: FieldValidator<string> = (value, label) => {
+  if (typeof value !== "string" || value.trim().length === 0) return { ok: false, error: `${label} wajib diisi` };
+  const e = value.trim().toLowerCase();
   const at = e.lastIndexOf("@");
-  if (at < 1 || at === e.length - 1) return fail("Format email tidak valid");
+  if (at < 1 || at === e.length - 1) return { ok: false, error: "Format email tidak valid" };
   const local = e.slice(0, at);
   const domain = e.slice(at + 1);
-  // Validasi local part: no '+' atau '.' (anti-alias)
-  if (local.includes("+")) return fail("Email tidak boleh mengandung karakter '+' pada local part (anti-alias)");
-  if (local.includes(".")) return fail("Email tidak boleh mengandung karakter '.' pada local part (anti-alias)");
-  // Validasi local part: hanya alphanumeric + underscore + hyphen, length 3-64
-  if (!/^[a-z0-9_-]{3,64}$/.test(local)) return fail("Local part email hanya boleh huruf, angka, underscore, atau hyphen (3-64 karakter)");
-  // Provider whitelist
-  if (!EMAIL_PROVIDERS.includes(domain)) return fail(`Email harus dari provider yang didukung: Gmail, Outlook, atau Proton`);
-  return ok(e);
+  if (local.includes("+")) return { ok: false, error: "Email tidak boleh mengandung karakter '+' pada local part (anti-alias)" };
+  if (local.includes(".")) return { ok: false, error: "Email tidak boleh mengandung karakter '.' pada local part (anti-alias)" };
+  if (!/^[a-z0-9_-]{3,64}$/.test(local)) return { ok: false, error: "Local part email hanya boleh huruf, angka, underscore, atau hyphen (3-64 karakter)" };
+  if (!EMAIL_PROVIDERS.includes(domain)) return { ok: false, error: "Email harus dari provider yang didukung: Gmail, Outlook, atau Proton" };
+  return { ok: true, value: e };
+};
+
+export function validateEmail(email: unknown): ValidationResult<string> {
+  const res = emailField(email, "Email");
+  return res.ok ? ok(res.value) : fail(res.error);
 }
 
 export function isEmailIdentifier(identifier: string): boolean {
   return identifier.includes("@");
 }
 
-// ---- Auth validation ----
+// ---- Auth ----
 
-export function validateSignup(body: Record<string, unknown>): ValidationResult<{ username: string; email: string; password: string; nama: string; role?: string }> {
-  if (!body.username || !body.password || !body.nama || !body.email) return fail("username, email, password, nama wajib diisi");
-  if (typeof body.username !== "string" || (body.username as string).trim().length < 3) return fail("Username minimal 3 karakter");
-  if (typeof body.username !== "string" || (body.username as string).trim().length > 20) return fail("Username maksimal 20 karakter");
-  const ev = validateEmail(body.email);
-  if (!ev.ok) return fail(ev.error);
-  if (typeof body.password !== "string" || (body.password as string).length < 6) return fail("Password minimal 6 karakter");
-  if (typeof body.nama !== "string" || (body.nama as string).trim().length === 0) return fail("Nama wajib diisi");
-  return ok({ username: (body.username as string).trim(), email: ev.data, password: body.password as string, nama: (body.nama as string).trim(), role: body.role as string | undefined });
+export function validateSignup(body: Record<string, unknown>) {
+  return validate(body, {
+    username: ["Username", str({ min: 3, max: 20 })],
+    email: ["Email", emailField],
+    password: ["Password", str({ min: 6, trim: false })],
+    nama: ["Nama", str()],
+    role: ["role", optional(str({ allowEmpty: true }))],
+  });
 }
 
-export function validateLogin(body: Record<string, unknown>): ValidationResult<{ identifier: string; password: string }> {
-  if (!body.identifier || !body.password) return fail("identifier dan password wajib diisi");
-  if (typeof body.identifier !== "string" || (body.identifier as string).trim().length === 0) return fail("Identifier wajib diisi");
-  if (typeof body.password !== "string" || (body.password as string).length === 0) return fail("Password wajib diisi");
-  return ok({ identifier: (body.identifier as string).trim(), password: body.password as string });
+export function validateLogin(body: Record<string, unknown>) {
+  return validate(body, {
+    identifier: ["Identifier", str({ trim: true })],
+    password: ["Password", str({ trim: false, allowEmpty: false })],
+  });
 }
 
-// ---- Toko validation ----
+// ---- Toko ----
 
-export function validateTokoCreate(body: Record<string, unknown>): ValidationResult<{ nama: string; alamat?: string; telepon?: string }> {
-  if (!body.nama || typeof body.nama !== "string" || (body.nama as string).trim().length === 0) return fail("Nama toko wajib diisi");
-  return ok({ nama: (body.nama as string).trim(), alamat: body.alamat as string | undefined, telepon: body.telepon as string | undefined });
+export function validateTokoCreate(body: Record<string, unknown>) {
+  return validate(body, {
+    nama: ["Nama toko", str()],
+    alamat: ["Alamat", optional(str({ allowEmpty: true }))],
+    telepon: ["Telepon", optional(str({ allowEmpty: true }))],
+  });
 }
 
-export function validateTokoUpdate(body: Record<string, unknown>): ValidationResult<{ nama?: string; alamat?: string; telepon?: string }> {
-  if (body.nama !== undefined && (typeof body.nama !== "string" || (body.nama as string).trim().length === 0)) return fail("Nama toko tidak boleh kosong");
-  return ok({ nama: body.nama !== undefined ? (body.nama as string).trim() : undefined, alamat: body.alamat as string | undefined, telepon: body.telepon as string | undefined });
+export function validateTokoUpdate(body: Record<string, unknown>) {
+  return validate(body, {
+    nama: ["Nama toko", optional(str({ requiredMsg: "Nama toko tidak boleh kosong" }))],
+    alamat: ["Alamat", optional(str({ allowEmpty: true }))],
+    telepon: ["Telepon", optional(str({ allowEmpty: true }))],
+  });
 }
 
-// ---- Produk validation ----
+// ---- Produk ----
 
-export function validateProdukCreate(body: Record<string, unknown>): ValidationResult<{ nama: string; toko_id?: string; sku?: string; harga?: number; harga_modal?: number; stok?: number; stock_threshold?: number; merk?: string; kategori?: string; satuan?: string }> {
-  if (!body.nama || typeof body.nama !== "string" || (body.nama as string).trim().length === 0) return fail("Nama produk wajib diisi");
-  if (body.toko_id !== undefined && typeof body.toko_id !== "string") return fail("toko_id harus teks");
-  if (body.sku !== undefined && (typeof body.sku !== "string" || (body.sku as string).trim().length === 0)) return fail("SKU tidak boleh kosong");
-  if (body.harga !== undefined && (typeof body.harga !== "number" || body.harga < 0)) return fail("Harga harus angka >= 0");
-  if (body.harga_modal !== undefined && (typeof body.harga_modal !== "number" || body.harga_modal < 0)) return fail("Harga modal harus angka >= 0");
-  if (body.stok !== undefined && (typeof body.stok !== "number" || body.stok < 0)) return fail("Stok harus angka >= 0");
-  if (body.stock_threshold !== undefined && (typeof body.stock_threshold !== "number" || body.stock_threshold < 0)) return fail("stock_threshold harus angka >= 0");
-  if (body.merk !== undefined && typeof body.merk !== "string") return fail("Merk harus teks");
-  if (body.kategori !== undefined && typeof body.kategori !== "string") return fail("Kategori harus teks");
-  if (body.satuan !== undefined && typeof body.satuan !== "string") return fail("Satuan harus teks");
-  return ok({ nama: (body.nama as string).trim(), toko_id: body.toko_id !== undefined ? (body.toko_id as string).trim() || "" : "", sku: body.sku !== undefined ? (body.sku as string).trim().toUpperCase() : undefined, harga: body.harga as number | undefined, harga_modal: body.harga_modal as number | undefined, stok: body.stok as number | undefined, stock_threshold: body.stock_threshold as number | undefined, merk: body.merk !== undefined ? (body.merk as string).trim() : undefined, kategori: body.kategori !== undefined ? (body.kategori as string).trim() : undefined, satuan: body.satuan !== undefined ? (body.satuan as string).trim() : undefined });
+export function validateProdukCreate(body: Record<string, unknown>) {
+  const res = validate(body, {
+    nama: ["Nama produk", str()],
+    toko_id: ["toko_id", optional(str({ allowEmpty: true }))],
+    sku: ["SKU", optional(str({ upper: true }))],
+    harga: ["Harga", optional(num({ min: 0 }))],
+    harga_modal: ["Harga modal", optional(num({ min: 0 }))],
+    stok: ["Stok", optional(num({ min: 0 }))],
+    stock_threshold: ["stock_threshold", optional(num({ min: 0 }))],
+    merk: ["Merk", optional(str({ allowEmpty: true }))],
+    kategori: ["Kategori", optional(str({ allowEmpty: true }))],
+    satuan: ["Satuan", optional(str({ allowEmpty: true }))],
+  });
+  if (!res.ok) return res;
+  // toko_id selalu string (default "") sesuai kontrak lama, walau tidak dikirim
+  return ok({ ...res.data, toko_id: res.data.toko_id ?? "" });
 }
 
-export function validateProdukUpdate(body: Record<string, unknown>): ValidationResult<{ nama?: string; sku?: string; harga?: number; harga_modal?: number; stok?: number; stock_threshold?: number; merk?: string; kategori?: string; satuan?: string }> {
-  if (body.nama !== undefined && (typeof body.nama !== "string" || (body.nama as string).trim().length === 0)) return fail("Nama produk tidak boleh kosong");
-  if (body.sku !== undefined && (typeof body.sku !== "string" || (body.sku as string).trim().length === 0)) return fail("SKU tidak boleh kosong");
-  if (body.harga !== undefined && (typeof body.harga !== "number" || body.harga < 0)) return fail("Harga harus angka >= 0");
-  if (body.harga_modal !== undefined && (typeof body.harga_modal !== "number" || body.harga_modal < 0)) return fail("Harga modal harus angka >= 0");
-  if (body.stok !== undefined && (typeof body.stok !== "number" || body.stok < 0)) return fail("Stok harus angka >= 0");
-  if (body.stock_threshold !== undefined && (typeof body.stock_threshold !== "number" || body.stock_threshold < 0)) return fail("stock_threshold harus angka >= 0");
-  if (body.merk !== undefined && typeof body.merk !== "string") return fail("Merk harus teks");
-  if (body.kategori !== undefined && typeof body.kategori !== "string") return fail("Kategori harus teks");
-  if (body.satuan !== undefined && typeof body.satuan !== "string") return fail("Satuan harus teks");
-  return ok({ nama: body.nama !== undefined ? (body.nama as string).trim() : undefined, sku: body.sku !== undefined ? (body.sku as string).trim().toUpperCase() : undefined, harga: body.harga as number | undefined, harga_modal: body.harga_modal as number | undefined, stok: body.stok as number | undefined, stock_threshold: body.stock_threshold as number | undefined, merk: body.merk !== undefined ? (body.merk as string).trim() : undefined, kategori: body.kategori !== undefined ? (body.kategori as string).trim() : undefined, satuan: body.satuan !== undefined ? (body.satuan as string).trim() : undefined });
+export function validateProdukUpdate(body: Record<string, unknown>) {
+  return validate(body, {
+    nama: ["Nama produk", optional(str({ requiredMsg: "Nama produk tidak boleh kosong" }))],
+    sku: ["SKU", optional(str({ upper: true, requiredMsg: "SKU tidak boleh kosong" }))],
+    harga: ["Harga", optional(num({ min: 0 }))],
+    harga_modal: ["Harga modal", optional(num({ min: 0 }))],
+    stok: ["Stok", optional(num({ min: 0 }))],
+    stock_threshold: ["stock_threshold", optional(num({ min: 0 }))],
+    merk: ["Merk", optional(str({ allowEmpty: true }))],
+    kategori: ["Kategori", optional(str({ allowEmpty: true }))],
+    satuan: ["Satuan", optional(str({ allowEmpty: true }))],
+  });
 }
 
-// ---- Transaksi validation ----
+// Bulk — reuse validator single-item yang sama persis.
+export const validateProdukBulkCreate = bulk(validateProdukCreate);
+export const validateProdukBulkUpdate = bulk(validateProdukUpdate);
 
-export function validateTransaksiCreate(body: Record<string, unknown>): ValidationResult<{ toko_id: string; total: number; tax_rate?: number; discount_rate?: number; items: Array<{ nama: string; harga: number; qty: number; diskon?: number }> }> {
-  if (!body.toko_id || typeof body.toko_id !== "string") return fail("toko_id wajib diisi");
-  if (body.total === undefined || typeof body.total !== "number" || body.total < 0) return fail("total wajib diisi (angka >= 0)");
-  if (!body.items || !Array.isArray(body.items)) return fail("items wajib berupa array");
-  // Validasi struktur per-item
+// ---- Transaksi ----
+
+const validateTransaksiItem = (body: Record<string, unknown>) =>
+  validate(body, {
+    nama: ["Item nama", str()],
+    harga: ["Item harga", num({ min: 0 })],
+    qty: ["Item qty", num({ min: 1 })],
+    diskon: ["Item diskon", optional(num({ min: 0, max: 100 }))],
+  });
+
+const itemsField: FieldValidator<Array<{ nama: string; harga: number; qty: number; diskon?: number }>> = (value, label) => {
+  if (!Array.isArray(value)) return { ok: false, error: `${label} wajib berupa array` };
   const items: Array<{ nama: string; harga: number; qty: number; diskon?: number }> = [];
-  for (const item of body.items as unknown[]) {
-    if (!item || typeof item !== "object") return fail("Setiap item harus berupa object");
-    const i = item as Record<string, unknown>;
-    if (!i.nama || typeof i.nama !== "string") return fail("Item nama wajib diisi");
-    if (i.harga === undefined || typeof i.harga !== "number" || i.harga < 0) return fail("Item harga harus angka >= 0");
-    if (i.qty === undefined || typeof i.qty !== "number" || i.qty < 1) return fail("Item qty harus angka >= 1");
-    if (i.diskon !== undefined && (typeof i.diskon !== "number" || i.diskon < 0 || i.diskon > 100)) return fail("Item diskon harus 0-100");
-    items.push({ nama: i.nama as string, harga: i.harga as number, qty: i.qty as number, diskon: i.diskon as number | undefined });
+  for (const item of value) {
+    if (!item || typeof item !== "object") return { ok: false, error: "Setiap item harus berupa object" };
+    const res = validateTransaksiItem(item as Record<string, unknown>);
+    if (!res.ok) return { ok: false, error: res.error };
+    items.push(res.data);
   }
-  return ok({ toko_id: body.toko_id as string, total: body.total as number, tax_rate: body.tax_rate as number | undefined, discount_rate: body.discount_rate as number | undefined, items });
+  return { ok: true, value: items };
+};
+
+const rawArrayField: FieldValidator<unknown[]> = (value, label) =>
+  Array.isArray(value) ? { ok: true, value } : { ok: false, error: `${label} harus berupa array` };
+
+export function validateTransaksiCreate(body: Record<string, unknown>) {
+  return validate(body, {
+    toko_id: ["toko_id", str()],
+    total: ["total", num({ min: 0 })],
+    tax_rate: ["tax_rate", optional(num())],
+    discount_rate: ["discount_rate", optional(num())],
+    items: ["items", itemsField],
+  });
 }
 
-export function validateTransaksiUpdate(body: Record<string, unknown>): ValidationResult<{ total?: number; tax_rate?: number; discount_rate?: number; items?: unknown[] }> {
-  if (body.total !== undefined && (typeof body.total !== "number" || body.total < 0)) return fail("total harus angka >= 0");
-  if (body.items !== undefined && !Array.isArray(body.items)) return fail("items harus berupa array");
-  return ok({ total: body.total as number | undefined, tax_rate: body.tax_rate as number | undefined, discount_rate: body.discount_rate as number | undefined, items: body.items as unknown[] | undefined });
+export function validateTransaksiUpdate(body: Record<string, unknown>) {
+  return validate(body, {
+    total: ["total", optional(num({ min: 0 }))],
+    tax_rate: ["tax_rate", optional(num())],
+    discount_rate: ["discount_rate", optional(num())],
+    items: ["items", optional(rawArrayField)],
+  });
 }
+
+// Bulk transaksi disediakan juga karena polanya sama — tinggal dipakai kalau perlu.
+export const validateTransaksiBulkCreate = bulk(validateTransaksiCreate);

@@ -9,7 +9,7 @@
 //   toast.info("Sesi akan habis dalam 2 menit");
 //   toast.warning("Stok produk rendah");
 
-import { createSignal } from "solid-js";
+import { createSignal, createRoot } from "solid-js";
 
 export type ToastType = "success" | "error" | "info" | "warning";
 
@@ -21,7 +21,7 @@ export interface ToastItem {
   dismissing?: boolean;
 }
 
-const [toasts, setToasts] = createSignal<ToastItem[]>([]);
+const [toasts, setToasts] = createRoot(() => createSignal<ToastItem[]>([]));
 export { toasts };
 
 function genId(): string {

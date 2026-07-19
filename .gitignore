@@ -47,3 +47,6 @@ reasonix.toml
 # Backup files
 *.bak
 *.bak.*
+
+# Scratch files
+frontend/src/pages/Landing.txt
