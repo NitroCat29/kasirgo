@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KasirGo</title>
+    <link rel="icon" type="image/svg+xml" href="/kasirgo/assets/kasirku_logo.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com/" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+    <!-- hCaptcha — async defer, load saat signup butuh -->
+    <script>window.onHcaptchaLoad=function(){}</script>
+  <script src="https://js.hcaptcha.com/1/api.js?onload=onHcaptchaLoad&render=explicit" async defer></script>
+    <script type="module" crossorigin src="/kasirgo/assets/index-BEhtTAIH.js"></script>
+    <link rel="modulepreload" crossorigin href="/kasirgo/assets/auth-N9s2Q-I6.js">
+    <link rel="stylesheet" crossorigin href="/kasirgo/assets/index-Kokvtm8J.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- Global error handler: tampilkan error daripada blank screen -->
+    <script>
+      (function() {
+        var shown = false;
+        function showError(title, detail) {
+          if (shown) return;
+          var root = document.getElementById("root");
+          if (!root) return;
+          shown = true;
+          root.innerHTML = '<div style="padding:24px;color:#ff6b6b;font-family:monospace;white-space:pre-wrap;max-width:800px;margin:40px auto">'
+            + '<h2 style="color:#ff8a3d">⚠ ' + title + '</h2>'
+            + '<pre style="color:#e8edf5;font-size:13px;margin-top:8px;white-space:pre-wrap">' + detail + '</pre>'
+            + '<p style="color:#8b95a8;font-size:11px;margin-top:12px">Coba refresh (Ctrl+Shift+R) atau buka Console (F12)</p>'
+            + '</div>';
+        }
+        // Catch sync errors + resource load errors
+        window.addEventListener("error", function(e) {
+          showError("Runtime Error",
+            (e.message || "Unknown error")
+            + (e.filename ? "\n  at " + e.filename + ":" + e.lineno + ":" + e.colno : "")
+            + (e.error && e.error.stack ? "\n\n" + e.error.stack : ""));
+        }, true);
+        // Catch unhandled promise rejections
+        window.addEventListener("unhandledrejection", function(e) {
+          showError("Unhandled Promise Rejection",
+            (e.reason && e.reason.stack ? e.reason.stack : String(e.reason)));
+        });
+        // Timeout fallback: kalau #root masih kosong setelah 5 detik
+        setTimeout(function() {
+          var root = document.getElementById("root");
+          if (root && !root.innerHTML.trim()) {
+            showError("Module Loading Timeout",
+              "JavaScript module gagal dimuat dalam 5 detik.\n\n"
+              + "Kemungkinan:\n"
+              + "• Vite dev server tidak running (jalankan: cd frontend && bun run dev)\n"
+              + "• Backend tidak running (jalankan: bun run backend/server.ts)\n"
+              + "• Browser cache issue (Ctrl+Shift+R untuk hard refresh)");
+          }
+        }, 5000);
+      })();
+    </script>
+  </body>
+</html>

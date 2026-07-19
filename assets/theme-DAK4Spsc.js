@@ -1,0 +1,1 @@
+import{O as e,k as t}from"./auth-N9s2Q-I6.js";var[n,r]=e(()=>t(`dark`));function i(){let e=localStorage.getItem(`kasir-theme`)||`dark`;r(e),document.documentElement.setAttribute(`data-theme`,e)}function a(){let e=n()===`dark`?`light`:`dark`;return r(e),localStorage.setItem(`kasir-theme`,e),document.documentElement.setAttribute(`data-theme`,e),e}export{n,a as r,i as t};
