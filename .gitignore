@@ -48,5 +48,8 @@ reasonix.toml
 *.bak
 *.bak.*
 
+# Worktrees
+.worktrees/
+
 # Scratch files
 frontend/src/pages/Landing.txt
