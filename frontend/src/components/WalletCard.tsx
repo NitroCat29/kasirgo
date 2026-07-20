@@ -58,7 +58,7 @@ export default function WalletCard(props?: { walletRefresh?: () => number }) {
   }
 
   async function doTopup(amount: number) {
-    if (amount < 1000) return swalApiError({ error: "Minimal top-up Rp 1.000" });
+    if (!Number.isFinite(amount) || amount < 1000) return swalApiError({ error: "Minimal top-up Rp 1.000" });
     const ok = await swalConfirm("Konfirmasi Top-Up", `Top-up sebesar ${formatRp(amount)}?`);
     if (!ok) return;
     setLoading(true);
@@ -189,7 +189,10 @@ export default function WalletCard(props?: { walletRefresh?: () => number }) {
                 class="flex-1 bg-kasir-bg2 border border-kasir-border rounded-xl px-3 py-2 text-sm text-kasir-fg placeholder-kasir-muted focus:outline-none focus:border-kasir-accent"
               />
               <button
-                onClick={() => doTopup(Number(customAmount()))}
+                onClick={() => {
+                  const amt = Number(customAmount());
+                  if (Number.isFinite(amt) && amt >= 1000) doTopup(amt);
+                }}
                 disabled={loading() || !customAmount()}
                 class="px-4 py-2 rounded-xl bg-kasir-accent text-kasir-bg font-semibold text-sm hover:opacity-90 transition disabled:opacity-50"
               >
