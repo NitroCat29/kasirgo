@@ -10,12 +10,29 @@ import { toasts, toast, calcPasswordStrength, type ToastType } from "../lib/toas
 // ============================================================
 // Toast Container — render global toasts (mount once di App.tsx)
 // ============================================================
-const TOAST_ICONS: Record<ToastType, string> = {
-  success: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
-  error: '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>',
-  info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
-  warning: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
-};
+const ToastIcon = (props: { type: ToastType }) => (
+  <svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <Show when={props.type === "success"}>
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+      <polyline points="22 4 12 14.01 9 11.01"/>
+    </Show>
+    <Show when={props.type === "error"}>
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="15" y1="9" x2="9" y2="15"/>
+      <line x1="9" y1="9" x2="15" y2="15"/>
+    </Show>
+    <Show when={props.type === "info"}>
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="16" x2="12" y2="12"/>
+      <line x1="12" y1="8" x2="12.01" y2="8"/>
+    </Show>
+    <Show when={props.type === "warning"}>
+      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+      <line x1="12" y1="9" x2="12" y2="13"/>
+      <line x1="12" y1="17" x2="12.01" y2="17"/>
+    </Show>
+  </svg>
+);
 
 export function ToastContainer() {
   return (
@@ -23,7 +40,7 @@ export function ToastContainer() {
       <For each={toasts()}>
         {(t) => (
           <div class={`toast-item toast-${t.type} ${t.dismissing ? "dismissing" : ""}`} role="alert">
-            <svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" innerHTML={TOAST_ICONS[t.type]} />
+            <ToastIcon type={t.type} />
             <span class="toast-message">{t.message}</span>
             <button class="toast-close" onClick={() => toast.dismiss(t.id)} aria-label="Tutup">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
@@ -63,15 +80,44 @@ export function SkeletonRow() {
 // ============================================================
 // Empty State
 // ============================================================
-const EMPTY_ICONS: Record<string, string> = {
-  users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
-  toko: '<path d="M3 9l1-5h16l1 5"/><path d="M5 9v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><line x1="3" y1="9" x2="21" y2="9"/>',
-  produk: '<path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/>',
-  transaksi: '<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
-  audit: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
-  search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
-  cart: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',
-};
+const EmptyIcon = (props: { type: string }) => (
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <Show when={props.type === "users"}>
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </Show>
+    <Show when={props.type === "toko"}>
+      <path d="M3 9l1-5h16l1 5"/>
+      <path d="M5 9v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/>
+      <line x1="3" y1="9" x2="21" y2="9"/>
+    </Show>
+    <Show when={props.type === "produk"}>
+      <path d="M20 7l-8-4-8 4 8 4 8-4z"/>
+      <path d="M4 7v10l8 4 8-4V7"/>
+    </Show>
+    <Show when={props.type === "transaksi"}>
+      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+    </Show>
+    <Show when={props.type === "audit"}>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/>
+      <line x1="16" y1="17" x2="8" y2="17"/>
+    </Show>
+    <Show when={props.type === "cart"}>
+      <circle cx="9" cy="21" r="1"/>
+      <circle cx="20" cy="21" r="1"/>
+      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+    </Show>
+    <Show when={props.type !== "users" && props.type !== "toko" && props.type !== "produk" && props.type !== "transaksi" && props.type !== "audit" && props.type !== "cart"}>
+      {/* default: search */}
+      <circle cx="11" cy="11" r="8"/>
+      <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </Show>
+  </svg>
+);
 
 export function EmptyState(props: {
   type?: keyof typeof EMPTY_ICONS | "search";
@@ -82,7 +128,7 @@ export function EmptyState(props: {
   return (
     <div class="empty-state">
       <div class="empty-state-icon">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" innerHTML={EMPTY_ICONS[props.type ?? "search"] ?? EMPTY_ICONS.search} />
+        <EmptyIcon type={props.type ?? "search"} />
       </div>
       <Show when={props.title}>
         <div class="empty-state-title">{props.title}</div>

@@ -41,6 +41,10 @@ const BASE = import.meta.env.VITE_API_BASE ?? "";
    ============================================ */
 export const DEV_MODE = import.meta.env.VITE_DEV_MODE === "true";
 
+if (DEV_MODE) {
+  console.warn("[KasirGO] DEV_MODE active — auth API requests are mocked. Do NOT use in production.");
+}
+
 const MOCK_USER = {
   id: "dev",
   username: "dev",

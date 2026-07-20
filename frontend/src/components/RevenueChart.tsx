@@ -264,18 +264,32 @@ export default function RevenueChart(props: { data: DailyData[]; days: number; l
                 const chartRect = containerRef?.getBoundingClientRect();
                 if (!chartRect) return;
 
-                tooltipRef.innerHTML = `
-                  <div style="font-size:11px;opacity:0.65;margin-bottom:4px;">${formatDateFull(dayStr)}</div>
-                  <div style="display:flex;align-items:center;gap:6px;font-weight:700;font-size:13px;color:${GREEN.line};">
-                    <span style="width:7px;height:7px;border-radius:50%;background:${GREEN.line};display:inline-block;"></span>
-                    ${formatRupiahFull(rev ?? 0)}
-                  </div>
-                  <div style="display:flex;align-items:center;gap:6px;font-weight:600;font-size:12px;color:${RED.line};margin-top:2px;">
-                    <span style="width:7px;height:7px;border-radius:50%;background:${RED.line};display:inline-block;"></span>
-                    ${formatRupiahFull(exp)}
-                  </div>
-                  ${txCount > 0 ? `<div style="font-size:11px;opacity:0.55;margin-top:4px;">${txCount} transaksi</div>` : ""}
-                `;
+                // Safe tooltip: build DOM instead of innerHTML
+                tooltipRef.textContent = "";
+                const tipDate = document.createElement("div");
+                tipDate.style.cssText = "font-size:11px;opacity:0.65;margin-bottom:4px";
+                tipDate.textContent = formatDateFull(dayStr);
+                tooltipRef.appendChild(tipDate);
+                const tipRev = document.createElement("div");
+                tipRev.style.cssText = "display:flex;align-items:center;gap:6px;font-weight:700;font-size:13px;color:" + GREEN.line;
+                const dotRev = document.createElement("span");
+                dotRev.style.cssText = "width:7px;height:7px;border-radius:50%;background:" + GREEN.line + ";display:inline-block";
+                tipRev.appendChild(dotRev);
+                tipRev.appendChild(document.createTextNode(formatRupiahFull(rev ?? 0)));
+                tooltipRef.appendChild(tipRev);
+                const tipExp = document.createElement("div");
+                tipExp.style.cssText = "display:flex;align-items:center;gap:6px;font-weight:600;font-size:12px;color:" + RED.line + ";margin-top:2px";
+                const dotExp = document.createElement("span");
+                dotExp.style.cssText = "width:7px;height:7px;border-radius:50%;background:" + RED.line + ";display:inline-block";
+                tipExp.appendChild(dotExp);
+                tipExp.appendChild(document.createTextNode(formatRupiahFull(exp)));
+                tooltipRef.appendChild(tipExp);
+                if (txCount > 0) {
+                  const tipTx = document.createElement("div");
+                  tipTx.style.cssText = "font-size:11px;opacity:0.55;margin-top:4px";
+                  tipTx.textContent = txCount + " transaksi";
+                  tooltipRef.appendChild(tipTx);
+                }
                 tooltipRef.style.opacity = "1";
                 const tw = tooltipRef.offsetWidth || 160;
                 const th = tooltipRef.offsetHeight || 70;
