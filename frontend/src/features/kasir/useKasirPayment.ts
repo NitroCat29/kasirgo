@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import { api, csrfHeaders } from "../../lib/api";
+import { api } from "../../lib/api";
 import {
   swalWarning,
   swalSuccess,
@@ -80,7 +80,7 @@ export function useKasirPayment(deps: CartDeps) {
     }
 
     const items = deps.cart().map((c) => ({
-      produk_id: c.produk_id.startsWith("jasa-") ? undefined : c.produk_id,
+      produk_id: c.produk_id, // keep jasa-fotocopy ID for kertas stock deduction
       nama: c.nama,
       harga: c.harga,
       qty: c.qty,
@@ -88,10 +88,8 @@ export function useKasirPayment(deps: CartDeps) {
     }));
 
     try {
-      const res = await fetch("/api/transaksi", {
+      const result = await api<TransaksiResult>("/api/transaksi", {
         method: "POST",
-        headers: csrfHeaders(),
-        credentials: "include",
         body: JSON.stringify({
           toko_id: selectedTokoId,
           total: Math.round(deps.total()),
@@ -100,11 +98,6 @@ export function useKasirPayment(deps: CartDeps) {
           items,
         }),
       });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        throw new Error(d.error || `HTTP ${res.status}`);
-      }
-      const result = await res.json();
       setTransaksiResult({
         id: result.id,
         total: result.total,

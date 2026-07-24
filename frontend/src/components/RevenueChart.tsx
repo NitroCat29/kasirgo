@@ -11,8 +11,7 @@ interface DailyData {
   day: string;
   revenue: number;
   count: number;
-  // Optional — plug in a real expense figure from the API when available.
-  expense?: number;
+  expense?: number; // real from API (wallet purchase/restock)
 }
 
 function formatRupiah(val: number): string {
@@ -25,18 +24,32 @@ function formatRupiahFull(val: number): string {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(val);
 }
 
+/** day = `YYYY-MM-DD` | hour = `YYYY-MM-DDTHH:00:00Z` */
+function parseBucketTs(key: string): number {
+  if (key.includes("T")) return new Date(key).getTime() / 1000;
+  return new Date(key + "T00:00:00Z").getTime() / 1000;
+}
+
 function formatDateFull(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
+  if (dateStr.includes("T")) {
+    const d = new Date(dateStr);
+    return d.toLocaleString("id-ID", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  }
+  const d = new Date(dateStr + "T00:00:00Z");
   return d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
 }
 
-// Deterministic pseudo-random ratio (0..1) derived from a string, so the
-// placeholder expense curve stays stable across re-renders instead of
-// jumping around every time the component redraws.
-function seededRatio(seed: string): number {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
-  return (h % 1000) / 1000;
+function bucketKeyFromTs(ts: number, hourly: boolean): string {
+  const d = new Date(ts * 1000);
+  // slice YYYY-MM-DDTHH + :00:00Z — regex :ss.mmm → T16:00:00:00Z (invalid)
+  if (hourly) return d.toISOString().slice(0, 13) + ":00:00Z";
+  return d.toISOString().slice(0, 10);
 }
 
 // Catmull-Rom spline → cubic bezier conversion. Higher tension = softer,
@@ -89,14 +102,11 @@ export default function RevenueChart(props: { data: DailyData[]; days: number; l
   let animFrame = 0;
 
   const isLight = () => document.documentElement.getAttribute("data-theme") === "light";
+  const isHourly = () => props.days === 1;
 
-  // Placeholder expense series until a real /pengeluaran figure exists in
-  // the API — derived from revenue with stable per-day variance so the
-  // red wave reads as organic rather than a flat mirrored copy.
+  // Real expense only (wallet purchase/restock from API). Mock seededRatio removed.
   function expenseFor(d: DailyData): number {
-    if (typeof d.expense === "number") return d.expense;
-    const ratio = 0.32 + seededRatio(d.day) * 0.26; // ~32%–58% of revenue
-    return d.revenue * ratio;
+    return typeof d.expense === "number" ? d.expense : 0;
   }
 
   function startDrawAnimation() {
@@ -126,13 +136,18 @@ export default function RevenueChart(props: { data: DailyData[]; days: number; l
     const gridColor = light ? "rgba(0,0,0,0.035)" : "rgba(255,255,255,0.035)";
     const textColor = light ? "#7a7066" : "#52525b";
     const nowSec = Date.now() / 1000;
+    const hourly = isHourly();
+    // hourly: last 24h window; multi-day: last N days
+    const xRange: [number, number] = hourly
+      ? [nowSec - 23 * 3600, nowSec]
+      : [nowSec - (props.days || 30) * 86400, nowSec];
 
     return {
       width: width - 16,
       height: 260,
       padding: [18, 12, 4, 8],
       scales: {
-        x: { time: true, range: [nowSec - (props.days || 30) * 86400, nowSec] },
+        x: { time: true, range: xRange },
         y: { range: [0, maxVal * 1.15] },
       },
       axes: [
@@ -142,7 +157,15 @@ export default function RevenueChart(props: { data: DailyData[]; days: number; l
           ticks: { show: false },
           values: (_u, vals) =>
             vals.map((v: number) => {
+              if (v == null || isNaN(v)) return "";
               const d = new Date(v * 1000);
+              if (isNaN(d.getTime())) return "";
+              if (hourly) {
+                // Label every 3h to keep axis readable
+                const h = d.getHours();
+                if (h % 3 !== 0) return "";
+                return d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false });
+              }
               const day = d.getDate();
               // Show label on 1st, 10th, 20th to avoid clutter on 30-day window
               if (day === 1 || day === 10 || day === 20)
@@ -175,17 +198,33 @@ export default function RevenueChart(props: { data: DailyData[]; days: number; l
                 const revData = u.data[1];
                 if (!xdata || xdata.length < 2) return;
 
+                try {
                 ctx.save();
 
                 const revPts: { x: number; y: number }[] = [];
                 const expPts: { x: number; y: number }[] = [];
+                let skipped = 0;
+                const hourly = isHourly();
                 for (let i = 0; i < xdata.length; i++) {
-                  const dayStr = new Date(xdata[i] * 1000).toISOString().slice(0, 10);
-                  const dayData = props.data.find((d) => d.day === dayStr);
+                  const ts = xdata[i];
+                  const dayData =
+                    ts != null && !isNaN(ts)
+                      ? props.data.find((d) => d.day === bucketKeyFromTs(ts, hourly))
+                      : undefined;
                   const exp = dayData ? expenseFor(dayData) : 0;
-                  revPts.push({ x: u.valToPos(xdata[i], "x", true), y: u.valToPos(revData![i] ?? 0, "y", true) });
-                  expPts.push({ x: u.valToPos(xdata[i], "x", true), y: u.valToPos(exp, "y", true) });
+                  const px = u.valToPos(ts, "x", true);
+                  const pyRev = u.valToPos(revData![i] ?? 0, "y", true);
+                  const pyExp = u.valToPos(exp, "y", true);
+                  if (!isFinite(px) || !isFinite(pyRev) || !isFinite(pyExp)) {
+                    skipped++;
+                    continue;
+                  }
+                  revPts.push({ x: px, y: pyRev });
+                  expPts.push({ x: px, y: pyExp });
                 }
+
+
+                if (revPts.length < 2) { ctx.restore(); return; }
 
                 // Draw-on-load clip
                 const totalWidth = revPts[revPts.length - 1].x - revPts[0].x;
@@ -194,7 +233,10 @@ export default function RevenueChart(props: { data: DailyData[]; days: number; l
                 ctx.rect(revPts[0].x - 4, -100, clipWidth + 8, 500);
                 ctx.clip();
 
-                const bottom = u.valToPos(0, "y", true);
+                // Compute bottom from bbox — valToPos(0,"y") can return
+                // non-finite during uPlot initial render before layout is ready.
+                const bottom = u.bbox.top + u.bbox.height;
+                if (!isFinite(bottom) || bottom <= 0) { ctx.restore(); return; }
 
                 // ---- Layer 1: Pengeluaran (red, behind) ----
                 const expCurves = catmullRomSpline(expPts, 1.05);
@@ -240,6 +282,7 @@ export default function RevenueChart(props: { data: DailyData[]; days: number; l
                 ctx.stroke();
 
                 ctx.restore();
+                } catch { /* swallow canvas errors — don't crash the dashboard */ }
               },
             ],
             setCursor: [
@@ -254,7 +297,11 @@ export default function RevenueChart(props: { data: DailyData[]; days: number; l
                 const ydata = u.data[1];
                 const ts = xdata[idx];
                 const rev = ydata[idx];
-                const dayStr = new Date(ts * 1000).toISOString().slice(0, 10);
+                if (ts == null || isNaN(ts)) {
+                  tooltipRef.style.opacity = "0";
+                  return;
+                }
+                const dayStr = bucketKeyFromTs(ts, isHourly());
                 const dayData = props.data.find((d) => d.day === dayStr);
                 const txCount = dayData?.count ?? 0;
                 const exp = dayData ? expenseFor(dayData) : 0;
@@ -346,16 +393,26 @@ export default function RevenueChart(props: { data: DailyData[]; days: number; l
   }
 
   function buildChart() {
-    if (!containerRef || !props.data || props.data.length === 0) return;
+    if (!containerRef || !props.data || props.data.length === 0) {
+
+      return;
+    }
     if (chart) {
       chart.destroy();
       chart = null;
     }
-    const timestamps = props.data.map((d) => new Date(d.day + "T00:00:00").getTime() / 1000);
-    const revenues = props.data.map((d) => d.revenue);
+    // Filter out entries with invalid day/hour keys — prevents NaN timestamps
+    const valid = props.data.filter((d) => isFinite(parseBucketTs(d.day)));
+    if (valid.length === 0) {
+
+      return;
+    }
+    const timestamps = valid.map((d) => parseBucketTs(d.day));
+    const revenues = valid.map((d) => d.revenue);
     const maxVal = Math.max(...revenues, 1);
     const data: uPlot.AlignedData = [new Float64Array(timestamps), new Float64Array(revenues)];
     const w = containerRef.parentElement?.clientWidth || 600;
+
     chart = new uPlot(getChartOpts(w, timestamps.length, maxVal), data, containerRef);
     startDrawAnimation();
   }

@@ -66,11 +66,15 @@ export interface AuditLog {
   id: string;
   user_id: string | null;
   username: string | null;
-  action: string; // "CREATE" | "UPDATE" | "DELETE" | "LOGIN" | "LOGOUT"
-  entity_type: string; // "toko" | "produk" | "transaksi" | "user" | "auth"
+  action: string; // "CREATE" | "UPDATE" | "DELETE" | "LOGIN" | "LOGOUT" | "READ"
+  entity_type: string; // "toko" | "produk" | "transaksi" | "user" | "auth" | "wallet"
   entity_id: string | null;
   details: string | null; // JSON string
+  old_values: string | null; // JSON — snapshot before mutation
+  new_values: string | null; // JSON — snapshot after mutation
   ip_address: string | null;
+  prev_hash: string | null; // SHA-256 dari row sebelumnya (integrity chain)
+  hash: string;          // SHA-256(row ini + HMAC secret) — tamper-proof
   created_at: string;
 }
 

@@ -3,10 +3,14 @@ import { createMemo, createSignal } from "solid-js";
 import { EmptyState } from "../../../components/ui";
 import { formatRupiah } from "../../../lib/format";
 import { canEdit } from "../../../components/dashboard/types";
-import type { Produk } from "../../../components/dashboard/types";
+import type { Produk, Toko } from "../../../components/dashboard/types";
 
 export interface ProdukTabProps {
   daftarProduk: () => Produk[];
+  daftarToko: () => Toko[];
+  selectedTokoId: () => string;
+  onSelectToko: (tokoId: string) => void;
+  onGoToTokoTab?: () => void;
   lowStockCount: () => number;
   userRole: () => string | undefined;
   getTokoNama: (id: string | undefined) => string;
@@ -59,9 +63,32 @@ export default function ProdukTab(props: ProdukTabProps) {
         (p.kategori || "").toLowerCase().includes(q),
     );
   });
+  const hasToko = () => props.daftarToko().length > 0;
+  const activeTokoNama = () =>
+    props.daftarToko().find((t) => t.id === props.selectedTokoId())?.nama || "—";
 
   return (
     <div class="fade-in">
+      {/* No toko yet */}
+      <Show when={!hasToko()}>
+        <div class="glass p-4 mb-4 border border-amber-500/30 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="text-sm font-semibold text-amber-300">Belum ada toko</p>
+            <p class="text-xs text-zinc-500">
+              Buat toko dulu sebelum menambah / mengelola produk.
+            </p>
+          </div>
+          <Show when={canEdit(props.userRole())}>
+            <button
+              class="btn-sm btn-indigo"
+              onClick={() => props.onGoToTokoTab?.()}
+            >
+              Buat Toko
+            </button>
+          </Show>
+        </div>
+      </Show>
+
       {/* Low stock alert banner */}
       <Show when={props.lowStockCount() > 0}>
         <div class="glass p-4 mb-4 border border-amber-500/30 flex items-center justify-between">
@@ -86,10 +113,32 @@ export default function ProdukTab(props: ProdukTabProps) {
         </div>
       </Show>
 
-      {/* Header: title, search, add button */}
+      {/* Header: title, toko filter, search, add button */}
       <div class="flex flex-wrap gap-3 justify-between items-center mb-4">
-        <h2 class="text-lg font-semibold text-white">Daftar Produk</h2>
-        <div class="flex items-center gap-2">
+        <div>
+          <h2 class="text-lg font-semibold text-white">Daftar Produk</h2>
+          <Show when={hasToko()}>
+            <p class="text-xs text-kasir-muted mt-0.5">
+              Mengelola: <span class="text-indigo-300 font-medium">{activeTokoNama()}</span>
+            </p>
+          </Show>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <Show when={hasToko()}>
+            <select
+              class="kasir-input text-sm w-44"
+              value={props.selectedTokoId()}
+              onChange={(e) => {
+                props.clearProdukSelection();
+                props.onSelectToko(e.currentTarget.value);
+                setSearch("");
+              }}
+            >
+              <For each={props.daftarToko()}>
+                {(t) => <option value={t.id}>{t.nama}</option>}
+              </For>
+            </select>
+          </Show>
           <div class="relative">
             <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-kasir-muted pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
@@ -100,10 +149,16 @@ export default function ProdukTab(props: ProdukTabProps) {
               value={search()}
               onInput={(e) => { props.clearProdukSelection(); setSearch(e.currentTarget.value); }}
               class="kasir-input w-56 text-sm pl-9"
+              disabled={!hasToko()}
             />
           </div>
           <Show when={canEdit(props.userRole())}>
-            <button class="btn-sm btn-indigo" onClick={props.onAdd}>
+            <button
+              class="btn-sm btn-indigo"
+              onClick={props.onAdd}
+              disabled={!hasToko()}
+              title={!hasToko() ? "Buat toko dulu" : "Tambah produk ke toko aktif"}
+            >
               + Tambah Produk
             </button>
           </Show>
@@ -157,8 +212,20 @@ export default function ProdukTab(props: ProdukTabProps) {
             <EmptyState
               type="produk"
               title="Belum ada produk"
-              description={search() ? `Tidak ada produk cocok dengan "${search()}"` : "Tambahkan produk pertama kamu untuk mulai."}
-              action={canEdit(props.userRole()) ? { label: "+ Tambah Produk", onClick: props.onAdd } : undefined}
+              description={
+                !hasToko()
+                  ? "Buat toko dulu sebelum menambah produk."
+                  : search()
+                    ? `Tidak ada produk cocok dengan "${search()}"`
+                    : "Tambahkan produk pertama kamu untuk mulai."
+              }
+              action={
+                canEdit(props.userRole())
+                  ? !hasToko()
+                    ? { label: "Buat Toko", onClick: () => props.onGoToTokoTab?.() }
+                    : { label: "+ Tambah Produk", onClick: props.onAdd }
+                  : undefined
+              }
             />
           </div>
         }>

@@ -137,6 +137,10 @@ export function KasirPaymentModal(props: KasirPaymentModalProps) {
 }
 
 export function KasirReceiptModal(props: KasirReceiptModalProps) {
+  function handlePrint() {
+    window.print();
+  }
+
   return (
     <Show when={props.showReceipt() && props.transaksiResult()}>
       <div
@@ -144,7 +148,8 @@ export function KasirReceiptModal(props: KasirReceiptModalProps) {
         onClick={props.closeReceipt}
       >
         <div
-          class="bg-white text-black rounded-xl p-6 w-80 max-w-[90vw] font-mono text-sm"
+          id="receipt-print"
+          class="bg-white text-black rounded-xl p-6 w-80 max-w-[90vw] font-mono text-sm print-receipt"
           onClick={(e) => e.stopPropagation()}
         >
           <div class="text-center mb-4">
@@ -213,12 +218,24 @@ export function KasirReceiptModal(props: KasirReceiptModalProps) {
             Terima kasih atas kunjungan Anda!
           </div>
 
-          <button
-            class="btn btn-primary w-full mt-4"
-            onClick={props.closeReceipt}
-          >
-            Tutup
-          </button>
+          <div class="text-center text-[10px] text-gray-400 mt-1 break-all">
+            ID: {props.transaksiResult()!.id}
+          </div>
+
+          <div class="flex gap-2 mt-4">
+            <button
+              class="btn btn-ghost flex-1 text-sm border border-gray-300"
+              onClick={handlePrint}
+            >
+              🖨️ Cetak
+            </button>
+            <button
+              class="btn btn-primary flex-1 text-sm"
+              onClick={props.closeReceipt}
+            >
+              Tutup
+            </button>
+          </div>
         </div>
       </div>
     </Show>

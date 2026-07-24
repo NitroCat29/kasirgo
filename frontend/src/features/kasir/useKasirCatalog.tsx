@@ -41,18 +41,60 @@ export function useKasirCatalog() {
     return Array.from(set).sort();
   });
 
-  // --- Client-side filter ---
+  // --- Fuzzy scoring: subsequence match with position bonuses ---
+  function fuzzyScore(text: string, q: string): number {
+    if (!q) return 0;
+    const t = text.toLowerCase();
+    // Exact substring → best
+    const idx = t.indexOf(q);
+    if (idx !== -1) return 1000 - idx; // earlier match = higher score
+    // Starts with any word
+    const words = t.split(/\s+/);
+    for (const w of words) {
+      if (w.startsWith(q)) return 800;
+    }
+    // Subsequence match (each char of q must appear in order)
+    let qi = 0;
+    for (let ti = 0; ti < t.length && qi < q.length; ti++) {
+      if (t[ti] === q[qi]) qi++;
+    }
+    if (qi === q.length) {
+      // More consecutive chars = higher score
+      let consecutive = 0;
+      let maxConsecutive = 0;
+      qi = 0;
+      for (let ti = 0; ti < t.length && qi < q.length; ti++) {
+        if (t[ti] === q[qi]) {
+          consecutive++;
+          maxConsecutive = Math.max(maxConsecutive, consecutive);
+          qi++;
+        } else {
+          consecutive = 0;
+        }
+      }
+      return 400 + maxConsecutive * 50;
+    }
+    return -1; // no match
+  }
+
+  // --- Client-side filter + fuzzy sort ---
   const filteredCatalog = createMemo<Produk[]>(() => {
     const q = searchQuery().toLowerCase().trim();
     const kat = kategoriFilter();
-    return catalogProduk().filter((p) => {
-      const matchSearch =
-        !q ||
-        p.nama.toLowerCase().includes(q) ||
-        p.sku.toLowerCase().includes(q);
-      const matchKat = !kat || (p.kategori || "") === kat;
-      return matchSearch && matchKat;
-    });
+    const matches = catalogProduk()
+      .map((p) => {
+        const namaScore = fuzzyScore(p.nama, q);
+        const skuScore = fuzzyScore(p.sku, q);
+        const bestScore = Math.max(namaScore, skuScore);
+        const matchKat = !kat || (p.kategori || "") === kat;
+        return { produk: p, score: bestScore, matchKat };
+      })
+      .filter((m) => m.matchKat && (q ? m.score >= 0 : true));
+    // Sort: scored desc, then alphabetical
+    if (q) {
+      matches.sort((a, b) => b.score - a.score || a.produk.nama.localeCompare(b.produk.nama));
+    }
+    return matches.map((m) => m.produk);
   });
 
   // --- Fetch ---

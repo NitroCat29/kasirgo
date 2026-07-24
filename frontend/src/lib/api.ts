@@ -116,8 +116,8 @@ export async function api<T = any>(
   path: string,
   opts: RequestInit = {}
 ): Promise<T> {
-  // DEV_MODE bypass — /api/auth/* di-mock, path lain tetap ke backend
-  if (DEV_MODE && isAuthPath(path)) {
+  // DEV_MODE bypass — /api/v1/auth/* juga di-mock, path lain tetap ke backend
+  if (DEV_MODE && (isAuthPath(path) || path.startsWith("/api/v1/auth/"))) {
     return mockAuthResponse<T>(path, opts);
   }
 

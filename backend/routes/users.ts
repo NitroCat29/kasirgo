@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
 import { json, parseBody, requireRole, assertCanWrite, logAudit, clientIp, checkWriteRateLimit } from "../helpers";
+import { checkPasswordStrength } from "../../shared/validation";
 
 // ============================================================
 // User Management Routes (admin only)
@@ -13,8 +14,8 @@ const VALID_ROLES = ["admin", "manajer", "kasir"];
 function validateUserCreate(body: any): { ok: true; data: any } | { ok: false; error: string } {
   if (!body.username || typeof body.username !== "string" || body.username.trim().length < 3)
     return { ok: false, error: "Username minimal 3 karakter" };
-  if (!body.password || typeof body.password !== "string" || body.password.length < 6)
-    return { ok: false, error: "Password minimal 6 karakter (sudah di-SHA-256, jadi 64 hex chars)" };
+  if (!body.password || typeof body.password !== "string" || body.password.length < 8)
+    return { ok: false, error: "Password minimal 8 karakter (sudah di-SHA-256, jadi 64 hex chars)" };
   if (!body.nama || typeof body.nama !== "string" || body.nama.trim().length === 0)
     return { ok: false, error: "Nama wajib diisi" };
   const role = body.role || "kasir";
@@ -28,7 +29,7 @@ function validateUserUpdate(body: any): { ok: true; data: any } | { ok: false; e
     return { ok: false, error: "Nama tidak boleh kosong" };
   if (body.role !== undefined && !VALID_ROLES.includes(body.role))
     return { ok: false, error: "Role harus salah satu: admin, manajer, kasir" };
-  if (body.password !== undefined && (typeof body.password !== "string" || body.password.length < 6))
+  if (body.password !== undefined && (typeof body.password !== "string" || body.password.length < 8))
     return { ok: false, error: "Password minimal 6 karakter" };
   return {
     ok: true,
@@ -124,6 +125,8 @@ export const usersRoutes: Record<string, (req: Request, path: string[]) => Respo
         role_baru: role,
         password_reset: !!v.data.password,
       },
+      old_values: { username: existing.username, nama: existing.nama, role: existing.role },
+      new_values: { username: existing.username, nama, role },
     });
 
     const row = db.query("SELECT id, username, nama, role, created_at FROM users WHERE id = ?").get(id);

@@ -3254,12 +3254,113 @@ input[type="number"] {
 }
 
 @media print {
-  .blob, .aurora, .grid-bg, .noise::before, .pulse-dot,
-  .scroll-progress, .toast-container, .session-timeout-modal {
-    display: none !important;
+  body * {
+    visibility: hidden !important;
   }
-  body {
+  #receipt-print,
+  #receipt-print * {
+    visibility: visible !important;
+  }
+  #receipt-print {
+    position: fixed;
+    left: 0;
+    top: 0;
+    margin: 0;
+    padding: 12px;
+    width: 80mm;
     background: white !important;
     color: black !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    font-size: 11px;
+    border: none !important;
   }
+  .blob, .aurora, .grid-bg, .noise::before, .pulse-dot,
+  .scroll-progress, .toast-container, .session-timeout-modal,
+  .payment-overlay {
+    display: none !important;
+  }
+}
+
+/* ============================================
+   LOADING SCREEN
+   ============================================ */
+.loading-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--color-kasir-bg);
+}
+
+.loading-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.loading-logo {
+  width: 48px;
+  height: 48px;
+  color: var(--color-kasir-accent);
+}
+
+.block-stack {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  height: 32px;
+}
+
+.stack-block {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--color-kasir-accent);
+  opacity: 0;
+  transform: translateY(-20px) scaleY(0.5);
+  transition: opacity 0.3s ease, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.stack-block.visible {
+  opacity: 1;
+  transform: translateY(0) scaleY(1);
+}
+
+.loading-text-wrap {
+  position: relative;
+  height: 24px;
+  overflow: hidden;
+  text-align: center;
+}
+
+.loading-text {
+  position: absolute;
+  width: 100%;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-kasir-muted);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.loading-text--first {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.loading-text--second {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.text-exit-up {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+.text-enter-up {
+  opacity: 1;
+  transform: translateY(0);
 }

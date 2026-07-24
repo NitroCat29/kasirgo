@@ -7,6 +7,9 @@ backend/db/*.sqlite
 backend/db/*.sqlite-shm
 backend/db/*.sqlite-wal
 
+# Backups
+backups/
+
 # Dependencies
 node_modules/
 

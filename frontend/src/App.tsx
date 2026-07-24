@@ -1,5 +1,6 @@
 import { Router, Route, A } from "@solidjs/router";
 import { lazy, Suspense, createEffect, ErrorBoundary } from "solid-js";
+import LoadingScreen from "./components/LoadingScreen";
 import { fetchMe } from "./lib/auth";
 import { ToastContainer } from "./components/ui";
 
@@ -48,7 +49,7 @@ function Layout(props: { children?: any }) {
     <>
       <ToastContainer />
       <ErrorBoundary fallback={ErrorFallback}>
-        <Suspense fallback={<div class="...">Loading...</div>}>
+        <Suspense fallback={<LoadingScreen />}>
           {props.children}
         </Suspense>
       </ErrorBoundary>

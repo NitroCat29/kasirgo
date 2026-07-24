@@ -1,11 +1,14 @@
-import { createSignal, onCleanup, onMount, Show, type JSX } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { user, logout, fetchMe } from "../lib/auth";
+import { user, logout } from "../lib/auth";
+import { requireAuth } from "../lib/requireAuth";
 import { useSessionTimeout } from "../lib/session-timeout";
 import { SessionTimeoutModal } from "../components/ui";
 import DashboardSidebar from "../components/dashboard/DashboardSidebar";
 import { canManageUsers, canViewAudit } from "../components/dashboard/types";
-import type { DashboardTab } from "../components/dashboard/types";
+import type { DashboardTab, Transaksi, TrxItem } from "../components/dashboard/types";
+import { api } from "../lib/api";
+import { formatRupiah, formatWIB } from "../lib/format";
 
 import { useDashboardData } from "../features/dashboard/useDashboardData";
 import OverviewTab from "../features/dashboard/tabs/OverviewTab";
@@ -14,12 +17,15 @@ import ProdukTab from "../features/dashboard/tabs/ProdukTab";
 import TransaksiTab from "../features/dashboard/tabs/TransaksiTab";
 import UsersTab from "../features/dashboard/tabs/UsersTab";
 import AuditTab from "../features/dashboard/tabs/AuditTab";
+import SecurityTab from "../features/dashboard/tabs/SecurityTab";
 import TokoModal from "../features/dashboard/modals/TokoModal";
 import ProdukModal from "../features/dashboard/modals/ProdukModal";
 import UserModal from "../features/dashboard/modals/UserModal";
 import TrxModal from "../features/dashboard/modals/TrxModal";
 import LowStockModal from "../features/dashboard/modals/LowStockModal";
 import BulkRestockModal from "../features/dashboard/modals/BulkRestockModal";
+import CommandPalette from "../components/CommandPalette";
+import { toast } from "../lib/toast";
 
 /* ============================================
    COMPONENT
@@ -30,6 +36,57 @@ export default function Dashboard() {
   const d = useDashboardData();
   const [tab, setTab] = createSignal<DashboardTab>("overview");
   const [sidebarOpen, setSidebarOpen] = createSignal(false);
+  const [cmdOpen, setCmdOpen] = createSignal(false);
+
+  // Reprint receipt state
+  const [reprintTrx, setReprintTrx] = createSignal<Transaksi | null>(null);
+  const [reprintItems, setReprintItems] = createSignal<TrxItem[]>([]);
+  const [showReprint, setShowReprint] = createSignal(false);
+
+  async function handleReprint(trx: Transaksi) {
+    try {
+      const items = await api<TrxItem[]>(`/api/transaksi/${trx.id}/items`);
+      setReprintTrx(trx);
+      setReprintItems(items);
+      setShowReprint(true);
+    } catch {
+      // silent
+    }
+  }
+
+  function handlePrint() {
+    window.print();
+  }
+
+  // F2 keyboard shortcut
+  onMount(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "F2") {
+        e.preventDefault();
+        setCmdOpen((v) => !v);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    onCleanup(() => document.removeEventListener("keydown", handler));
+  });
+
+  // Command palette items
+  function cmdItems() {
+    return [
+      // Navigation tabs
+      { id: "overview", label: "Overview", icon: "📊", description: "Ringkasan dashboard", action: () => setTab("overview") },
+      { id: "toko", label: "Toko", icon: "🏪", description: "Kelola toko", action: () => setTab("toko") },
+      { id: "produk", label: "Produk", icon: "📦", description: "Kelola produk & stok", action: () => setTab("produk") },
+      { id: "transaksi", label: "Transaksi", icon: "🧾", description: "Riwayat transaksi", action: () => setTab("transaksi") },
+      { id: "users", label: "Users", icon: "👥", description: "Kelola pengguna", action: () => setTab("users") },
+      { id: "audit", label: "Audit Logs", icon: "📋", description: "Log aktivitas", action: () => setTab("audit") },
+      { id: "security", label: "Keamanan", icon: "🔐", description: "Pengaturan keamanan", action: () => setTab("security") },
+      // Quick actions
+      { id: "kasir", label: "Buka POS", icon: "⚡", description: "Buka halaman kasir", action: () => nav("/kasir") },
+      { id: "add-toko", label: "Tambah Toko", icon: "➕", description: "Buat toko baru", action: () => { d.setModalToko({}); d.setShowTokoModal(true); } },
+      { id: "add-produk", label: "Tambah Produk", icon: "➕", description: "Buat produk baru", action: () => { const tokoId = d.selectedProdukTokoId() || d.daftarToko()[0]?.id || ""; d.setModalProduk({ toko_id: tokoId }); d.setShowProdukModal(true); } },
+    ];
+  }
 
   // Sidebar items
   const sidebarItems = (): { id: DashboardTab; label: string; icon: JSX.Element }[] => {
@@ -43,6 +100,7 @@ export default function Dashboard() {
       items.push(
         { id: "users", label: "Users", icon: <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.885-2.001-1.938-2.001-.18 0-.358.025-.532.073m-3.593.65a9.337 9.337 0 00-4.121.952 4.125 4.125 0 007.533 2.493M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M9.038 17.595a9.337 9.337 0 00-4.121.952 4.125 4.125 0 007.533 2.493M9.038 17.595a9.337 9.337 0 00-4.121-.952 4.125 4.125 0 017.533 2.493M15 19.128v-.003c0-1.113-.885-2.001-1.938-2.001-.18 0-.358.025-.532.073m-3.593.65a9.337 9.337 0 00-4.121.952 4.125 4.125 0 007.533 2.493M9.038 17.595a4.125 4.125 0 00-7.533-2.493M9.038 17.595a9.337 9.337 0 00-4.121.952 4.125 4.125 0 007.533 2.493" /> },
         { id: "audit", label: "Audit Logs", icon: <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-2.25-2.126H4.5c0 3.106.003 5.935.007 7.037.004.885-.674 1.65-1.567 1.724a18.07 18.07 0 01-2.162.076 17.97 17.97 0 01-1.658-.112 17.97 17.97 0 01-1.658-.112 17.97 17.97 0 01-1.658-.112H3.75" /> },
+        { id: "security", label: "Keamanan", icon: <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /> },
       );
     }
     return items as { id: DashboardTab; label: string; icon: JSX.Element }[];
@@ -74,10 +132,8 @@ export default function Dashboard() {
 
   // Init
   onMount(async () => {
-    if (!user()) {
-      const me = await fetchMe();
-      if (!me) { nav("/login"); return; }
-    }
+    const me = await requireAuth(nav);
+    if (!me) return;
     await d.init();
     d.initOnMount();
   });
@@ -92,7 +148,18 @@ export default function Dashboard() {
     d.setBulkToml("");
   };
   const openProdukModal = () => {
-    d.setModalProduk({});
+    if (d.daftarToko().length === 0) {
+      toast.warning("Buat toko dulu di tab Toko sebelum menambah produk.");
+      setTab("toko");
+      return;
+    }
+    const tokoId = d.selectedProdukTokoId() || d.daftarToko()[0]?.id || "";
+    if (!tokoId) {
+      toast.warning("Pilih toko dulu sebelum menambah produk.");
+      return;
+    }
+    if (!d.selectedProdukTokoId()) d.setSelectedProdukTokoId(tokoId);
+    d.setModalProduk({ toko_id: tokoId });
     d.resetProdukCombobox();
     d.setBulkMode(false);
     d.setBulkToml("");
@@ -126,6 +193,7 @@ export default function Dashboard() {
 
   return (
     <>
+      <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} items={cmdItems} />
       <div class="flex min-h-screen bg-kasir-bg">
         {/* Sidebar */}
         <DashboardSidebar
@@ -154,6 +222,13 @@ export default function Dashboard() {
               <h1 class="text-2xl font-bold text-white">Dashboard</h1>
             </div>
             <div class="flex items-center gap-3">
+              <button
+                class="text-xs font-mono text-kasir-muted bg-white/5 px-2 py-1 rounded-lg border border-kasir-border hover:bg-white/10 transition-colors cursor-pointer"
+                onClick={() => setCmdOpen(true)}
+                title="Command Palette (F2)"
+              >
+                F2
+              </button>
               <button class="btn-sm btn-ghost" onClick={d.toggleTheme}>
                 {d.theme() === "dark" ? "☀️" : "🌙"}
               </button>
@@ -177,6 +252,7 @@ export default function Dashboard() {
               userName={() => user()?.nama}
               walletRefresh={d.walletRefresh}
               setChartDays={d.setChartDays}
+              tokoId={d.selectedProdukTokoId() || d.daftarToko()[0]?.id || ""}
             />
           </Show>
           <Show when={tab() === "toko"}>
@@ -190,7 +266,11 @@ export default function Dashboard() {
           </Show>
           <Show when={tab() === "produk"}>
             <ProdukTab
-              daftarProduk={d.daftarProduk}
+              daftarProduk={d.filteredDaftarProduk}
+              daftarToko={d.daftarToko}
+              selectedTokoId={d.selectedProdukTokoId}
+              onSelectToko={d.setProdukTokoFilter}
+              onGoToTokoTab={() => setTab("toko")}
               lowStockCount={d.lowStockCount}
               userRole={() => user()?.role}
               getTokoNama={d.getTokoNama}
@@ -216,6 +296,11 @@ export default function Dashboard() {
               onAdd={d.openTrxModal}
               onViewItems={d.loadTrxItems}
               onDelete={d.hapusTransaksi}
+              onReprint={handleReprint}
+              searchQuery={d.trxSearchQuery}
+              setSearchQuery={d.setTrxSearchQuery}
+              onSearch={(q) => d.loadTransaksi(q)}
+              totalCount={d.trxTotalCount}
             />
           </Show>
           <Show when={tab() === "users" && canManageUsers(user()?.role)}>
@@ -234,6 +319,9 @@ export default function Dashboard() {
               setAuditFilter={d.setAuditFilter}
               loadAudit={d.loadAudit}
             />
+          </Show>
+          <Show when={tab() === "security" && canManageUsers(user()?.role)}>
+            <SecurityTab />
           </Show>
         </main>
       </div>
@@ -279,7 +367,7 @@ export default function Dashboard() {
 
       {/* Bulk Restock */}
       <BulkRestockModal
-        show={d.showBulkRestockModal}
+        show={d.showBulkRestockModal()}
         onClose={() => d.setShowBulkRestockModal(false)}
         items={() => {
           const sel = d.selectedProdukIds();
@@ -295,6 +383,45 @@ export default function Dashboard() {
         onExtend={sessionTimeout.extend}
         onLogout={sessionTimeout.logoutNow}
       />
+
+      {/* Reprint Receipt Modal */}
+      <Show when={showReprint() && reprintTrx()}>
+        <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowReprint(false)}>
+          <div id="receipt-print" class="bg-white text-black rounded-xl p-6 w-80 max-w-[90vw] font-mono text-sm print-receipt" onClick={(e) => e.stopPropagation()}>
+            <div class="text-center mb-4">
+              <div class="text-lg font-bold">KasirGo</div>
+              <div class="text-xs">{d.getTokoNama(reprintTrx()!.toko_id)}</div>
+              <div class="text-xs mt-1">{formatWIB(reprintTrx()!.created_at)}</div>
+              <div class="text-xs">No: {reprintTrx()!.id.slice(0, 8).toUpperCase()}</div>
+            </div>
+            <div class="border-t border-b border-gray-300 py-2 space-y-1">
+              <For each={reprintItems()}>
+                {(item: TrxItem) => (
+                  <div>
+                    <div class="flex justify-between">
+                      <span class="truncate">{item.nama}</span>
+                    </div>
+                    <div class="flex justify-between text-xs text-gray-600">
+                      <span>{item.qty} x {formatRupiah(item.harga)}</span>
+                      <span>{formatRupiah(item.harga * item.qty)}</span>
+                    </div>
+                  </div>
+                )}
+              </For>
+            </div>
+            <div class="py-2 flex justify-between font-bold text-base">
+              <span>TOTAL</span>
+              <span>{formatRupiah(reprintTrx()!.total)}</span>
+            </div>
+            <div class="text-center text-xs text-gray-500 mt-4">Terima kasih atas kunjungan Anda!</div>
+            <div class="text-center text-[10px] text-gray-400 mt-1 break-all">ID: {reprintTrx()!.id}</div>
+            <div class="flex gap-2 mt-4">
+              <button class="btn btn-ghost flex-1 text-sm border border-gray-300" onClick={handlePrint}>🖨️ Cetak</button>
+              <button class="btn btn-primary flex-1 text-sm" onClick={() => setShowReprint(false)}>Tutup</button>
+            </div>
+          </div>
+        </div>
+      </Show>
     </>
   );
 }

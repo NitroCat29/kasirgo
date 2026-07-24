@@ -1,795 +1,71 @@
-import { createSignal, createMemo } from "solid-js";
-import { api } from "../../lib/api";
+import { createSignal } from "solid-js";
 import { theme, toggleTheme, initTheme } from "../../lib/theme";
-import { formatRupiah } from "../../lib/format";
 import { usePolling } from "../../lib/usePolling";
-import {
-  swalConfirm,
-  swalSuccess,
-  swalApiError,
-  swalToast,
-  swalWarning,
-} from "../../lib/swal";
-import { calculateTotal, loadWasm } from "../../lib/wasm";
-import type {
-  AuditLog,
-  DailyRevenue,
-  LowStockItem,
-  Produk,
-  Stats,
-  Toko,
-  Transaksi,
-  TrxItem,
-  UserRow,
-} from "../../components/dashboard/types";
-import { canEdit } from "../../components/dashboard/types";
+import { loadWasm } from "../../lib/wasm";
+import type { Toko } from "../../components/dashboard/types";
+import { createToastLoadError } from "./hooks/loadError";
+import { useOverviewData } from "./hooks/useOverviewData";
+import { useTokoData } from "./hooks/useTokoData";
+import { useProdukData } from "./hooks/useProdukData";
+import { useTransaksiData } from "./hooks/useTransaksiData";
+import { useUsersData } from "./hooks/useUsersData";
+
+// Single source of truth — re-export for any legacy import
+export type { DashboardTab } from "../../components/dashboard/types";
 
 /* ============================================
-   TYPES
-   ============================================ */
-
-export type DashboardTab =
-  | "overview"
-  | "toko"
-  | "produk"
-  | "transaksi"
-  | "users"
-  | "audit";
-
-/* ============================================
-   HOOK
+   FACADE — composes domain hooks, same return shape
    ============================================ */
 
 export function useDashboardData() {
-  // --- Core ---
-  const [stats, setStats] = createSignal<Stats | null>(null);
+  const toastLoadError = createToastLoadError();
   const [submitting, setSubmitting] = createSignal(false);
-  const [walletRefresh, setWalletRefresh] = createSignal(0);
 
-  // --- Toko ---
-  const [daftarToko, setDaftarToko] = createSignal<Toko[]>([]);
-  const [showTokoModal, setShowTokoModal] = createSignal(false);
-  const [modalToko, setModalToko] = createSignal<Partial<Toko>>({});
+  const overview = useOverviewData({ toastLoadError });
 
-  async function loadToko() {
-    try {
-      const data = await api<Toko[]>("/api/toko");
-      setDaftarToko(data);
-    } catch {}
-  }
+  // Lazy bridge: produk needs daftarToko before toko hook exists
+  let daftarTokoRef: () => Toko[] = () => [];
 
-  function editToko(t: Toko) {
-    setModalToko({ ...t });
-    setShowTokoModal(true);
-  }
-
-  async function saveToko(e: Event) {
-    e.preventDefault();
-    const m = modalToko();
-    if (!m.nama || !m.nama.trim()) {
-      swalWarning("Nama wajib diisi");
-      return;
-    }
-    setSubmitting(true);
-    const method = m.id ? "PATCH" : "POST";
-    const url = m.id ? `/api/toko/${m.id}` : "/api/toko";
-    try {
-      await api<unknown>(url, {
-        method,
-        body: JSON.stringify({
-          nama: m.nama,
-          alamat: m.alamat,
-          telepon: m.telepon,
-        }),
-      });
-      setShowTokoModal(false);
-      swalToast("success", m.id ? "Toko diperbarui" : "Toko ditambahkan");
-      await Promise.all([loadToko(), loadStats()]);
-    } catch (err: any) {
-      swalApiError(err);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function hapusToko(id: string, nama: string) {
-    const ok = await swalConfirm(
-      "Hapus toko?",
-      `Toko "${nama}" akan dihapus beserta produk & transaksi terkait.`,
-    );
-    if (!ok) return;
-    try {
-      await api<unknown>(`/api/toko/${id}`, { method: "DELETE" });
-      swalToast("success", "Toko dihapus");
-      await Promise.all([loadToko(), loadStats()]);
-    } catch (err: any) {
-      swalApiError(err);
-    }
-  }
-
-  // --- Produk ---
-  const [daftarProduk, setDaftarProduk] = createSignal<Produk[]>([]);
-  const [showProdukModal, setShowProdukModal] = createSignal(false);
-  const [modalProduk, setModalProduk] = createSignal<Partial<Produk & { qty: string; harga: string | number; stok: string | number; _skuEdited?: boolean }>>({});
-  const [bulkMode, setBulkMode] = createSignal(false);
-  const [bulkToml, setBulkToml] = createSignal("");
-  const [produkSearchQuery, setProdukSearchQuery] = createSignal("");
-  const [produkSearchResults, setProdukSearchResults] = createSignal<(Produk & { toko_nama?: string })[]>([]);
-  const [produkSearchLoading, setProdukSearchLoading] = createSignal(false);
-  const [produkComboboxOpen, setProdukComboboxOpen] = createSignal(false);
-  const [selectedExistingProduk, setSelectedExistingProduk] = createSignal<(Produk & { toko_nama?: string }) | null>(null);
-  let produkSearchTimer: ReturnType<typeof setTimeout> | undefined;
-  let produkSearchRequest = 0;
-
-  // Unique suggestion lists (merk/kategori/satuan) from existing produk
-  function uniq(values: (string | undefined | null)[]): string[] {
-    const s = new Set<string>();
-    values.forEach((v) => {
-      if (v && String(v).trim()) s.add(String(v).trim());
-    });
-    return Array.from(s).sort();
-  }
-  const merkList = createMemo<string[]>(() => uniq(daftarProduk().map((p) => p.merk)));
-  const kategoriListAll = createMemo<string[]>(() => uniq(daftarProduk().map((p) => p.kategori)));
-  const satuanListAll = createMemo<string[]>(() => uniq(daftarProduk().map((p) => p.satuan)));
-  // Fixed satuan whitelist for TOML + single (case-insensitive accept, canonical store)
-  const SATUAN_WHITELIST = ["Pcs", "Pack", "Rim", "Ikat"];
-  const SATUAN_LOWER = SATUAN_WHITELIST.map((s) => s.toLowerCase());
-  function normalizeSatuan(v?: string): string {
-    if (!v) return "";
-    const i = SATUAN_LOWER.indexOf(v.trim().toLowerCase());
-    return i === -1 ? v.trim() : SATUAN_WHITELIST[i];
-  }
-  function isSatuanValid(v?: string): boolean {
-    if (!v) return true; // kosong = opsional
-    return SATUAN_LOWER.includes(v.trim().toLowerCase());
-  }
-
-  // Quick restock popover state
-  const [bulkSubmitting, setBulkSubmitting] = createSignal(false);
-
-  // --- Multi-select ---
-  const [selectedProdukIds, setSelectedProdukIds] = createSignal<Set<string>>(new Set());
-  const [showBulkRestockModal, setShowBulkRestockModal] = createSignal(false);
-  const selectedProdukCount = createMemo(() => selectedProdukIds().size);
-  const isAllProdukSelected = createMemo(() => {
-    const list = daftarProduk();
-    if (list.length === 0) return false;
-    const sel = selectedProdukIds();
-    return list.every((p) => sel.has(p.id));
+  const produk = useProdukData({
+    toastLoadError,
+    setSubmitting,
+    loadStats: overview.loadStats,
+    loadAlerts: overview.loadAlerts,
+    daftarToko: () => daftarTokoRef(),
+    setWalletRefresh: overview.setWalletRefresh,
   });
 
-  function toggleProdukSelection(id: string) {
-    setSelectedProdukIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  function selectAllProduk() {
-    const ids = daftarProduk().map((p) => p.id);
-    setSelectedProdukIds(new Set(ids));
-  }
-
-  function clearProdukSelection() {
-    setSelectedProdukIds(new Set());
-  }
-
-  async function bulkDeleteProduk() {
-    const ids = Array.from(selectedProdukIds());
-    const confirmed = await swalConfirm(`Hapus ${ids.length} produk?`, `Aksi ini tidak bisa dibatalkan. ${ids.length} produk akan dihapus permanen.`, "Ya, hapus semua");
-    if (!confirmed) return;
-    let ok = 0;
-    let fail = 0;
-    for (const id of ids) {
-      try {
-        await api<unknown>(`/api/produk/${id}`, { method: "DELETE" });
-        ok++;
-      } catch { fail++; }
-    }
-    clearProdukSelection();
-    await Promise.all([loadProduk(), loadStats(), loadAlerts()]);
-    swalToast("success", `Berhasil hapus ${ok} produk${fail ? `, ${fail} gagal` : ""}`);
-  }
-
-  async function bulkRestockProduk(qtyMap: Record<string, number>) {
-    const items = Object.entries(qtyMap)
-      .filter(([, qty]) => qty > 0)
-      .map(([produk_id, qty]) => ({
-        produk_id,
-        qty,
-        harga_modal: 0, // default; backend will accept
-      }));
-    if (items.length === 0) {
-      swalWarning("Tidak ada item dengan qty > 0");
-      return;
-    }
-    const res = await api<{ restocked: number; errors: string[] }>("/api/produk/bulk-restock", {
-      method: "POST",
-      body: JSON.stringify({ items }),
-    });
-    clearProdukSelection();
-    setShowBulkRestockModal(false);
-    await Promise.all([loadProduk(), loadStats(), loadAlerts()]);
-    swalToast("success", `Restock ${res.restocked} produk berhasil`);
-    if (res.errors?.length) {
-      console.warn("Bulk restock errors:", res.errors);
-    }
-  }
-
-  function openQuickRestock(p: Produk) {
-    setModalProduk({ ...p, qty: "0", _skuEdited: true });
-    setBulkMode(false);
-    setBulkToml("");
-    setSelectedExistingProduk(p);
-    setShowProdukModal(true);
-  }
-
-  // Derive mode
-  const produkMode = (): "new" | "restock" =>
-    selectedExistingProduk() ? "restock" : "new";
-
-  async function loadProduk() {
-    try {
-      const data = await api<Produk[]>("/api/produk");
-      setDaftarProduk(data);
-    } catch {}
-  }
-
-  function editProduk(p: Produk) {
-    setModalProduk({ ...p, qty: String(p.stok), _skuEdited: true });
-    setBulkMode(false);
-    setBulkToml("");
-    setSelectedExistingProduk(null);
-    setShowProdukModal(true);
-  }
-
-  function resetProdukCombobox() {
-    setProdukSearchQuery("");
-    setProdukSearchResults([]);
-    setProdukComboboxOpen(false);
-    setSelectedExistingProduk(null);
-    if (produkSearchTimer) clearTimeout(produkSearchTimer);
-  }
-
-  async function searchProduk(query: string) {
-    if (!query.trim()) {
-      setProdukSearchResults([]);
-      setProdukComboboxOpen(false);
-      return;
-    }
-    const request = ++produkSearchRequest;
-    setProdukSearchLoading(true);
-    try {
-      const requestedLimit = Number.parseInt(query);
-      const limit = Number.isFinite(requestedLimit)
-        ? Math.min(Math.max(requestedLimit, 1), 20)
-        : 8;
-      const results = await api<(Produk & { toko_nama?: string })[]>(
-        `/api/produk/search?q=${encodeURIComponent(query)}&limit=${limit}`,
-      );
-      if (request !== produkSearchRequest) return; // stale response
-      setProdukSearchResults(results);
-      setProdukComboboxOpen(results.length > 0);
-    } catch (err) {
-      console.error("Search produk failed:", err);
-      if (request !== produkSearchRequest) return;
-      setProdukSearchResults([]);
-    } finally {
-      if (request === produkSearchRequest) setProdukSearchLoading(false);
-    }
-  }
-
-  function handleProdukNameInput(e: Event) {
-    const value = (e.target as HTMLInputElement).value;
-    setProdukSearchQuery(value);
-    setModalProduk((prev) => {
-      // Auto-generate SKU prefix from nama (only if user hasn't manually edited SKU)
-      const consonants = value.toUpperCase().replace(/[^A-Z]/g, "").replace(/[AEIOU]/g, "");
-      const code = (consonants + "XXXXX").slice(0, 5);
-      const autoSku = value.trim() ? `PRD-${code}-` : "";
-      return { ...prev, nama: value, sku: prev._skuEdited ? prev.sku : autoSku };
-    });
-    if (selectedExistingProduk()) setSelectedExistingProduk(null);
-    if (produkSearchTimer) clearTimeout(produkSearchTimer);
-    produkSearchTimer = setTimeout(() => searchProduk(value), 250);
-  }
-
-  function selectProdukFromDropdown(p: Produk & { toko_nama?: string }) {
-    setSelectedExistingProduk(p);
-    setModalProduk((prev: any) => ({
-      ...prev,
-      id: p.id,
-      nama: p.nama,
-      harga: String(p.harga),
-      stok: "0",
-      toko_id: p.toko_id,
-    }));
-    setProdukSearchResults([]);
-    setProdukComboboxOpen(false);
-  }
-
-  function parseToml(toml: string): Array<{
-    nama: string;
-    sku: string;
-    harga: number;
-    harga_modal: number;
-    stok: number;
-    stock_threshold: number;
-    toko_id: string;
-    merk: string;
-    kategori: string;
-    satuan: string;
-  }> {
-    const items: Array<{
-      nama: string;
-      sku: string;
-      harga: number;
-      harga_modal: number;
-      stok: number;
-      stock_threshold: number;
-      toko_id: string;
-      merk: string;
-      kategori: string;
-      satuan: string;
-    }> = [];
-    let current: Record<string, string> = {};
-    for (const line of toml.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      if (trimmed === "[[produk]]") {
-        if (Object.keys(current).length > 0 && current.nama) {
-          items.push({
-            nama: current.nama,
-            sku: current.sku || "",
-            harga: Number(current.harga) || 0,
-            harga_modal: Number(current.harga_modal) || 0,
-            stok: Number(current.stok) || 0,
-            stock_threshold: Number(current.stock_threshold) || 10,
-            toko_id: current.toko_id || "",
-            merk: current.merk || "",
-            kategori: current.kategori || "",
-            satuan: current.satuan || "",
-          });
-        }
-        current = {};
-        continue;
+  const toko = useTokoData({
+    toastLoadError,
+    setSubmitting,
+    loadStats: overview.loadStats,
+    onTokoListLoaded: (data) => {
+      if (data.length === 0) {
+        produk.setSelectedProdukTokoId("");
+      } else if (!data.some((t) => t.id === produk.selectedProdukTokoId())) {
+        produk.setSelectedProdukTokoId(data[0].id);
       }
-      // Key=value: quoted (tolerate unclosed) or unquoted
-      const quoted = trimmed.match(/^(\w+)\s*=\s*"([^"]*)"\s*$/);
-      if (quoted) { current[quoted[1]] = quoted[2]; continue; }
-      const unquoted = trimmed.match(/^(\w+)\s*=\s*(\S+)\s*$/);
-      if (unquoted) current[unquoted[1]] = unquoted[2];
-    }
-    if (Object.keys(current).length > 0 && current.nama) {
-      // Validate satuan against whitelist (case-insensitive)
-      if (current.satuan && !isSatuanValid(current.satuan)) {
-        swalWarning(
-          `Satuan "${current.satuan}" tidak valid untuk "${current.nama}". Gunakan: ${SATUAN_WHITELIST.join(", ")}. Baris di-skip.`,
-        );
-      } else {
-        items.push({
-          nama: current.nama,
-          sku: current.sku || "",
-          harga: Number(current.harga) || 0,
-          harga_modal: Number(current.harga_modal) || 0,
-          stok: Number(current.stok) || 0,
-          stock_threshold: Number(current.stock_threshold) || 10,
-          toko_id: current.toko_id || "",
-          merk: current.merk || "",
-          kategori: current.kategori || "",
-          satuan: normalizeSatuan(current.satuan),
-        });
-      }
-    }
-    return items;
+    },
+  });
+  daftarTokoRef = toko.daftarToko;
+
+  const transaksi = useTransaksiData({
+    toastLoadError,
+    setSubmitting,
+    loadStats: overview.loadStats,
+    loadDailyRevenue: overview.loadDailyRevenue,
+  });
+
+  const users = useUsersData({ toastLoadError, setSubmitting });
+
+  // --- Helpers ---
+  function getTokoNama(id: string | undefined): string {
+    if (!id) return "—";
+    const t = toko.daftarToko().find((x) => x.id === id);
+    return t ? t.nama : id.slice(0, 8) + "...";
   }
 
-  async function handleBulkImport(e: SubmitEvent) {
-    e.preventDefault();
-    const items = parseToml(bulkToml());
-    if (items.length === 0) {
-      swalWarning("Tidak ada data valid ditemukan");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      let success = 0;
-      let failed = 0;
-      for (const item of items) {
-        // Resolve toko nama → UUID jika perlu
-        const tokoResolved = daftarToko().find(
-          (t) => t.id === item.toko_id || t.nama === item.toko_id,
-        );
-        if (!tokoResolved) {
-          swalWarning(`Toko "${item.toko_id}" tidak ditemukan untuk produk "${item.nama}". Import dibatalkan.`);
-          break;
-        }
-        const payload = Object.fromEntries(
-          Object.entries({ ...item, toko_id: tokoResolved.id }).filter(
-            ([k, v]) => v !== "" && v !== undefined,
-          ),
-        );
-        try {
-          await api<unknown>("/api/produk", {
-            method: "POST",
-            body: JSON.stringify(payload),
-          });
-          success++;
-        } catch (err: any) {
-          failed++;
-          swalWarning(`Gagal import "${item.nama}": ${err.message || "Unknown error"}`);
-          break; // stop on first error
-        }
-      }
-      setShowProdukModal(false);
-      swalToast(
-        "success",
-        `Import selesai: ${success} berhasil, ${failed} gagal`,
-      );
-      await Promise.all([loadProduk(), loadStats(), loadAlerts()]);
-    } catch (err: any) {
-      swalApiError(err);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function saveProduk(e: Event) {
-    e.preventDefault();
-    const m = modalProduk();
-    if (!m.nama || !m.nama.trim()) {
-      swalWarning("Nama wajib diisi");
-      return;
-    }
-    if (m.id && (!m.sku || !m.sku.trim())) {
-      // Editing existing — SKU still required
-      swalWarning("SKU wajib diisi");
-      return;
-    }
-    if (!m.harga || Number(m.harga) <= 0) {
-      swalWarning("Harga harus lebih dari 0");
-      return;
-    }
-    if (m.satuan && !isSatuanValid(m.satuan)) {
-      swalWarning(`Satuan tidak valid. Gunakan: ${SATUAN_WHITELIST.join(", ")}`);
-      return;
-    }
-    if (!m.toko_id && produkMode() === "restock") {
-      swalWarning("Pilih toko");
-      return;
-    }
-    if (selectedExistingProduk()) {
-      // Restock mode — update stok only
-      const existing = selectedExistingProduk()!;
-      const addQty = Number(m.stok) || 0;
-      if (addQty <= 0) {
-        swalWarning("Jumlah restock harus lebih dari 0");
-        return;
-      }
-      setSubmitting(true);
-      try {
-        await api<unknown>("/api/produk/restock", {
-          method: "POST",
-          body: JSON.stringify({
-            produk_id: existing.id,
-            qty: addQty,
-            harga_modal: existing.harga_modal || 0,
-          }),
-        });
-        setShowProdukModal(false);
-        swalToast("success", `Stok ${existing.nama} +${addQty}`);
-        await Promise.all([loadProduk(), loadStats(), loadAlerts()]);
-        setWalletRefresh((n) => n + 1);
-      } catch (err: any) {
-        swalApiError(err);
-      } finally {
-        setSubmitting(false);
-      }
-      return;
-    }
-    setSubmitting(true);
-    const method = m.id ? "PATCH" : "POST";
-    const url = m.id ? `/api/produk/${m.id}` : "/api/produk";
-    // If SKU is just auto-prefix (ends with "-"), send empty so backend generates full one
-    const sku = m.sku && m.sku.endsWith("-") ? "" : m.sku;
-    try {
-      await api<unknown>(url, {
-        method,
-        body: JSON.stringify({
-          nama: m.nama,
-          sku: sku || undefined,
-          harga: Number(m.harga),
-          harga_modal: Number(m.harga_modal) || 0,
-          stok: Number(m.stok) || 0,
-          toko_id: m.toko_id,
-          stock_threshold: m.stock_threshold,
-          merk: m.merk || "",
-          kategori: m.kategori || "",
-          satuan: normalizeSatuan(m.satuan),
-        }),
-      });
-      setShowProdukModal(false);
-      swalToast("success", m.id ? "Produk diperbarui" : "Produk ditambahkan");
-      await Promise.all([loadProduk(), loadStats(), loadAlerts()]);
-      if (!m.id) setWalletRefresh((n) => n + 1); // new product created → refresh wallet
-    } catch (err: any) {
-      swalApiError(err);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function hapusProduk(id: string, nama: string) {
-    const ok = await swalConfirm(
-      "Hapus produk?",
-      `Produk "${nama}" akan dihapus permanen.`,
-    );
-    if (!ok) return;
-    try {
-      await api<unknown>(`/api/produk/${id}`, { method: "DELETE" });
-      swalToast("success", "Produk dihapus");
-      await Promise.all([loadProduk(), loadStats(), loadAlerts()]);
-    } catch (err: any) {
-      swalApiError(err);
-    }
-  }
-
-  // --- Transaksi ---
-  const [daftarTransaksi, setDaftarTransaksi] = createSignal<Transaksi[]>([]);
-  const [showTrxModal, setShowTrxModal] = createSignal(false);
-  const [modalTrx, setModalTrx] = createSignal<Partial<Transaksi>>({});
-  const [trxItems, setTrxItems] = createSignal<TrxItem[]>([]);
-
-  async function loadTransaksi() {
-    try {
-      const data = await api<Transaksi[]>("/api/transaksi");
-      setDaftarTransaksi(data);
-    } catch {}
-  }
-
-  async function loadTrxItems(trxId: string) {
-    try {
-      const data = await api<TrxItem[]>(`/api/transaksi/${trxId}/items`);
-      setTrxItems(data);
-      setShowTrxModal(true);
-    } catch (err: any) {
-      swalApiError(err);
-    }
-  }
-
-  async function hapusTransaksi(id: string) {
-    const ok = await swalConfirm("Hapus transaksi?", "Transaksi akan dihapus permanen.");
-    if (!ok) return;
-    try {
-      await api<unknown>(`/api/transaksi/${id}`, { method: "DELETE" });
-      swalToast("success", "Transaksi dihapus");
-      await Promise.all([loadTransaksi(), loadStats()]);
-    } catch (err: any) {
-      swalApiError(err);
-    }
-  }
-
-  // --- Transaksi create form ---
-  const [trxForm, setTrxForm] = createSignal<{
-    toko_id: string;
-    items: TrxItem[];
-  }>({ toko_id: "", items: [] });
-  const [trxItemForm, setTrxItemForm] = createSignal<{
-    nama: string;
-    harga: string;
-    qty: string;
-  }>({ nama: "", harga: "", qty: "1" });
-
-  function openTrxModal() {
-    setTrxForm({ toko_id: "", items: [] });
-    setTrxItemForm({ nama: "", harga: "", qty: "1" });
-    setShowTrxModal(true);
-  }
-
-  function addTrxItem(e: Event) {
-    e.preventDefault();
-    const f = trxItemForm();
-    if (!f.nama || !f.harga) {
-      swalWarning("Item tidak lengkap");
-      return;
-    }
-    setTrxForm((prev) => ({
-      ...prev,
-      items: [
-        ...prev.items,
-        { nama: f.nama, harga: Number(f.harga), qty: Number(f.qty) || 1 },
-      ],
-    }));
-    setTrxItemForm({ nama: "", harga: "", qty: "1" });
-  }
-
-  function removeTrxItem(idx: number) {
-    setTrxForm((prev) => ({
-      ...prev,
-      items: prev.items.filter((_, i) => i !== idx),
-    }));
-  }
-
-  function trxFormSubtotal(): number {
-    return trxForm().items.reduce((s, i) => s + i.harga * i.qty, 0);
-  }
-
-  function trxFormTotal(): number {
-    return Math.round(trxFormSubtotal() * 1.11);
-  }
-
-  async function saveTrx(e: Event) {
-    e.preventDefault();
-    const f = trxForm();
-    if (!f.toko_id) {
-      swalWarning("Pilih toko");
-      return;
-    }
-    if (f.items.length === 0) {
-      swalWarning("Tambahkan minimal 1 item");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await api<unknown>("/api/transaksi", {
-        method: "POST",
-        body: JSON.stringify({
-          toko_id: f.toko_id,
-          total: trxFormTotal(),
-          tax_rate: 11,
-          discount_rate: 0,
-          items: f.items,
-        }),
-      });
-      setShowTrxModal(false);
-      swalToast("success", `Transaksi ${formatRupiah(trxFormTotal())} dicatat`);
-      await Promise.all([loadTransaksi(), loadStats(), loadDailyRevenue()]);
-    } catch (err: any) {
-      swalApiError(err);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  // --- Users ---
-  const [daftarUsers, setDaftarUsers] = createSignal<UserRow[]>([]);
-  const [showUserModal, setShowUserModal] = createSignal(false);
-  const [modalUser, setModalUser] = createSignal<Partial<UserRow & { password?: string }>>({});
-
-  async function loadUsers() {
-    try {
-      const data = await api<UserRow[]>("/api/users");
-      setDaftarUsers(data);
-    } catch {}
-  }
-
-  function editUser(u: UserRow) {
-    setModalUser({ ...u, password: "" });
-    setShowUserModal(true);
-  }
-
-  async function saveUser(e: Event) {
-    e.preventDefault();
-    const m = modalUser();
-    if (!m.username || !m.nama) {
-      swalWarning("Username & nama wajib diisi");
-      return;
-    }
-    if (!m.id && !m.password) {
-      swalWarning("Password wajib diisi untuk user baru");
-      return;
-    }
-    setSubmitting(true);
-    const method = m.id ? "PATCH" : "POST";
-    const url = m.id ? `/api/users/${m.id}` : "/api/users";
-
-    // SHA-256 hash password di client (konsisten dengan auth flow)
-    let hashedPassword: string | undefined;
-    if (m.password) {
-      const buf = await crypto.subtle.digest(
-        "SHA-256",
-        new TextEncoder().encode(m.password),
-      );
-      hashedPassword = Array.from(new Uint8Array(buf))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
-    }
-
-    try {
-      await api<unknown>(url, {
-        method,
-        body: JSON.stringify({
-          username: m.username,
-          nama: m.nama,
-          role: m.role || "kasir",
-          ...(hashedPassword ? { password: hashedPassword } : {}),
-        }),
-      });
-      setShowUserModal(false);
-      swalToast("success", m.id ? "User diperbarui" : "User ditambahkan");
-      await loadUsers();
-    } catch (err: any) {
-      swalApiError(err);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function hapusUser(id: string, nama: string) {
-    const ok = await swalConfirm("Hapus user?", `User "${nama}" akan dihapus permanen.`);
-    if (!ok) return;
-    try {
-      await api<unknown>(`/api/users/${id}`, { method: "DELETE" });
-      swalToast("success", "User dihapus");
-      await loadUsers();
-    } catch (err: any) {
-      swalApiError(err);
-    }
-  }
-
-  // --- Audit ---
-  const [daftarAudit, setDaftarAudit] = createSignal<AuditLog[]>([]);
-  const [auditFilter, setAuditFilter] = createSignal<string>("");
-
-  async function loadAudit(filter = "") {
-    try {
-      const url = filter ? `/api/audit-logs?action=${filter}` : "/api/audit-logs";
-      const data = await api<AuditLog[]>(url);
-      setDaftarAudit(data);
-    } catch {}
-  }
-
-  // --- Overview / Alerts ---
-  const [dailyRevenue, setDailyRevenue] = createSignal<DailyRevenue[]>([]);
-  const [chartLoading, setChartLoading] = createSignal(true);
-  const [lowStockCount, setLowStockCount] = createSignal(0);
-  const [lowStockItems, setLowStockItems] = createSignal<LowStockItem[]>([]);
-  const [showLowStockModal, setShowLowStockModal] = createSignal(false);
-
-  const [chartDays, _setChartDays] = createSignal(30);
-  function setChartDays(n: number) { _setChartDays(n); setTimeout(loadDailyRevenue, 0); }
-
-  async function loadDailyRevenue() {
-    setChartLoading(true);
-    try {
-      const d = await api<{ days: number; data: DailyRevenue[] }>(
-        `/api/stats/daily-revenue?days=${chartDays()}`,
-      );
-      setDailyRevenue(d.data);
-    } catch {
-    } finally {
-      setChartLoading(false);
-    }
-  }
-
-  async function loadStats() {
-    try {
-      const data = await api<Stats>("/api/stats");
-      setStats(data);
-    } catch {}
-  }
-
-  async function loadAlerts() {
-    try {
-      const data = await api<{ count: number }>("/api/alerts/summary");
-      setLowStockCount(data.count);
-    } catch {}
-  }
-
-  async function loadLowStockItems() {
-    try {
-      const data = await api<LowStockItem[]>("/api/alerts/low-stock");
-      setLowStockItems(data);
-      setShowLowStockModal(true);
-    } catch (err: any) {
-      swalApiError(err);
-    }
-  }
-
-  // --- Realtime polling (via usePolling, auto-cleanup) ---
+  // --- Realtime polling ---
   let activeTab = "overview";
   let realtimeStarted = false;
   let pollingDisposers: (() => void)[] = [];
@@ -797,22 +73,37 @@ export function useDashboardData() {
   function startRealtime() {
     if (realtimeStarted) return;
     realtimeStarted = true;
-    // Transaksi: 5s
-    pollingDisposers.push(usePolling(() => loadTransaksi(), 5000, () => activeTab === "tx"));
-    // Audit: 5s
-    pollingDisposers.push(usePolling(() => loadAudit(auditFilter()), 5000, () => activeTab === "audit"));
-    // Stok / low-stock + stats: 10s
-    pollingDisposers.push(usePolling(
-      () => { loadProduk(); loadAlerts(); },
-      10000,
-      () => activeTab === "produk",
-    ));
-    // Overview: stats + low stock count 10s
-    pollingDisposers.push(usePolling(
-      () => { loadStats(); loadAlerts(); },
-      10000,
-      () => activeTab === "overview",
-    ));
+    pollingDisposers.push(
+      usePolling(() => transaksi.loadTransaksi(), 5000, () => activeTab === "tx"),
+    );
+    pollingDisposers.push(
+      usePolling(
+        () => overview.loadAudit(overview.auditFilter()),
+        5000,
+        () => activeTab === "audit",
+      ),
+    );
+    pollingDisposers.push(
+      usePolling(
+        () => {
+          produk.loadProduk();
+          overview.loadAlerts();
+        },
+        10000,
+        () => activeTab === "produk",
+      ),
+    );
+    pollingDisposers.push(
+      usePolling(
+        () => {
+          overview.loadStats();
+          overview.loadAlerts();
+          overview.loadDailyRevenue();
+        },
+        10000,
+        () => activeTab === "overview",
+      ),
+    );
   }
 
   function stopRealtime() {
@@ -825,81 +116,151 @@ export function useDashboardData() {
     activeTab = id;
   }
 
-  // --- Helpers ---
-  function getTokoNama(id: string | undefined): string {
-    if (!id) return "—";
-    const t = daftarToko().find((x) => x.id === id);
-    return t ? t.nama : id.slice(0, 8) + "...";
-  }
-
-  function trxSubtotal(): number {
-    return trxItems().reduce((sum, item) => sum + item.harga * item.qty, 0);
-  }
-
-  function trxTotal(): number {
-    return Math.round(trxSubtotal() * 1.11);
-  }
-
-  // --- Init ---
   async function init() {
-    await Promise.all([loadStats(), loadAlerts(), loadToko()]);
+    await Promise.all([
+      overview.loadStats(),
+      overview.loadAlerts(),
+      toko.loadToko(),
+    ]);
   }
 
   function initOnMount() {
     initTheme();
     loadWasm();
-    loadDailyRevenue();
+    overview.loadDailyRevenue();
     startRealtime();
   }
 
   return {
     // Core
-    stats, submitting, setSubmitting,
-    theme, toggleTheme,
+    stats: overview.stats,
+    submitting,
+    setSubmitting,
+    theme,
+    toggleTheme,
     // Toko
-    daftarToko, showTokoModal, setShowTokoModal, modalToko, setModalToko,
-    loadToko, editToko, saveToko, hapusToko,
+    daftarToko: toko.daftarToko,
+    showTokoModal: toko.showTokoModal,
+    setShowTokoModal: toko.setShowTokoModal,
+    modalToko: toko.modalToko,
+    setModalToko: toko.setModalToko,
+    loadToko: toko.loadToko,
+    editToko: toko.editToko,
+    saveToko: toko.saveToko,
+    hapusToko: toko.hapusToko,
     // Produk
-    daftarProduk, showProdukModal, setShowProdukModal, modalProduk, setModalProduk,
-    bulkMode, setBulkMode, bulkToml, setBulkToml,
-    produkSearchQuery, setProdukSearchQuery,
-    produkSearchResults, produkSearchLoading, produkComboboxOpen, setProdukComboboxOpen,
-    selectedExistingProduk, setSelectedExistingProduk,
-    loadProduk, editProduk, saveProduk, hapusProduk,
-    searchProduk, handleProdukNameInput, selectProdukFromDropdown, resetProdukCombobox,
-    handleBulkImport, parseToml,
-    bulkSubmitting,
-    openQuickRestock,
-    produkMode,
+    daftarProduk: produk.daftarProduk,
+    showProdukModal: produk.showProdukModal,
+    setShowProdukModal: produk.setShowProdukModal,
+    modalProduk: produk.modalProduk,
+    setModalProduk: produk.setModalProduk,
+    bulkMode: produk.bulkMode,
+    setBulkMode: produk.setBulkMode,
+    bulkToml: produk.bulkToml,
+    setBulkToml: produk.setBulkToml,
+    produkSearchQuery: produk.produkSearchQuery,
+    setProdukSearchQuery: produk.setProdukSearchQuery,
+    produkSearchResults: produk.produkSearchResults,
+    produkSearchLoading: produk.produkSearchLoading,
+    produkComboboxOpen: produk.produkComboboxOpen,
+    setProdukComboboxOpen: produk.setProdukComboboxOpen,
+    selectedExistingProduk: produk.selectedExistingProduk,
+    setSelectedExistingProduk: produk.setSelectedExistingProduk,
+    loadProduk: produk.loadProduk,
+    editProduk: produk.editProduk,
+    saveProduk: produk.saveProduk,
+    hapusProduk: produk.hapusProduk,
+    searchProduk: produk.searchProduk,
+    handleProdukNameInput: produk.handleProdukNameInput,
+    selectProdukFromDropdown: produk.selectProdukFromDropdown,
+    resetProdukCombobox: produk.resetProdukCombobox,
+    handleBulkImport: produk.handleBulkImport,
+    parseToml: produk.parseToml,
+    bulkSubmitting: produk.bulkSubmitting,
+    openQuickRestock: produk.openQuickRestock,
+    produkMode: produk.produkMode,
     // Multi-select
-    selectedProdukIds, selectedProdukCount, isAllProdukSelected,
-    toggleProdukSelection, selectAllProduk, clearProdukSelection,
-    bulkDeleteProduk, bulkRestockProduk,
-    showBulkRestockModal, setShowBulkRestockModal,
+    selectedProdukIds: produk.selectedProdukIds,
+    selectedProdukCount: produk.selectedProdukCount,
+    isAllProdukSelected: produk.isAllProdukSelected,
+    toggleProdukSelection: produk.toggleProdukSelection,
+    selectAllProduk: produk.selectAllProduk,
+    clearProdukSelection: produk.clearProdukSelection,
+    bulkDeleteProduk: produk.bulkDeleteProduk,
+    bulkRestockProduk: produk.bulkRestockProduk,
+    showBulkRestockModal: produk.showBulkRestockModal,
+    setShowBulkRestockModal: produk.setShowBulkRestockModal,
+    selectedProdukTokoId: produk.selectedProdukTokoId,
+    setSelectedProdukTokoId: produk.setSelectedProdukTokoId,
+    setProdukTokoFilter: produk.setProdukTokoFilter,
+    filteredDaftarProduk: produk.filteredDaftarProduk,
     // Suggestions
-    merkList, kategoriListAll, satuanListAll, SATUAN_WHITELIST,
+    merkList: produk.merkList,
+    kategoriListAll: produk.kategoriListAll,
+    satuanListAll: produk.satuanListAll,
+    SATUAN_WHITELIST: produk.SATUAN_WHITELIST,
     // Transaksi
-    daftarTransaksi, showTrxModal, setShowTrxModal, modalTrx, setModalTrx, trxItems,
-    trxForm, setTrxForm, trxItemForm, setTrxItemForm,
-    loadTransaksi, loadTrxItems, hapusTransaksi,
-    openTrxModal, addTrxItem, removeTrxItem, saveTrx,
-    trxFormSubtotal, trxFormTotal,
-    trxSubtotal, trxTotal,
+    daftarTransaksi: transaksi.daftarTransaksi,
+    showTrxModal: transaksi.showTrxModal,
+    setShowTrxModal: transaksi.setShowTrxModal,
+    modalTrx: transaksi.modalTrx,
+    setModalTrx: transaksi.setModalTrx,
+    trxItems: transaksi.trxItems,
+    trxForm: transaksi.trxForm,
+    setTrxForm: transaksi.setTrxForm,
+    trxItemForm: transaksi.trxItemForm,
+    setTrxItemForm: transaksi.setTrxItemForm,
+    loadTransaksi: transaksi.loadTransaksi,
+    loadTrxItems: transaksi.loadTrxItems,
+    hapusTransaksi: transaksi.hapusTransaksi,
+    openTrxModal: transaksi.openTrxModal,
+    addTrxItem: transaksi.addTrxItem,
+    removeTrxItem: transaksi.removeTrxItem,
+    saveTrx: transaksi.saveTrx,
+    trxFormSubtotal: transaksi.trxFormSubtotal,
+    trxFormTotal: transaksi.trxFormTotal,
+    trxSubtotal: transaksi.trxSubtotal,
+    trxTotal: transaksi.trxTotal,
+    trxSearchQuery: transaksi.trxSearchQuery,
+    setTrxSearchQuery: transaksi.setTrxSearchQuery,
+    trxTotalCount: transaksi.trxTotalCount,
     // Users
-    daftarUsers, showUserModal, setShowUserModal, modalUser, setModalUser,
-    loadUsers, editUser, saveUser, hapusUser,
+    daftarUsers: users.daftarUsers,
+    showUserModal: users.showUserModal,
+    setShowUserModal: users.setShowUserModal,
+    modalUser: users.modalUser,
+    setModalUser: users.setModalUser,
+    loadUsers: users.loadUsers,
+    editUser: users.editUser,
+    saveUser: users.saveUser,
+    hapusUser: users.hapusUser,
     // Audit
-    daftarAudit, auditFilter, setAuditFilter, loadAudit,
+    daftarAudit: overview.daftarAudit,
+    auditFilter: overview.auditFilter,
+    setAuditFilter: overview.setAuditFilter,
+    loadAudit: overview.loadAudit,
     // Overview
-    dailyRevenue, chartDays, setChartDays, chartLoading,
-    lowStockCount, lowStockItems, showLowStockModal, setShowLowStockModal,
-    loadDailyRevenue, loadStats, loadAlerts, loadLowStockItems,
-    walletRefresh,
+    dailyRevenue: overview.dailyRevenue,
+    chartDays: overview.chartDays,
+    setChartDays: overview.setChartDays,
+    chartLoading: overview.chartLoading,
+    lowStockCount: overview.lowStockCount,
+    lowStockItems: overview.lowStockItems,
+    showLowStockModal: overview.showLowStockModal,
+    setShowLowStockModal: overview.setShowLowStockModal,
+    loadDailyRevenue: overview.loadDailyRevenue,
+    loadStats: overview.loadStats,
+    loadAlerts: overview.loadAlerts,
+    loadLowStockItems: overview.loadLowStockItems,
+    walletRefresh: overview.walletRefresh,
     // Helpers
     getTokoNama,
     // Realtime
-    setActiveTabRealtime, startRealtime, stopRealtime,
+    setActiveTabRealtime,
+    startRealtime,
+    stopRealtime,
     // Init
-    init, initOnMount,
+    init,
+    initOnMount,
   };
 }

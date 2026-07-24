@@ -1,7 +1,7 @@
 # AGENTS.md
 > File memory project untuk AI coding agent (Reasonix / Codex CLI / Claude Code / dst).
 > Diisi dan diupdate oleh agent sendiri tiap akhir sesi — bukan untuk di-paste manual.
-> Ganti semua `<...>` saat setup pertama kali.
+> Konten sudah di-split per modul (lihat §10) supaya file ini tetap ringkas.
 
 ---
 
@@ -18,6 +18,14 @@ MODE: caveman-style
 - Jangan tulis ulang file penuh kalau cuma berubah sebagian — kasih diff/patch saja.
 - Jangan tambah dependency/package baru tanpa konfirmasi.
 - Kalau tidak yakin / tidak ada di konteks: bilang "tidak tahu", jangan menebak.
+
+
+- Kalau requirement ambigu: buat asumsi minimum yang paling masuk akal lalu lanjut kerja.
+- Jangan meminta konfirmasi untuk langkah yang reversible/rendah risiko.
+- Jangan refactor kode yang tidak terkait task.
+- Jangan membuat data atau fakta yang tidak diketahui.
+- Jika ada beberapa opsi valid: pilih yang paling sederhana dan pragmatis.
+- Sebelum memberi hasil: cek ulang terhadap requirement awal.
 ```
 
 ### Preferensi tooling (wajib diikuti, jangan disarankan ganti)
@@ -33,9 +41,13 @@ package_manager : "bun"   # selalu pakai bun, BUKAN npm/yarn/pnpm
 ```
 
 ### Bahasa + nickname user
+
 ```
 - Bahasa Indonesia santai
 - panggil user "El"
+- Teman akrab ngobrol, dengan penjelasan yang mudah dimengerti ke pemula, namun membuat tertarik untuk mempelajari lebih dalam
+- Posisi kamu adalah partner dari "El", setiap ada keputusan El yang menurutmu salah. Langsung tegas tanyakan intensi, dan bantu arahkan
+- Jangan bertele-tele atau plin-plan dalam jawaban, ringkas terarah namun informatif
 ```
 
 ---
@@ -44,11 +56,11 @@ package_manager : "bun"   # selalu pakai bun, BUKAN npm/yarn/pnpm
 
 ```
 project  : "KasirGo"
-stack    : ["HTMX", "Alpine.js", "Tailwind CSS", "Bun", "SQLite", "Zig/WASM"]
+stack    : ["SolidJS", "Tailwind CSS", "Bun", "SQLite", "Zig/WASM", "Electrobun (desktop)"]
 runtime  : "bun"
 os       : "Windows"
 repo     : "E:\\Coding\\KasirGO"
-updated  : "2026-07-03"
+updated  : "2026-07-22"
 git_primary  : "Codeberg → https://codeberg.org/ElCastra/KasirGO (branch: main)"
 git_secondary: "GitHub  → https://github.com/NitroCat29/kasirgo (mirror + GH Pages production)"
 cli      : "tea (Gitea CLI) sebagai pengganti gh — hanya untuk Codeberg entity mgmt"
@@ -60,274 +72,29 @@ sync     : "Periodik (tag/release) → push ke GitHub mirror + GH Pages"
 ## 2. STATUS SEKARANG
 
 ```
-wip      : "POS UX polish + bugfix (Group A+B done)"
-progress : "~72% (Phase 1+2+2.x.1+2.x.2 done + Group A backend + Group B UI)"
+wip      : "Wallet per-toko + chart real data — DONE"
+progress : "~80% (Phase 1+2+2.x+wallet per-toko + TOTP 2FA + chart real data)"
 blocker  : "null"
-next     : "Phase 3: Tauri desktop scaffold"
+next     : "Phase 3: Electrobun desktop scaffold"
 ```
+
+Detail checklist → lihat **TODO.md**
 
 ---
 
-## 3. TO-DO (checklist hidup — update tiap sesi)
-
-> Format: `- [x]` selesai, `- [ ]` belum, `- [~]` sedang dikerjakan.
-> Urutkan dari yang paling dekat dieksekusi.
+## 3. FILE MAP (isi lama §3–§8 dipindah ke sini)
 
 ```
-- [x] Repo migration: Codeberg primary (dev) + GitHub secondary (mirror/production)
-  - [x] Remote setup: origin=Codeberg (main), github=GitHub (mirror)
-  - [x] Rebase lokal main di atas origin/main (resolve README conflict → pakai versi lokal)
-  - [x] AGENTS.md + README update: repo URL, decisions, tea sebagai pengganti gh
-  - [x] tea login add (Codeberg) — done 2026-07-09
-  - [x] Script sync-gh.sh (build + push main + gh-pages ke GitHub saat release)
-  - [x] First push main → Codeberg + verify (commit c10ebef, GH Pages live: 200)
-- [x] Dokumentasi & aturan main (planning sesi 2026-07-07)
-  - [x] SECURITY.md — measures, threat model, disclosure policy
-  - [x] CONTRIBUTING.md — PR workflow, branch naming, commit convention, agent rule
-  - [x] Plan.md — arsitektur mode split, framework eval, roadmap A-Z
-  - [x] AGENTS.md — progress recalibrate, decisions, files status update
-- [x] Shared Core (Phase 1 — 2026-07-07)
-  - [x] shared/types.ts — Toko, Produk, Transaksi, User, AuditLog, WasmExports
-  - [x] shared/validation.ts — 8 validasi functions (signup, login, toko, produk, transaksi)
-  - [x] shared/db-schema.sql — 6 CREATE TABLE, source of truth untuk schema
-  - [x] shared/wasm-bridge.ts — loadWasm(), calculateTotal(), computeBenchmark(), jsFallback
-  - [x] Backend adapt: db.ts import schema, routes pakai shared validation
-- [x] Codebase Rewrite (SolidJS — El approved 2026-07-07, done 2026-07-07)
-  - [x] Framework decision final: SolidJS (signals, tiny bundle, POS-friendly)
-  - [x] Setup Vite + SolidJS scaffold in frontend/
-  - [x] Migrasi index.html → SolidJS landing (src/pages/Landing.tsx)
-  - [x] Migrasi login.html → SolidJS route (src/pages/Login.tsx + auth.ts + api.ts)
-  - [x] Migrasi dashboard.html → SolidJS SPA (src/pages/Dashboard.tsx, full CRUD)
-  - [x] Tailwind v4 via @tailwindcss/vite (JIT build, bukan CDN)
-  - [x] server.ts serve frontend/dist/ sebagai SPA (fallback ke legacy HTML)
-- [x] Phase 2.x.1 — UX/Security/Performance Polish (sesi 2026-07-08 lanjutan)
-  - [x] Foundation: AuthShell shared component (wrapper bg+logo+card+footer, eliminate duplikasi 200+ lines), useAutoFocus hook, PasswordField (show/hide eye toggle), ResendCooldown 60s, toast store (success/error/info/warning + auto-dismiss), calcPasswordStrength (4-level weak/fair/good/strong), UI primitives (Skeleton, SkeletonStatCard, EmptyState 5 type, SearchInput, PasswordStrengthMeter, FieldError, SessionTimeoutModal)
-  - [x] Auth UX: show/hide password, auto-focus first field per view, password strength meter di signup+reset, resend cooldown 60s, inline validation per field (FieldError + .field-error-state border merah), Enter key submit (native form behavior)
-  - [x] Dashboard polish: useSessionTimeout hook (idle 25 menit → warning 2 menit → auto-logout + /api/auth/me polling 60s untuk deteksi server-side expired), SkeletonStatCard loading state di overview, EmptyState di 5 tabel (toko/produk/transaksi/users/audit) dengan icon per type + description + CTA, SessionTimeoutModal mount dengan countdown real-time
-  - [x] Security: type-safe AuthErrorCode union (18 code) + errorResponse(code, message, status, extra) helper, password history anti-reuse (tabel password_history, check current + 3 hash terakhir, simpan + cleanup keep max 5 per user, code AUTH_PASSWORD_REUSE), hCaptcha infra (verifyHcaptcha function via api.hcaptcha.com/siteverify, config env HCAPTCHA_SECRET + HCAPTCHA_SITE_KEY, dev mode skip kalau kosong, fix bug remoteip invalid)
-  - [x] Performance (low-end PC): GPU accel translateZ(0) + will-change untuk 9 animasi (blob/aurora/liquid-glass/pulse-dot/scroll-bounce/marquee/toast/button/skeleton/password-strength/spinner/stat-card), content-visibility: auto + contain-intrinsic-size untuk feature-card, prefers-reduced-motion/data + pointer:coarse media queries, print-friendly media query, preload VerifyEmail + ResetPassword chunk via requestIdleCallback di Login onMount
-  - [x] hCaptcha UI integration: GET /api/auth/hcaptcha-sitekey endpoint (return enabled + site_key dari config), script hCaptcha API di index.html head (async defer), widget <div class="h-captcha"> di Login signup form (render kalau enabled), global callbacks onHcaptchaSuccess/Expired/Error set signal, verify di POST /api/auth/signup via verifyHcaptcha() (wajib kalau enabled, AUTH_HCAPTCHA_MISSING kalau token kosong, AUTH_HCAPTCHA_FAILED kalau verify gagal), reset widget via hcaptcha.reset() kalau signup gagal
-- [ ] Desktop App (Tauri v2)
-  - [ ] Init Tauri scaffold + konfigurasi window/icon/permissions
-  - [ ] Integrasi SQLite lokal via Rust (rusqlite atau tauri-plugin-sql)
-  - [ ] Bridge JS ↔ Rust: invoke('db_query', ...)
-  - [ ] Offline CRUD: read/write SQLite lokal, UI update via SolidJS signals
-  - [ ] WASM load di Tauri webview (tes memory/table import kompatibel)
-  - [ ] Build target: .AppImage (Linux) + portable .exe (Windows)
-- [ ] Sync Layer (opt-in, desktop → server)
-  - [ ] Sync queue + conflict resolution (last-write-wins)
-  - [ ] Backend: /api/sync/push + /api/sync/pull
-  - [ ] Auth desktop: device token (bukan session cookie)
-- [x] Backend features (RBAC, audit, alerts)
-  - [x] RBAC: requireRole() middleware dengan hierarchy (admin > manajer > kasir)
-  - [x] Audit logging: logAudit() helper + audit_logs table
-  - [x] Audit routes: GET /api/audit-logs (admin only)
-  - [x] Low stock alerts: GET /api/alerts/low-stock, GET /api/alerts/summary
-  - [x] WASM batch_check_low_stock() untuk bulk check produk
-  - [x] Schema migration: stock_threshold column di produk
-- [x] Fix loadWasm(): memory + table import untuk WASM Zig
-- [x] Security + Architecture rework (sebelum deploy)
-  - [x] Split server.ts → backend/db.ts, routes/auth.ts, routes/toko.ts, routes/produk.ts, routes/transaksi.ts, helpers.ts
-  - [x] Input validation: wajibkan field required, validasi tipe & range, reject invalid
-  - [x] Rate limiting: brute-force protection di /api/auth/login (max 5 attempt/menit/IP)
-  - [x] CSRF protection: token-based untuk state-changing endpoints
-  - [x] CORS hardening: restrict origin ke domain sendiri (env-based)
-  - [x] Cookie flags: tambah Secure + perbaiki SameSite untuk production
-  - [x] Session cleanup: hapus expired sessions (on-login atau periodic)
-  - [x] parseBody fix: return 400 kalau JSON invalid, bukan silent {}
-  - [x] Env config: .env support untuk port, DB path, cookie settings, CORS origin
-  - [x] SRI hashes: tambah integrity attribute ke semua CDN scripts
-- [x] Deploy / production setup
-  - [x] Git init + .gitignore (exclude .env, sqlite*, .reasonix/, dist/, zig artifacts)
-  - [x] GitHub repo: https://github.com/NitroCat29/kasirgo
-  - [x] Build script (bun run build → dist/)
-  - [x] GitHub Pages: https://nitrocat29.github.io/kasirgo/ (gh-pages branch)
-- [~] Backend hosting (Railway.app)
-  - [x] railway.json config (Bun builder, start command, healthcheck)
-  - [x] Frontend configurable API URL (window.API_BASE di config.js)
-  - [x] Frontend fetch() updated: API_BASE prefix + credentials: 'include'
-  - [ ] Deploy backend ke Railway (manual: sign up → connect repo → set env vars)
-  - [ ] Update config.js dengan Railway URL setelah deploy
-- [x] Dashboard UX overhaul (Phase 2.x.2)
-  - [x] Bento box grid layout: 4 stat cards (2x2/4x1), chart 2/3 + wallet 1/3
-  - [x] Revenue chart: uPlot bar chart, GET /api/stats/daily-revenue?days=N
-  - [x] Wallet/billing: wallets + wallet_transactions tables, GET /api/wallet, POST /api/wallet/topup, GET /api/wallet/history
-  - [x] WalletCard component: saldo, top-up modal (Rp 1k–10jt), riwayat tx
-  - [x] Dark/light mode toggle: data-theme attr, localStorage persist, CSS variables
-- [x] Integrasi frontend (HTMX) ke backend API
-- [x] Static file serving dari Bun :3456 + clean URLs (/login → /login.html)
-- [x] Custom 404.html dengan glassmorphism design
-- [x] Client-side SHA-256 hash password sebelum POST (login/signup)
-- [x] WASM conditional badge (hijau "ZIG WASM" / oranye "JS FALLBACK")
-- [x] Favicon kasirku_logo.svg di folder assets/ (semua HTML)
-- [x] Setup backend folder + Bun + SQLite schema
-- [x] Seed mockup data: 2 toko, 10 produk
-- [x] Route fix: paramKey p.length >= 3 untuk PATCH/DELETE
-- [x] CRUD backend API: endpoint toko, produk, transaksi (GET/POST/PATCH/DELETE) + fix routing
-- [x] Auth backend: tabel users + sessions, endpoint signup/login/logout/me/stats
-- [x] login.html: halaman login/signup dengan glassmorphism, Alpine.js
-- [x] dashboard.html: dashboard dengan stat cards, CRUD toko/produk/transaksi, sidebar
-- [x] README.md: dokumentasi lengkap stack, cara jalankan, API endpoint
-```
-
----
-
-## 4. REJECTED (jangan disarankan ulang)
-
-```
-```
-
----
-
-## 5. DECISIONS (keputusan final, tidak perlu didiskusikan ulang)
-
-```
-- "Backend subfolder backend/" — Bun + SQLite, port 3456, CORS restricted (env-based)
-- "package_manager: bun" — tidak boleh npm/yarn/pnpm
-- "Bahasa Indonesia santai, panggil user El"
-- "Auth: session cookie (HttpOnly), Bun.password.hash/verify, users + sessions table"
-- "Login/Signup flow: Alpine.js fetch ke /api/auth/*, client-side SHA-256 hash password"
-- "Dashboard: Alpine.js SPA-style (bukan HTMX partials), full CRUD dengan modal"
-- "Static serving: Bun single port :3456, serve .html/.css/.js/.wasm, clean URLs"
-- "404 handling: custom 404.html (browser), JSON untuk API requests"
-- "Favicon: kasirku_logo.svg di /assets/, linked di semua HTML"
-- "WASM badge: conditional hijau 'ZIG WASM' (ready) / oranye 'JS FALLBACK' (not ready)"
-- "Env config: .env example template, semua config via process.env dengan defaults"
-- "Security: CSRF token-based (header X-CSRF-Token), rate limit login (5/menit/IP)"
-- "Cookie: session HttpOnly + csrf_token non-HttpOnly, Secure flag conditional (HTTPS)"
-- "SRI hashes: integrity attribute di semua CDN scripts (kecuali Tailwind CDN dinamis)"
-- "Codebase: split modular — db.ts, helpers.ts, router.ts, routes/auth|toko|produk|transaksi.ts"
-- "Backend hosting: Railway.app (free tier: 512MB RAM, 1GB storage, 1 vCPU)"
-- "Frontend API config: window.API_BASE di config.js (empty = same origin, isi URL Railway untuk production)"
-- "RBAC: role hierarchy admin > manajer > kasir, requireRole() returns user or Response"
-- "Audit logging: logAudit() helper, audit_logs table tracks CREATE/UPDATE/DELETE actions"
-- "Low stock alerts: stock_threshold column, GET /api/alerts/* endpoints, WASM batch check"
-- "Repo hosting: Codeberg primary (dev, branch main) + GitHub secondary (mirror + GH Pages production)"
-- "CLI: tea (Gitea CLI) ganti gh — hanya untuk Codeberg entity management (issues/pr/release)"
-- "Sync model: periodik (tag/release) → push main + gh-pages ke GitHub; dev harian hanya ke Codeberg"
-- "PR Workflow: semua perubahan via branch+PR (Codeberg), JANGAN push langsung ke main — lihat CONTRIBUTING.md"
-- "Tauri = full mode (offline-first, SQLite lokal, no server dependency)"
-- "Browser = limited mode (tetap butuh Bun server, hardening security jalan terus)"
-- "Framework rekomendasi = SolidJS (signals, tiny bundle, POS-friendly) — keputusan final TBD El"
-- "Keamanan: SECURITY.md → threat model split browser vs desktop; disclosure via Codeberg confidential issue"
-- "Email verification: Resend API (HTTP fetch, no dep) — dev mode log code+link ke console, production butuh RESEND_API_KEY + MAIL_FROM + APP_URL"
-- "Password reset: 8-digit code + magic link (keduanya di email sama) — verify by token ATAU email+code, anti-replay via record used flag"
-- "hCaptcha anti-bot di signup — butuh HCAPTCHA_SECRET + HCAPTCHA_SITE_KEY (kosong = skip mode testing), widget render kalau backend report enabled"
-- "Password history anti-reuse — tolak new password sama dengan current + 3 hash terakhir, tabel password_history keep max 5 per user"
-- "Type-safe error code — AuthErrorCode union (18 code) di backend, errorResponse(code, message, status, extra) helper, frontend bisa switch case"
-- "Session timeout — idle 25 menit → warning modal 2 menit countdown → auto-logout, poll /api/auth/me 60s untuk deteksi server-side expired"
-- "Performance low-end PC — GPU accel (translateZ + will-change) untuk animasi, content-visibility untuk off-screen, prefers-reduced-motion/data + pointer:coarse media queries"
-- "Preload chunk — VerifyEmail/ResetPassword di-import idle di Login onMount via requestIdleCallback (instant nav setelah signup/forgot)"
-- "AuthShell shared component — wrapper background+logo+card+footer, eliminate duplikasi 200+ lines di Login/VerifyEmail/ResetPassword"
-- "Chart library: uPlot (native bars, ~35KB, no ECharts/Recharts bloat) — bar chart daily revenue"
-- "Dashboard layout: bento box grid — stat cards 4-col, chart 2/3 + wallet 1/3"
-- "Dark/light mode: data-theme='light'|'dark' on <html>, localStorage 'kasir-theme', CSS variables per theme"
-- "Wallet: wallets + wallet_transactions tables, balance in IDR (integer), topup via POST /api/wallet/topup"
-- "WASM input_buffer: separate 64KB input_buffer terpisah dari memory_buffer — mencegah overlap antara data input JS dan output allocation Zig. get_input_ptr() + get_input_size() export."
-- "WASM readFromMemoryBuffer: Zig return offset relatif ke memory_buffer, JS harus tambah get_memory_ptr() untuk absolute address di linear memory."
-- "WASM alloc_bytes: return ?usize (null=OOM), semua call site pakai orelse. Offset 0 valid setelah init_memory()."
-- "POS search: pure backend SQL (NOT WASM) — index idx_produk_nama_toko (toko_id, nama), avg 0.081ms/query, in-memory cache TTL 10s per toko_id+query, cache-hit header (x-cache-hit)"
-- "URL-synced search: useSearchParams ?q= synced live, auto-search on page load if ?q= present"
-- "DiceBear shapes style: geometric avatar, palette emerald/indigo/amber, deterministic per nama kasir"
-- "Diskon/PPN input: type=text inputmode=numeric (bukan type=number) — hilangkan spinner native"
-- "PPN default 0% disabled, checkbox toggle enable/disable"
-
----
-
-## 6. ARCHITECTURE (ASCII, 3-5 baris cukup)
-
-```
-Browser (SolidJS SPA)
-  → fetch(/api/*) → Backend Bun (:3456)
-    → bun:sqlite (kasirgo.sqlite) + password_history + email_verifications
-    → Resend API (verification + reset email, dev fallback log console)
-    → hCaptcha siteverify (anti-bot signup, skip kalau env kosong)
-  → WASM (kasir.wasm via Zig) — perhitungan transaksi
-  → SolidJS signals + AuthShell + Toast + SessionTimeout
-  → Tailwind v4 JIT + Liquid Glass CSS + GPU accel (low-end PC)
-```
-
----
-
-## 7. FILES STATUS
-
-```
-| file                           | status | note |
-|--------------------------------|--------|------|
-| backend/server.ts              | done   | Thin entry point (95 baris), Bun.serve + static serving
-| backend/db.ts                  | done   | Schema + seed logic
-| backend/helpers.ts             | done   | json(), parseBody(), getUser(), makeSessionCookie(), config, rateLimit, CSRF, cleanup, requireRole(), logAudit()
-| backend/router.ts              | done   | Route registry + handler resolver + auditRoutes + alertsRoutes
-| backend/routes/auth.ts         | done   | Auth handlers: signup, login, logout, me
-| backend/routes/toko.ts         | done   | CRUD handlers toko + RBAC + audit logging
-| backend/routes/produk.ts       | done   | CRUD handlers produk + RBAC + audit logging + stock_threshold + search cache (TTL 10s) + cache-hit header + COLLATE NOCASE
-| backend/routes/transaksi.ts    | done   | CRUD handlers transaksi + RBAC + audit logging
-| backend/routes/audit.ts        | done   | GET /api/audit-logs (admin only)
-| backend/routes/alerts.ts       | done   | GET /api/alerts/low-stock, GET /api/alerts/summary
-| backend/db/kasirgo.sqlite      | done   | SQLite DB, seed: admin (sha256 hashed), 2 toko, 10 produk, audit_logs table, stock_threshold column
-| .env.example                   | done   | Template env vars: PORT, DB_PATH, CORS_ORIGIN, SESSION_DAYS, COOKIE_SECURE, RATE_LIMIT
-| index.html                     | done   | Landing page, WASM conditional badge working, SRI hashes added
-| login.html                     | done   | Login/signup, client SHA-256 hash, Alpine.js, SRI hashes added
-| dashboard.html                 | done   | Admin dashboard, stat cards, CRUD modals, SRI hashes added
-| 404.html                       | done   | Custom 404 with glassmorphism design |
-| script.js                      | done   | loadWasm() fixed: pakai exports.memory + init_memory() |
-| styles/style.css               | done   | Custom CSS (glass, reveal, blob, badge-wasm-*) |
-| kasir.wasm                     | done   | Zig-compiled WASM (647KB) + batch_check_low_stock |
-| zig/                           | done   | Source Zig untuk WASM (main.zig dengan batch_check_low_stock) |
-| frontend/public/assets/        | done   | Logo favicon (kasirku_logo.svg), single source |
-| build.js                       | done   | Build script: minify JS, copy static, fix paths for GH Pages |
-| frontend/package.json           | done   | SolidJS + Vite + Tailwind v4 + @solidjs/router (single package.json) |
-| dist/                          | done   | Production build output, deployed to gh-pages branch |
-| railway.json                   | done   | Railway config: Bun builder, start command, healthcheck |
-| config.js                      | done   | Frontend API config: window.API_BASE (empty = same origin) |
-| AGENTS.md                      | done   | Updated sesi 2026-07-07 (rewrite plan, PR workflow, security) |
-| Plan.md                        | done   | Arsitektur mode split, framework eval, roadmap 5 fase |
-| CONTRIBUTING.md                 | done   | PR workflow, branch naming, commit convention, agent rule |
-| SECURITY.md                     | done   | Measures, threat model (browser vs desktop), disclosure |
-| frontend/vite.config.ts         | done   | SolidJS plugin, Tailwind plugin, proxy /api → :3456 |
-| frontend/src/App.tsx            | done   | Router: /, /login, /dashboard, * (404) |
-| frontend/src/pages/Landing.tsx  | done   | Hero section, CTA buttons, glassmorphism |
-| frontend/src/pages/Login.tsx    | done   | Login/signup form, SHA-256 hash, error handling |
-| frontend/src/pages/Dashboard.tsx | done   | Bento box layout, stat cards, chart+wallet, theme toggle, CRUD toko/produk/transaksi |
-| frontend/src/lib/api.ts         | done   | Fetch wrapper, CSRF token, credentials include, csrfHeaders export |
-| frontend/src/lib/auth.ts        | done   | SolidJS signals: user() (with email+verified), login (identifier), signup (with email + hcaptchaToken), verifyEmailByToken/Code, resendVerification, forgotPassword, verifyResetCodeByToken/Code, resetPassword, logout, fetchMe, getHcaptchaConfig
-| frontend/src/lib/wasm.ts        | done   | loadWasm(), calculateTotal(), jsFallback, wasmReady signal
-| frontend/src/lib/toast.ts       | done   | Toast store (success/error/info/warning, auto-dismiss + progress bar) + calcPasswordStrength (4-level weak/fair/good/strong)
-| frontend/src/lib/session-timeout.ts | done | useSessionTimeout hook (idle 25 menit + warning 2 menit countdown + auto-logout + /api/auth/me polling 60s)
-| frontend/src/components/AuthShell.tsx | done | Shared wrapper (background+logo+card+footer, eliminate duplikasi 200+ lines) + useAutoFocus hook + PasswordField (show/hide eye toggle) + ResendCooldown (60s countdown)
-| frontend/src/components/ui.tsx   | done   | ToastContainer + Skeleton/SkeletonStatCard/SkeletonRow + EmptyState (7 type icon: users/toko/produk/transaksi/audit/search/cart) + SearchInput + PasswordStrengthMeter + FieldError + SessionTimeoutModal
-| frontend/src/lib/wasm.ts        | done   | loadWasm(), calculateTotal(), jsFallback, wasmReady signal |
-| sync-gh.sh                     | done   | Script sync Codeberg → GitHub mirror + GH Pages |
-| shared/types.ts                | done   | Toko, Produk, Transaksi, User, AuditLog, WasmExports interfaces |
-| shared/validation.ts           | done   | 8 validation functions: signup (with email), login (identifier), toko, produk, transaksi + validateEmail (provider whitelist + anti-alias +/.) + isEmailIdentifier
-| shared/db-schema.sql           | done   | 9 CREATE TABLE (+wallets, wallet_transactions) + 3 index (idx_produk_sku, idx_produk_nama_toko, idx_produk_sku_toko), source of truth untuk SQLite schema
-| shared/wasm-bridge.ts          | done   | loadWasm(), calculateTotal(), computeBenchmark(), jsFallback, loadProducts(), batchCheckLowStock() — input_buffer based
-| frontend/index.html            | done   | Vite entry + hCaptcha API script (async defer) in head
-| frontend/src/index.css          | done   | Tailwind v4 + theme tokens + light mode + glass + liquid glass + GPU accel + content-visibility + prefers-reduced-motion + pointer:coarse + password-strength + field-error + toast + skeleton + empty-state + search + session-timeout + print-friendly + kasir-input + ppn-checkbox + kasir-dropdown + btn-bayar + payment-overlay + kasir-avatar
-| backend/routes/wallet.ts        | done   | GET /api/wallet (saldo), POST /api/wallet/topup, GET /api/wallet/history |
-| frontend/src/components/RevenueChart.tsx | done | uPlot bar chart, daily revenue, theme-aware colors |
-| backend/cache.ts               | done   | In-memory search cache (Map, TTL 10s), searchCacheGet/Set/InvalidateToko/Clear |
-| frontend/src/components/WalletCard.tsx | done | Saldo display, top-up modal, tx history accordion |
-| frontend/src/pages/Kasir.tsx   | done   | POS page: live search (debounce 200ms, URL ?q= sync), cart, custom dropdown toko (GSAP), PPN toggle, DiceBear shapes avatar, btn-bayar gradient emerald→indigo, blur+grain overlay + product catalog grid (client-side filter), cart+summary+pay in fixed right panel, keyboard shortcuts (Ctrl+K/Esc/Enter), mobile responsive (stack layout), qty inline edit, toast feedback |
+| file               | isi                                          |
+|---------------------|-----------------------------------------------|
+| TODO.md            | checklist to-do lengkap (progress per fase)    |
+| DECISIONS.md       | rejected list + decisions final (jangan ulang)|
+| ARCHITECTURE.md    | diagram arsitektur singkat                     |
+| FILES_STATUS.md    | tabel status semua file di repo                |
+| TOOLING_ALT.md      | opsi tooling alternatif (belum final)          |
 ```
 
 `active_file: "AGENTS.md"`
-
----
-
-## 8. TOOLING ALTERNATIF (dipertimbangkan, BELUM final — jangan pakai tanpa konfirmasi)
-
-> Daftar opsi non-mainstream yang bisa dicoba kalau ada alasan spesifik.
-> Agent boleh SARANKAN dari sini, tidak boleh GANTI stack diam-diam.
-
-```
-- package_manager_alt : "pnpm" (symlink, hemat disk) | "vlt" (baru, eksperimental)
-- runtime_alt          : "Deno" (TS native, permission sandbox --allow-net dst)
-- test_runner_alt      : "bun test" (built-in, skip Jest/Vitest setup)
-- lint_format_alt      : "Biome" (pengganti ESLint+Prettier, 1 binary Rust, cepat)
-- db_lokal_alt         : "bun:sqlite" (built-in di Bun, untuk prototype/project kecil)
-- monorepo_alt         : "Moon" (build system, caching agresif, config eksplisit)
-```
 
 ---
 
@@ -335,11 +102,14 @@ Browser (SolidJS SPA)
 
 **Akhir sesi**, minta agent:
 ```
-Sesi selesai. Update AGENTS.md: pindahkan task selesai ke checklist [x],
-update status/blocker/next, isi rejected & decisions kalau ada yang baru.
+Sesi selesai. Update AGENTS.md + file split terkait: pindahkan task selesai
+ke TODO.md [x], update status/blocker/next di AGENTS.md §2, isi
+DECISIONS.md kalau ada rejected/decision baru, update FILES_STATUS.md.
+
+(file markdown sekarang berada di folder `markdown/`)
 ```
 
-**Awal sesi baru** — agent baca file ini otomatis (tidak perlu paste manual).
+**Awal sesi baru** — agent baca AGENTS.md + file split otomatis (tidak perlu paste manual).
 Cukup ketik: `lanjut` atau `mulai dari next`.
 
 ---
@@ -347,14 +117,15 @@ Cukup ketik: `lanjut` atau `mulai dari next`.
 ## 10. EXPORT KE .txt (untuk AI chat web tanpa file access)
 
 > Dipakai kalau mau bawa memory ini ke Claude.ai/ChatGPT/dst yang nggak baca file dari disk.
-> Agent merangkum AGENTS.md jadi SATU blok teks paste-able — bukan dump mentah seluruh file.
+> Agent merangkum AGENTS.md + file split jadi SATU blok teks paste-able — bukan dump mentah.
 
 **Trigger ke agent:**
 ```
-Generate HANDOFF.txt dari AGENTS.md ini — rangkum jadi satu blok teks
-yang bisa langsung di-paste ke AI chat web lain. Prioritaskan:
+Generate HANDOFF.txt dari AGENTS.md + TODO.md + DECISIONS.md + ARCHITECTURE.md
++ FILES_STATUS.md — rangkum jadi satu blok teks yang bisa langsung
+di-paste ke AI chat web lain. Prioritaskan:
 status, next, rejected, decisions, files_status singkat.
-Jangan sertakan §0 (aturan agent) dan §8 (tooling alternatif) — itu
+Jangan sertakan §0 (aturan agent) dan TOOLING_ALT.md — itu
 khusus untuk agent ini, tidak relevan untuk chat manual.
 ```
 
@@ -379,13 +150,7 @@ dari model lain tanpa setup ulang context dari nol.
 
 ## Catatan
 
-- File ini hidup di root repo, dibaca otomatis oleh agent tiap run.
-- Jangan biarkan checklist §3 dan files_status §7 nggak sinkron — keduanya harus cerminan kondisi nyata repo.
-- Kalau file ini sudah terlalu panjang (>150 baris isi nyata), pertimbangkan split per-modul.
-
-## Notes
-
-- all
-- save sebagai persistent memory isi chat ini, agar bisa digunakan di sesi baru
-- all
-- all
+- File ini + file split hidup di root repo, dibaca otomatis oleh agent tiap run.
+- Jangan biarkan TODO.md dan FILES_STATUS.md nggak sinkron — keduanya harus cerminan kondisi nyata repo.
+- Struktur split ini menggantikan AGENTS.md versi monolitik (>350 baris) sebelumnya.
+- file markdown sekarang berada di folder `markdown/`

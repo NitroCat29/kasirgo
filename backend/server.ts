@@ -3,11 +3,12 @@
 // ============================================================
 // db.ts auto-runs schema + seed on import
 import "./db";
-import { json, config, validateCsrf, corsHeaders } from "./helpers";
+import { json, config, validateCsrf, corsHeaders, cleanupExpiredSessions, cleanupOldAuditLogs } from "./helpers";
+import { resolve as resolvePath } from "node:path";
 import { resolveHandler } from "./router";
 
 const FRONTEND_DIST = import.meta.dir + "/../frontend/dist";
-const RESOLVED_DIST = Bun.path.resolve(FRONTEND_DIST);
+const RESOLVED_DIST = resolvePath(FRONTEND_DIST);
 
 const MIME: Record<string, string> = {
   html: "text/html; charset=utf-8",
@@ -25,14 +26,19 @@ const MIME: Record<string, string> = {
 // Returns null if path escapes FRONTEND_DIST.
 function safeStaticPath(urlPath: string): string | null {
   // Decode percent-encoded chars first (prevents %2e%2e%2f bypass)
-  const decoded = decodeURIComponent(urlPath);
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(urlPath);
+  } catch {
+    return null; // malformed URI — reject instead of 500
+  }
   // Reject absolute paths and backslash traversal (Windows)
   if (decoded.startsWith("/") || decoded.includes("\\")) return null;
   // Reject any segment that is or contains ".."
   const segments = decoded.split("/");
   if (segments.some(s => s === ".." || s === "")) return null;
   // Resolve and verify still inside FRONTEND_DIST
-  const resolved = Bun.path.resolve(FRONTEND_DIST, decoded);
+  const resolved = resolvePath(FRONTEND_DIST, decoded);
   if (!resolved.startsWith(RESOLVED_DIST)) return null;
   return resolved;
 }
@@ -165,3 +171,12 @@ Bun.serve({
 });
 
 console.log(`🚀 Backend KasirGo berjalan di http://localhost:${config.port}`);
+
+// Periodic cleanup: sessions + audit retention (setiap 1 jam)
+setInterval(() => {
+  cleanupExpiredSessions();
+  cleanupOldAuditLogs();
+}, 3_600_000);
+// Run once on startup
+cleanupExpiredSessions();
+cleanupOldAuditLogs();

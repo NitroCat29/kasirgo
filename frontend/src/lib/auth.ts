@@ -3,6 +3,7 @@
 // ============================================================
 import { createSignal } from "solid-js";
 import { api, setCsrfToken } from "./api";
+import { checkPasswordStrength } from "../../../shared/validation";
 
 export interface User {
   id: string;
@@ -47,6 +48,8 @@ export async function login(identifier: string, password: string): Promise<User>
 // SIGNUP — buat akun pending, kirim verification email
 // ============================================================
 export async function signup(username: string, email: string, password: string, nama: string, hcaptchaToken?: string): Promise<{ pending_verification: true; email: string }> {
+  const strengthError = checkPasswordStrength(password);
+  if (strengthError) throw new Error(strengthError);
   const hashed = await sha256(password);
   const body: Record<string, string> = { username, email, password: hashed, nama };
   if (hcaptchaToken) body.hcaptcha_token = hcaptchaToken;
@@ -140,6 +143,8 @@ export async function verifyResetCodeByCode(email: string, code: string): Promis
 // RESET PASSWORD — pakai reset_token dari verify-reset-code / magic link
 // ============================================================
 export async function resetPassword(resetToken: string, newPassword: string): Promise<{ ok: true }> {
+  const strengthError = checkPasswordStrength(newPassword);
+  if (strengthError) throw new Error(strengthError);
   const hashed = await sha256(newPassword);
   return api("/api/auth/reset-password", {
     method: "POST",

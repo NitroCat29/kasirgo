@@ -91,7 +91,11 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   entity_type TEXT NOT NULL,
   entity_id TEXT,
   details TEXT,
+  old_values TEXT,
+  new_values TEXT,
   ip_address TEXT,
+  prev_hash TEXT,
+  hash TEXT NOT NULL DEFAULT '',
   created_at TEXT DEFAULT (datetime('now'))
 );
 
@@ -109,11 +113,11 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 -- ============================================================
 CREATE TABLE IF NOT EXISTS wallets (
   id TEXT PRIMARY KEY,
-  user_id TEXT UNIQUE NOT NULL,
+  toko_id TEXT UNIQUE NOT NULL,
   balance INTEGER NOT NULL DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (toko_id) REFERENCES toko(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS wallet_transactions (

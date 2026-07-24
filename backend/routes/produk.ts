@@ -120,12 +120,13 @@ export const produkRoutes: Record<string, (req: Request, path: string[]) => Resp
     if (error) return error;
     const v = validateProdukCreate(body);
     if (!v.ok) return json({ error: v.error }, 400);
-    // Validasi toko exists (only if toko_id provided)
-    const tokoId = v.data.toko_id || "";
-    if (tokoId) {
-      const toko = db.query("SELECT id FROM toko WHERE id = ?").get(tokoId);
-      if (!toko) return json({ error: `Toko tidak ditemukan (id: "${tokoId}")` }, 400);
+    // Validasi toko exists — required (NOT NULL + FK)
+    const tokoId = String(v.data.toko_id || "").trim();
+    if (!tokoId) {
+      return json({ error: "Toko wajib dipilih" }, 400);
     }
+    const toko = db.query("SELECT id FROM toko WHERE id = ?").get(tokoId);
+    if (!toko) return json({ error: `Toko tidak ditemukan (id: "${tokoId}")` }, 400);
 
     const qty = v.data.stok || 0;
     const modal = v.data.harga_modal || 0;
@@ -140,7 +141,7 @@ export const produkRoutes: Record<string, (req: Request, path: string[]) => Resp
         [id, tokoId, sku, v.data.nama, v.data.merk || "", v.data.kategori || "", normalizeSatuan(v.data.satuan), v.data.harga || 0, modal, qty, v.data.stock_threshold ?? 10]
       );
       if (totalCost > 0) {
-        const deduction = deductWallet(user.id, totalCost, `Pembelian stok awal: ${v.data.nama} (${qty} @ ${modal})`);
+        const deduction = deductWallet(tokoId, totalCost, `Pembelian stok awal: ${v.data.nama} (${qty} @ ${modal})`);
         if (!deduction.ok) {
           db.run("ROLLBACK");
           return json({ error: deduction.error }, 402);
@@ -189,7 +190,7 @@ export const produkRoutes: Record<string, (req: Request, path: string[]) => Resp
     try {
       db.run("UPDATE produk SET stok = stok + ? WHERE id = ?", qty, produkId);
       if (totalCost > 0) {
-        const deduction = deductWallet(user.id, totalCost, `Restock: ${e.nama} (+${qty} @ ${modal})`);
+        const deduction = deductWallet(e.toko_id, totalCost, `Restock: ${e.nama} (+${qty} @ ${modal})`);
         if (!deduction.ok) {
           db.run("ROLLBACK");
           return json({ error: deduction.error }, 402);
@@ -259,7 +260,7 @@ export const produkRoutes: Record<string, (req: Request, path: string[]) => Resp
         const totalCost = qty * modal;
         db.run("UPDATE produk SET stok = stok + ? WHERE id = ?", qty, produkId);
         if (totalCost > 0) {
-          const deduction = deductWallet(user.id, totalCost, `Bulk restock: ${e.nama} (+${qty} @ ${modal})`);
+          const deduction = deductWallet(e.toko_id, totalCost, `Bulk restock: ${e.nama} (+${qty} @ ${modal})`);
           if (!deduction.ok) {
             results.errors.push(`Item ${i + 1} (${e.nama}): ${deduction.error}`);
             continue;
@@ -373,7 +374,7 @@ export const produkRoutes: Record<string, (req: Request, path: string[]) => Resp
     db.run("UPDATE produk SET nama=?, sku=?, merk=?, kategori=?, satuan=?, harga=?, harga_modal=?, stok=?, stock_threshold=? WHERE id=?", [
       v.data.nama ?? e.nama, v.data.sku ?? e.sku, v.data.merk ?? e.merk ?? "", v.data.kategori ?? e.kategori ?? "", v.data.satuan ?? e.satuan ?? "", v.data.harga ?? e.harga, v.data.harga_modal ?? e.harga_modal, v.data.stok ?? e.stok, v.data.stock_threshold ?? e.stock_threshold, id,
     ]);
-    logAudit({ user_id: user.id, username: user.username, action: "UPDATE", entity_type: "produk", entity_id: id, details: { nama: v.data.nama || e.nama, stok: v.data.stok ?? e.stok } });
+    logAudit({ user_id: user.id, username: user.username, action: "UPDATE", entity_type: "produk", entity_id: id, details: { nama: v.data.nama || e.nama, stok: v.data.stok ?? e.stok }, old_values: { nama: e.nama, sku: e.sku, merk: e.merk, kategori: e.kategori, satuan: e.satuan, harga: e.harga, harga_modal: e.harga_modal, stok: e.stok, stock_threshold: e.stock_threshold }, new_values: { nama: v.data.nama ?? e.nama, sku: v.data.sku ?? e.sku, merk: v.data.merk ?? e.merk ?? "", kategori: v.data.kategori ?? e.kategori ?? "", satuan: v.data.satuan ?? e.satuan ?? "", harga: v.data.harga ?? e.harga, harga_modal: v.data.harga_modal ?? e.harga_modal, stok: v.data.stok ?? e.stok, stock_threshold: v.data.stock_threshold ?? e.stock_threshold } });
     searchCacheInvalidateToko(e.toko_id);
     const row = db.query("SELECT * FROM produk WHERE id = ?").get(id);
     return json(row);

@@ -1,10 +1,13 @@
 import { createSignal, onMount, onCleanup, Show } from "solid-js";
 import { A, useNavigate } from "@solidjs/router";
-import { user, logout, fetchMe } from "../lib/auth";
+import { user, logout } from "../lib/auth";
+import { requireAuth } from "../lib/requireAuth";
 import { api } from "../lib/api";
+import { toast } from "../lib/toast";
 import { theme, toggleTheme, initTheme } from "../lib/theme";
 import { useSessionTimeout } from "../lib/session-timeout";
 import { SessionTimeoutModal } from "../components/ui";
+import CommandPalette from "../components/CommandPalette";
 import TokoDropdown from "../features/kasir/TokoDropdown";
 import { createAvatar } from "@dicebear/core";
 import { shapes } from "@dicebear/collection";
@@ -76,12 +79,34 @@ export default function Kasir() {
   const [daftarToko, setDaftarToko] = createSignal<Toko[]>([]);
   const [selectedTokoId, setSelectedTokoId] = createSignal("");
   const [showCart, setShowCart] = createSignal(true);
+  const [kertasStock, setKertasStock] = createSignal(0);
+
+  // Command palette
+  const [cmdOpen, setCmdOpen] = createSignal(false);
+  function cmdItems() {
+    return [
+      { id: "dashboard", label: "Buka Dashboard", icon: "📊", description: "Kembali ke dashboard", action: () => nav("/dashboard") },
+      { id: "search", label: "Cari Produk", icon: "🔍", description: "Fokus ke search bar", action: () => document.getElementById("product-search")?.focus() },
+      { id: "cart", label: "Toggle Cart", icon: "🛒", description: "Tampilkan/sembunyikan cart", action: () => setShowCart((v) => !v) },
+    ];
+  }
+
+  // Load kertas stock
+  async function loadKertasStock() {
+    try {
+      const data = await api<{ stock: number }>("/api/kertas-stock");
+      setKertasStock(data.stock);
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : "Gagal muat stok kertas");
+    }
+  }
 
   // Jasa fotocopy: 1 jenis, 4 box preset qty, toggle 1/2 sisi
   const fotocopy = useKasirFotocopy({
     unitPrice: 500, // Rp/lembar — edit sesuai harga
     cart: cart.cart,
     setCart: cart.setCart,
+    kertasStock,
   });
 
   // Toko selection handler
@@ -123,7 +148,10 @@ export default function Kasir() {
   };
   const receiptModalProps = {
     showReceipt: payment.showReceipt,
-    closeReceipt: payment.closeReceipt,
+    closeReceipt: () => {
+      payment.closeReceipt();
+      loadKertasStock();
+    },
     transaksiResult: payment.transaksiResult,
     daftarToko: daftarToko,
     selectedTokoId: selectedTokoId,
@@ -139,7 +167,9 @@ export default function Kasir() {
       if (data.length > 0 && !selectedTokoId()) {
         setSelectedTokoId(data[0].id);
       }
-    } catch {}
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : "Gagal muat toko");
+    }
   }
 
   // Keyboard shortcuts
@@ -169,6 +199,11 @@ export default function Kasir() {
         if (first && first.stok > 0) cart.addToCart(first);
         return;
       }
+      if (e.key === "F2") {
+        e.preventDefault();
+        setCmdOpen((v) => !v);
+        return;
+      }
     }
     document.addEventListener("keydown", handleKeydown);
     onCleanup(() => document.removeEventListener("keydown", handleKeydown));
@@ -176,19 +211,16 @@ export default function Kasir() {
 
   // Init
   onMount(async () => {
-    if (!user()) {
-      const me = await fetchMe();
-      if (!me) {
-        nav("/login");
-        return;
-      }
-    }
+    const me = await requireAuth(nav);
+    if (!me) return;
     await loadToko();
+    await loadKertasStock();
     await catalog.loadCatalog(selectedTokoId());
   });
 
   return (
     <div class="h-screen bg-kasir-bg flex flex-col overflow-hidden">
+      <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} items={cmdItems} />
       {/* Header */}
       <header class="bg-kasir-card border-b border-kasir-border px-4 py-3 flex items-center justify-between">
         <div class="flex items-center gap-4">
@@ -204,6 +236,13 @@ export default function Kasir() {
             selectedTokoId={selectedTokoId}
             onSelect={selectToko}
           />
+          <button
+            class="text-xs font-mono text-kasir-muted bg-white/5 px-2 py-1 rounded-lg border border-kasir-border hover:bg-white/10 transition-colors cursor-pointer"
+            onClick={() => setCmdOpen(true)}
+            title="Command Palette (F2)"
+          >
+            F2
+          </button>
           <button class="btn-sm btn-ghost" onClick={toggleTheme}>
             {theme() === "dark" ? "☀️" : "🌙"}
           </button>
@@ -241,6 +280,7 @@ export default function Kasir() {
             toggleDoubleSided={fotocopy.toggleDoubleSided}
             setDoubleSided={fotocopy.setDoubleSided}
             reset={fotocopy.reset}
+            kertasStock={kertasStock}
           />
           <KasirProductGrid
             searchQuery={catalog.searchQuery}

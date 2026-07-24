@@ -40,10 +40,13 @@
           div.appendChild(p);
           root.appendChild(div);
         }
-        // Catch sync errors + resource load errors
+        // Catch JS runtime errors only — ignore resource load (img/css/script 404)
+        // Resource errors have empty message + target !== window → was showing "Unknown error"
         window.addEventListener("error", function(e) {
+          if (e.target && e.target !== window) return; // resource load error
+          if (!e.message || e.message === "Script error.") return;
           showError("Runtime Error",
-            (e.message || "Unknown error")
+            e.message
             + (e.filename ? "\n  at " + e.filename + ":" + e.lineno + ":" + e.colno : "")
             + (e.error && e.error.stack ? "\n\n" + e.error.stack : ""));
         }, true);
