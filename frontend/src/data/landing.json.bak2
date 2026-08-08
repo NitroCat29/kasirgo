@@ -1,0 +1,95 @@
+{
+  "navbar": {
+    "menuButton": "Menu",
+    "links": [
+      { "label": "Beranda", "href": "/", "active": true },
+      { "label": "Fitur", "href": "/fitur", "active": false },
+      { "label": "Tentang", "href": "/tentang", "active": false }
+    ],
+    "loginButton": {
+      "initials": "KG",
+      "label": "Masuk Toko",
+      "subLabel": "mode demo"
+    }
+  },
+  "search": {
+    "placeholder": "Cari fitur, contoh: wallet per-toko..."
+  },
+  "hero": {
+    "badge": "MENGENAL KASIRGO / KASIR DIGITAL UNTUK TOKO",
+    "title": "KASIRGO",
+    "subtitle": "UNTUK TOKO KAMU",
+    "ctaCard": {
+      "badge": "TANPA RIBET",
+      "description": "Setup toko pertamamu dalam waktu kurang dari 5 menit.",
+      "button": "Mulai Gratis",
+      "buttonHref": "/login"
+    },
+    "glassCard": {
+      "title": "Apa itu KasirGO?",
+      "description": "Aplikasi kasir yang tetap jalan walau internet mati, catat tiap transaksi otomatis, dan aman lewat verifikasi dua langkah. Dibuat untuk pemilik toko yang mau fokus jualan, bukan pusing input data.",
+      "buttonAriaLabel": "Pelajari lebih lanjut"
+    },
+    "bottomButtons": {
+      "demo": "LIVE DEMO",
+      "dashboard": "DASHBOARD"
+    }
+  },
+  "scrollBadge": {
+    "defaultLabel": "FITUR UNGGULAN"
+  },
+  "compareSection": {
+    "badge": "PERBEDAAN",
+    "description": "Kasir manual pakai buku catatan atau kalkulator — gampang selisih, rekap akhir bulan makan waktu. KasirGO mencatat tiap transaksi otomatis, stok berkurang sendiri, dan laporan langsung jadi tanpa direkap ulang.",
+    "button": "Lihat Perbandingan"
+  },
+  "walletSection": {
+    "badge": "WALLET PER-TOKO",
+    "title": "Punya banyak cabang? Kas tetap kepisah rapi.",
+    "description": "Tiap toko punya wallet sendiri — uang cabang A nggak kecampur sama cabang B. Pantau saldo & arus kas per toko dari satu akun, dilindungi TOTP 2FA di setiap login."
+  },
+  "nextButton": "NEXT",
+  "previewSection": {
+    "analytics": {
+      "title": "Analitik Real-Time",
+      "description": "Grafik penjualan harian, langsung dari data toko kamu.",
+      "buttonAriaLabel": "Lihat analitik"
+    },
+    "scan": {
+      "title": "Scan & Cetak Struk",
+      "description": "Scan barcode, transaksi selesai, struk langsung tercetak.",
+      "buttonAriaLabel": "Lihat fitur scan"
+    },
+    "badges": {
+      "fitur": "FITUR",
+      "galeri": "GALERI",
+      "lihat": "LIHAT"
+    }
+  },
+  "businessSection": {
+    "initials": "KG",
+    "title": "Cocok Untuk Semua Jenis Usaha"
+  },
+  "businessTypes": [
+    {
+      "id": "retail",
+      "label": "Retail & Konter",
+      "desc": "Stok, varian, & harga jual — kelola dari satu layar."
+    },
+    {
+      "id": "resto",
+      "label": "F&B / Resto",
+      "desc": "Pesanan meja, antrian dapur, kasir — semua sinkron otomatis."
+    },
+    {
+      "id": "grosir",
+      "label": "Grosir",
+      "desc": "Harga bertingkat & transaksi partai besar, tetap rapi."
+    }
+  ],
+  "footer": {
+    "tagline": "DIBUAT UNTUK UMKM INDONESIA",
+    "homeAriaLabel": "Kembali ke beranda",
+    "aboutButton": "TENTANG KASIRGO"
+  }
+}
