@@ -15,6 +15,7 @@ export interface KasirFotocopyProps {
   toggleDoubleSided: () => void;
   setDoubleSided: (v: boolean) => void;
   reset: () => void;
+  kertasStock: () => number;
 }
 
 /* ============================================
@@ -43,12 +44,23 @@ export default function KasirFotocopy(props: KasirFotocopyProps) {
 
   const subtotal = () => props.effLembar() * props.unitPrice;
 
+  const noStock = () => props.kertasStock() <= 0;
+
   return (
     <div class="mb-4">
       <div class="flex items-center gap-2 mb-2 flex-wrap">
         <span class="text-base font-bold text-kasir-accent">📄 Fotocopy</span>
         <span class="text-xs text-kasir-muted">
           {formatRupiah(props.unitPrice)}/lembar · input manual · +5/+10/+25 · ✕ reset · toggle 1/2 sisi (2 sisi = qty×2)
+        </span>
+        <span
+          class={`text-xs font-medium px-2 py-0.5 rounded-full ${
+            noStock()
+              ? "bg-red-500/20 text-red-400"
+              : "bg-emerald-500/20 text-emerald-400"
+          }`}
+        >
+          🗒️ Stok: {props.kertasStock()} lembar
         </span>
       </div>
 
@@ -76,26 +88,34 @@ export default function KasirFotocopy(props: KasirFotocopyProps) {
           </Show>
         </div>
 
+        <Show when={noStock()}>
+          <div class="mt-3 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400">
+            ⚠️ Stok kertas habis. Minta admin/manajer refill dari Dashboard.
+          </div>
+        </Show>
+
         {/* Toggle 1 sisi / 2 sisi */}
         <div class="mt-3 flex items-center gap-1">
           <button
             type="button"
+            disabled={noStock()}
             class={`flex-1 text-sm py-1.5 rounded-md font-semibold ${
               !props.doubleSided()
                 ? "bg-kasir-accent text-white"
                 : "bg-kasir-card border border-kasir-border text-kasir-muted"
-            }`}
+            } ${noStock() ? "opacity-40 cursor-not-allowed" : ""}`}
             onClick={() => props.setDoubleSided(false)}
           >
             1 sisi
           </button>
           <button
             type="button"
+            disabled={noStock()}
             class={`flex-1 text-sm py-1.5 rounded-md font-semibold ${
               props.doubleSided()
                 ? "bg-kasir-accent text-white"
                 : "bg-kasir-card border border-kasir-border text-kasir-muted"
-            }`}
+            } ${noStock() ? "opacity-40 cursor-not-allowed" : ""}`}
             onClick={() => props.setDoubleSided(true)}
           >
             2 sisi
@@ -107,8 +127,9 @@ export default function KasirFotocopy(props: KasirFotocopyProps) {
           <input
             type="text"
             inputmode="numeric"
-            class="kasir-input flex-1 text-center text-lg px-2 py-2"
-            placeholder="jumlah lembar"
+            class={`kasir-input flex-1 text-center text-lg px-2 py-2 ${noStock() ? "opacity-40 cursor-not-allowed" : ""}`}
+            disabled={noStock()}
+            placeholder={noStock() ? "stok habis" : "jumlah lembar"}
             value={input()}
             onInput={onInput}
             onBlur={applyInput}
@@ -128,7 +149,8 @@ export default function KasirFotocopy(props: KasirFotocopyProps) {
           {[5, 10, 25].map((n) => (
             <button
               type="button"
-              class="text-sm py-1.5 rounded-md bg-kasir-accent/15 text-kasir-accent font-semibold hover:bg-kasir-accent/25"
+              disabled={noStock()}
+              class={`text-sm py-1.5 rounded-md bg-kasir-accent/15 text-kasir-accent font-semibold ${noStock() ? "opacity-40 cursor-not-allowed" : "hover:bg-kasir-accent/25"}`}
               onClick={() => props.addQty(n)}
             >
               +{n}

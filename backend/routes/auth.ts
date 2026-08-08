@@ -7,7 +7,7 @@ import {
   generate8DigitCode, generateVerifyToken, config, errorResponse,
   verifyHcaptcha,
 } from "../helpers";
-import { validateSignup, validateLogin, isEmailIdentifier } from "../../shared/validation";
+import { validateSignup, validateLogin, isEmailIdentifier, checkPasswordStrength } from "../../shared/validation";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../mail";
 
 // ============================================================
@@ -66,6 +66,10 @@ export const authRoutes: Record<string, (req: Request, path: string[]) => Respon
     if (error) return error;
     const v = validateSignup(body);
     if (!v.ok) return errorResponse("AUTH_INVALID_INPUT", v.error, 400);
+
+    // Server-side password strength check (belt and suspenders)
+    const pwResult = checkPasswordStrength(v.data.password);
+    if (pwResult) return errorResponse("AUTH_WEAK_PASSWORD", pwResult, 400);
 
     // hCaptcha verification — wajib kalau enabled (HCAPTCHA_SECRET + SITE_KEY set).
     // Kalau disabled (env kosong) → skip verify (mode testing).
@@ -388,8 +392,8 @@ export const authRoutes: Record<string, (req: Request, path: string[]) => Respon
     if (!resetToken || !newPassword) {
       return errorResponse("AUTH_INVALID_INPUT", "reset_token dan new_password wajib diisi", 400);
     }
-    if (newPassword.length < 6) {
-      return errorResponse("AUTH_INVALID_INPUT", "Password baru minimal 6 karakter", 400);
+    if (newPassword.length < 8) {
+      return errorResponse("AUTH_INVALID_INPUT", "Password baru minimal 8 karakter", 400);
     }
 
     // Cari record by token (purpose=password_reset, unused)

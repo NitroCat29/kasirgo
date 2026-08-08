@@ -66,7 +66,7 @@ export const tokoRoutes: Record<string, (req: Request, path: string[]) => Respon
     const alamat = v.data.alamat ?? existing.alamat;
     const telepon = v.data.telepon ?? existing.telepon;
     db.run("UPDATE toko SET nama=?, alamat=?, telepon=? WHERE id=?", [nama, alamat, telepon, id]);
-    logAudit({ user_id: user.id, username: user.username, action: "UPDATE", entity_type: "toko", entity_id: id, details: { nama, alamat, telepon } });
+    logAudit({ user_id: user.id, username: user.username, action: "UPDATE", entity_type: "toko", entity_id: id, details: { nama, alamat, telepon }, old_values: { nama: existing.nama, alamat: existing.alamat, telepon: existing.telepon }, new_values: { nama, alamat, telepon } });
     const row = db.query("SELECT * FROM toko WHERE id = ?").get(id);
     return json(row);
   },

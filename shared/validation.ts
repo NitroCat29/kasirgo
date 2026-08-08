@@ -134,6 +134,20 @@ export function isEmailIdentifier(identifier: string): boolean {
 
 // ---- Auth ----
 
+// ---- Password strength checker ----
+// Returns null if strong enough, or error message string.
+export function checkPasswordStrength(password: string): string | null {
+  if (password.length < 8) return "Password minimal 8 karakter";
+  if (password.length > 128) return "Password maksimal 128 karakter";
+  if (!/[a-z]/.test(password)) return "Password harus mengandung huruf kecil (a-z)";
+  if (!/[A-Z]/.test(password)) return "Password harus mengandung huruf besar (A-Z)";
+  if (!/[0-9]/.test(password)) return "Password harus mengandung angka (0-9)";
+  // Common weak passwords
+  const weak = ["password", "12345678", "qwerty123", "abc12345", "password1", "admin123"];
+  if (weak.includes(password.toLowerCase())) return "Password terlalu umum, pilih yang lebih kuat";
+  return null;
+}
+
 export function validateSignup(body: Record<string, unknown>) {
   return validate(body, {
     username: ["Username", str({ min: 3, max: 20 })],

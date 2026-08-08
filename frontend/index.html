@@ -23,16 +23,30 @@
           var root = document.getElementById("root");
           if (!root) return;
           shown = true;
-          root.innerHTML = '<div style="padding:24px;color:#ff6b6b;font-family:monospace;white-space:pre-wrap;max-width:800px;margin:40px auto">'
-            + '<h2 style="color:#ff8a3d">⚠ ' + title + '</h2>'
-            + '<pre style="color:#e8edf5;font-size:13px;margin-top:8px;white-space:pre-wrap">' + detail + '</pre>'
-            + '<p style="color:#8b95a8;font-size:11px;margin-top:12px">Coba refresh (Ctrl+Shift+R) atau buka Console (F12)</p>'
-            + '</div>';
+          root.textContent = "";
+          var div = document.createElement("div");
+          div.style.cssText = "padding:24px;color:#ff6b6b;font-family:monospace;white-space:pre-wrap;max-width:800px;margin:40px auto";
+          var h2 = document.createElement("h2");
+          h2.style.color = "#ff8a3d";
+          h2.textContent = "\u26a0 " + title;
+          div.appendChild(h2);
+          var pre = document.createElement("pre");
+          pre.style.cssText = "color:#e8edf5;font-size:13px;margin-top:8px;white-space:pre-wrap";
+          pre.textContent = detail;
+          div.appendChild(pre);
+          var p = document.createElement("p");
+          p.style.cssText = "color:#8b95a8;font-size:11px;margin-top:12px";
+          p.textContent = "Coba refresh (Ctrl+Shift+R) atau buka Console (F12)";
+          div.appendChild(p);
+          root.appendChild(div);
         }
-        // Catch sync errors + resource load errors
+        // Catch JS runtime errors only — ignore resource load (img/css/script 404)
+        // Resource errors have empty message + target !== window → was showing "Unknown error"
         window.addEventListener("error", function(e) {
+          if (e.target && e.target !== window) return; // resource load error
+          if (!e.message || e.message === "Script error.") return;
           showError("Runtime Error",
-            (e.message || "Unknown error")
+            e.message
             + (e.filename ? "\n  at " + e.filename + ":" + e.lineno + ":" + e.colno : "")
             + (e.error && e.error.stack ? "\n\n" + e.error.stack : ""));
         }, true);
@@ -44,7 +58,7 @@
         // Timeout fallback: kalau #root masih kosong setelah 5 detik
         setTimeout(function() {
           var root = document.getElementById("root");
-          if (root && !root.innerHTML.trim()) {
+          if (root && root.childNodes.length === 0) {
             showError("Module Loading Timeout",
               "JavaScript module gagal dimuat dalam 5 detik.\n\n"
               + "Kemungkinan:\n"
@@ -55,6 +69,6 @@
         }, 5000);
       })();
     </script>
-    <script type="module" src="/src/index.tsx" onerror="document.getElementById('root').innerHTML='<div style=\'padding:24px;color:#ff6b6b;font-family:monospace\'><h2 style=\'color:#ff8a3d\'>⚠ Module Load Error</h2><p>Gagal memuat /src/index.tsx — cek Console (F12)</p></div>'"></script>
+    <script type="module" src="/src/index.tsx"></script>
   </body>
 </html>

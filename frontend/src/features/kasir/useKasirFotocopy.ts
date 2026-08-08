@@ -9,6 +9,7 @@ export interface UseKasirFotocopyOpts {
   unitPrice: number;
   cart: () => CartItem[];
   setCart: (v: CartItem[] | ((prev: CartItem[]) => CartItem[])) => void;
+  kertasStock: () => number;
 }
 
 const JASA_ID = "jasa-fotocopy";
@@ -18,6 +19,11 @@ const JASA_NAMA = "Fotocopy";
 export function useKasirFotocopy(opts: UseKasirFotocopyOpts) {
   const [qty, setQtySig] = createSignal<number>(0);
   const [doubleSided, setDoubleSidedSig] = createSignal<boolean>(false);
+
+  // Max lembar = kertas stock (2-sisi: stok = max lembar efektif)
+  function maxLembar(): number {
+    return opts.kertasStock();
+  }
 
   // lembar efektif (2 sisi = qty×2)
   function effLembar(): number {
@@ -50,7 +56,14 @@ export function useKasirFotocopy(opts: UseKasirFotocopyOpts) {
   }
 
   function setQty(n: number) {
-    const clamped = Math.max(0, n);
+    const max = maxLembar();
+    let clamped = Math.max(0, n);
+    // Clamp: if double-sided, effective lembar can't exceed stock
+    if (doubleSided() && clamped * 2 > max) {
+      clamped = Math.floor(max / 2);
+    } else if (!doubleSided() && clamped > max) {
+      clamped = max;
+    }
     const total = doubleSided() ? clamped * 2 : clamped;
     batch(() => {
       setQtySig(clamped);

@@ -5,6 +5,8 @@ export interface Stats {
   total_pendapatan: number;
   transaksi_hari_ini: number;
   pendapatan_hari_ini: number;
+  pendapatan_7_hari: number;
+  pendapatan_30_hari: number;
 }
 
 export interface Toko {
@@ -77,9 +79,10 @@ export interface DailyRevenue {
   day: string;
   revenue: number;
   count: number;
+  expense?: number;
 }
 
-export type DashboardTab = "overview" | "toko" | "produk" | "transaksi" | "users" | "audit";
+export type DashboardTab = "overview" | "toko" | "produk" | "transaksi" | "users" | "audit" | "security";
 
 export const ROLE_LEVEL: Record<string, number> = {
   kasir: 1,

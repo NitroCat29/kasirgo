@@ -41,6 +41,10 @@ const BASE = import.meta.env.VITE_API_BASE ?? "";
    ============================================ */
 export const DEV_MODE = import.meta.env.VITE_DEV_MODE === "true";
 
+if (DEV_MODE) {
+  console.warn("[KasirGO] DEV_MODE active — auth API requests are mocked. Do NOT use in production.");
+}
+
 const MOCK_USER = {
   id: "dev",
   username: "dev",
@@ -112,8 +116,8 @@ export async function api<T = any>(
   path: string,
   opts: RequestInit = {}
 ): Promise<T> {
-  // DEV_MODE bypass — /api/auth/* di-mock, path lain tetap ke backend
-  if (DEV_MODE && isAuthPath(path)) {
+  // DEV_MODE bypass — /api/v1/auth/* juga di-mock, path lain tetap ke backend
+  if (DEV_MODE && (isAuthPath(path) || path.startsWith("/api/v1/auth/"))) {
     return mockAuthResponse<T>(path, opts);
   }
 

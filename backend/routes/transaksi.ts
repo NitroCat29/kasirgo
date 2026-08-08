@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
-import { json, parseBody, requireRole, assertCanWrite, logAudit, clientIp, checkWriteRateLimit, checkIdempotency } from "../helpers";
+import { json, parseBody, requireRole, assertCanWrite, logAudit, clientIp, checkWriteRateLimit, checkIdempotency, creditWallet } from "../helpers";
 import { validateTransaksiCreate, validateTransaksiUpdate } from "../../shared/validation";
 
 // ============================================================
@@ -12,18 +12,60 @@ export const transaksiRoutes: Record<string, (req: Request, path: string[]) => R
     if (user instanceof Response) return user;
     const url = new URL(req.url);
     const tokoId = url.searchParams.get("toko_id");
-    const rows = tokoId
-      ? db.query("SELECT * FROM transaksi WHERE toko_id = ? ORDER BY created_at DESC LIMIT 50").all(tokoId)
-      : db.query("SELECT * FROM transaksi ORDER BY created_at DESC LIMIT 50").all();
-    return json(rows);
+    const search = url.searchParams.get("q") || "";
+    const from = url.searchParams.get("from");
+    const to = url.searchParams.get("to");
+    const limit = Math.min(Number(url.searchParams.get("limit")) || 50, 500);
+    const offset = Number(url.searchParams.get("offset")) || 0;
+
+    const where: string[] = [];
+    const params: any[] = [];
+
+    if (tokoId) {
+      where.push("toko_id = ?");
+      params.push(tokoId);
+    }
+    if (search) {
+      where.push("(id LIKE ? OR items_json LIKE ?)");
+      params.push(`%${search}%`, `%${search}%`);
+    }
+    if (from) {
+      where.push("created_at >= ?");
+      params.push(from);
+    }
+    if (to) {
+      where.push("created_at <= ?");
+      params.push(to);
+    }
+
+    const whereClause = where.length > 0 ? " WHERE " + where.join(" AND ") : "";
+    const countParams = [...params];
+
+    const total = (db.query(`SELECT COUNT(*) as c FROM transaksi${whereClause}`).get(...countParams) as any).c;
+    params.push(limit, offset);
+    const rows = db.query(`SELECT * FROM transaksi${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...params);
+    return json({ rows, total, limit, offset });
   },
 
   "GET /api/transaksi/:id": (req, path) => {
     const user = requireRole(req, ["admin", "manajer", "kasir"]);
     if (user instanceof Response) return user;
-    const row = db.query("SELECT * FROM transaksi WHERE id = ?").get(path[2]);
+    const row = db.query("SELECT * FROM transaksi WHERE id = ?").get(path[2]) as any;
     if (!row) return json({ error: "Transaksi tidak ditemukan" }, 404);
     return json(row);
+  },
+
+  "GET /api/transaksi/:id/items": (req, path) => {
+    const user = requireRole(req, ["admin", "manajer", "kasir"]);
+    if (user instanceof Response) return user;
+    const row = db.query("SELECT items_json FROM transaksi WHERE id = ?").get(path[2]) as any;
+    if (!row) return json({ error: "Transaksi tidak ditemukan" }, 404);
+    try {
+      const items = JSON.parse(row.items_json || "[]");
+      return json(items);
+    } catch {
+      return json([]);
+    }
   },
 
   "POST /api/transaksi": async (req) => {
@@ -60,7 +102,8 @@ export const transaksiRoutes: Record<string, (req: Request, path: string[]) => R
       }
       // Normalize diskon default
       item.diskon = item.diskon ?? 0;
-      if (item.produk_id) {
+      // Skip product lookup for jasa items (fotocopy etc.) — handled separately
+      if (item.produk_id && !item.produk_id.startsWith("jasa-")) {
         const produk = db.query("SELECT id, nama, stok FROM produk WHERE id = ? AND toko_id = ?").get(item.produk_id, v.data.toko_id) as any;
         if (!produk) {
           stockErrors.push(`Produk '${item.nama}' tidak ditemukan di toko ini`);
@@ -71,13 +114,32 @@ export const transaksiRoutes: Record<string, (req: Request, path: string[]) => R
     }
     if (stockErrors.length > 0) return json({ error: stockErrors.join("; ") }, 400);
 
+    // Kertas stock check for fotocopy items (produk_id = "jasa-fotocopy")
+    let kertasNeeded = 0;
+    for (const item of items) {
+      if (item.produk_id === "jasa-fotocopy") {
+        kertasNeeded += item.qty;
+      }
+    }
+    if (kertasNeeded > 0) {
+      const ks = db.query("SELECT stock FROM kertas_stock WHERE id = 1").get() as { stock: number } | undefined;
+      const currentStock = ks?.stock ?? 0;
+      if (currentStock < kertasNeeded) {
+        return json({ error: `Stok kertas tidak cukup (tersisa: ${currentStock} lembar, butuh: ${kertasNeeded} lembar)` }, 400);
+      }
+    }
+
     // Deduct stock for items with produk_id (atomic via transaction)
     db.run("BEGIN");
     try {
       for (const item of items) {
-        if (item.produk_id) {
+        if (item.produk_id && !item.produk_id.startsWith("jasa-")) {
           db.run("UPDATE produk SET stok = stok - ? WHERE id = ?", [item.qty, item.produk_id]);
         }
+      }
+      // Deduct kertas stock for fotocopy
+      if (kertasNeeded > 0) {
+        db.run("UPDATE kertas_stock SET stock = stock - ?, updated_at = datetime('now') WHERE id = 1", [kertasNeeded]);
       }
       const id = randomUUID();
       db.run(
@@ -85,6 +147,8 @@ export const transaksiRoutes: Record<string, (req: Request, path: string[]) => R
         [id, v.data.toko_id, v.data.total, v.data.tax_rate ?? 11, v.data.discount_rate ?? 0, JSON.stringify(items)]
       );
       db.run("COMMIT");
+      // Credit toko wallet (kas masuk)
+      creditWallet(v.data.toko_id, v.data.total, `Penjualan #${id}`);
       logAudit({ user_id: user.id, username: user.username, action: "CREATE", entity_type: "transaksi", entity_id: id, details: { total: v.data.total, toko_id: v.data.toko_id, item_count: items.length } });
       const row = db.query("SELECT * FROM transaksi WHERE id = ?").get(id);
       return json(row, 201);
@@ -114,7 +178,7 @@ export const transaksiRoutes: Record<string, (req: Request, path: string[]) => R
       v.data.items ? JSON.stringify(v.data.items) : e.items_json,
       id,
     ]);
-    logAudit({ user_id: user.id, username: user.username, action: "UPDATE", entity_type: "transaksi", entity_id: id, details: { total: v.data.total ?? e.total } });
+    logAudit({ user_id: user.id, username: user.username, action: "UPDATE", entity_type: "transaksi", entity_id: id, details: { total: v.data.total ?? e.total }, old_values: { total: e.total, tax_rate: e.tax_rate, discount_rate: e.discount_rate, items_json: e.items_json }, new_values: { total: v.data.total ?? e.total, tax_rate: v.data.tax_rate ?? e.tax_rate, discount_rate: v.data.discount_rate ?? e.discount_rate, items_json: v.data.items ? JSON.stringify(v.data.items) : e.items_json } });
     const row = db.query("SELECT * FROM transaksi WHERE id = ?").get(id);
     return json(row);
   },

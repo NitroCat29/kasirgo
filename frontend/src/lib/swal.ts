@@ -1,7 +1,9 @@
 // ============================================================
 // KasirGo — SweetAlert2 helpers (dark glass theme)
+// Soft feedback → toast (ToastContainer). Swal = confirm/blocking only.
 // ============================================================
 import Swal, { type SweetAlertIcon } from "sweetalert2";
+import { toast, type ToastType } from "./toast";
 
 // Shared theme config cocok KasirGo dark glass
 const baseConfig = {
@@ -18,18 +20,16 @@ const baseConfig = {
   },
 };
 
-// Toast (top-end, auto-close) — untuk success/error/info ringan
+// Soft toast — thin alias to toast.* (compat; prefer toast.* di call-site baru)
 export function swalToast(icon: SweetAlertIcon, title: string, timer = 2500) {
-  return Swal.fire({
-    ...baseConfig,
-    icon,
-    title,
-    toast: true,
-    position: "top-end",
-    showConfirmButton: false,
-    timer,
-    timerProgressBar: true,
-  });
+  const map: Record<string, ToastType> = {
+    success: "success",
+    error: "error",
+    warning: "warning",
+    info: "info",
+    question: "info",
+  };
+  toast[map[icon] ?? "info"](title, timer);
 }
 
 export function swalSuccess(title: string, text?: string) {

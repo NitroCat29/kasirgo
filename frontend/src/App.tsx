@@ -1,5 +1,6 @@
 import { Router, Route, A } from "@solidjs/router";
 import { lazy, Suspense, createEffect, ErrorBoundary } from "solid-js";
+import LoadingScreen from "./components/LoadingScreen";
 import { fetchMe } from "./lib/auth";
 import { ToastContainer } from "./components/ui";
 
@@ -9,6 +10,9 @@ const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Kasir = lazy(() => import("./pages/Kasir"));
+const Fitur = lazy(() => import("./pages/Fitur"));
+const Tentang = lazy(() => import("./pages/Tentang"));
+const Demo = lazy(() => import("./pages/Demo"));
 
 function NotFound() {
   return (
@@ -48,7 +52,7 @@ function Layout(props: { children?: any }) {
     <>
       <ToastContainer />
       <ErrorBoundary fallback={ErrorFallback}>
-        <Suspense fallback={<div class="...">Loading...</div>}>
+        <Suspense fallback={<LoadingScreen />}>
           {props.children}
         </Suspense>
       </ErrorBoundary>
@@ -69,6 +73,9 @@ export default function App() {
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/kasir" component={Kasir} />
+      <Route path="/fitur" component={Fitur} />
+      <Route path="/tentang" component={Tentang} />
+      <Route path="/demo" component={Demo} />
       <Route path="*" component={NotFound} />
     </Router>
   );

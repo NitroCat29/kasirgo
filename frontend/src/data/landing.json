@@ -1,0 +1,67 @@
+{
+  "navbar": {
+    "links": [
+      { "label": "Beranda", "href": "/", "active": true },
+      { "label": "Fitur", "href": "/fitur" },
+      { "label": "Tentang", "href": "/tentang" }
+    ],
+    "loginLabel": "Masuk Toko"
+  },
+  "hero": {
+    "badge": "KASIR DIGITAL UNTUK UMKM INDONESIA",
+    "title": "KASIRGO",
+    "subtitle": "UNTUK TOKO KAMU",
+    "description": "Aplikasi kasir offline-first yang tetap jalan walau internet mati. Catat transaksi otomatis, kelola stok realtime, laporan langsung jadi, dan aman dengan TOTP 2FA.",
+    "ctaPrimary": { "label": "Mulai Gratis", "href": "/login" },
+    "ctaSecondary": { "label": "Lihat Demo", "href": "/demo" },
+    "trust": ["Offline-first", "Wallet per-toko", "TOTP 2FA", "Multi-cabang"]
+  },
+  "stats": [
+    { "value": "5 menit", "label": "Setup toko baru" },
+    { "value": "100%", "label": "Tetap jalan offline" },
+    { "value": "Per-toko", "label": "Wallet kepisah rapi" }
+  ],
+  "features": [
+    { "id": "offline", "title": "Offline First", "desc": "Transaksi tetap jalan tanpa internet. Sinkron otomatis saat online lagi. Nol drama putus koneksi.", "icon": "wifi-off" },
+    { "id": "wallet", "title": "Wallet Per-Toko", "desc": "Tiap cabang punya kas sendiri. Saldo tidak tercampur, arus kas jelas per toko.", "icon": "wallet" },
+    { "id": "security", "title": "TOTP 2FA", "desc": "Top-up saldo wajib verifikasi TOTP. Admin-only dengan audit trail lengkap.", "icon": "shield" },
+    { "id": "analytics", "title": "Analitik Realtime", "desc": "Grafik penjualan harian, jam ramai, produk terlaris langsung dari data toko.", "icon": "chart" },
+    { "id": "pos", "title": "POS Super Cepat", "desc": "Scan barcode, tambah keranjang, bayar, cetak struk. Selesai under 10 detik.", "icon": "zap" },
+    { "id": "multi", "title": "Multi Toko RBAC", "desc": "Kelola banyak cabang dari 1 akun. Role owner, admin, kasir dengan akses terpisah.", "icon": "layers" }
+  ],
+  "compare": {
+    "badge": "KENAPA PINDAH?",
+    "title": "Dari buku tulis ke kasir otomatis",
+    "desc": "Kasir manual pakai buku catatan atau kalkulator rawan selisih dan rekap berjam-jam. KasirGO mencatat otomatis, stok berkurang sendiri, laporan jadi seketika.",
+    "manual": ["Hitung manual rawan selisih", "Stok dicatat terpisah", "Rekap akhir bulan berjam-jam", "Uang cabang kecampur"],
+    "kasirgo": ["Hitung otomatis via WASM", "Stok sinkron realtime", "Laporan jadi seketika", "Wallet per-toko terpisah"]
+  },
+  "wallet": {
+    "badge": "WALLET PER-TOKO",
+    "title": "Punya banyak cabang? Kas tetap kepisah rapi.",
+    "desc": "Tiap toko punya wallet sendiri. Pantau saldo dan arus kas per toko dari satu akun, dilindungi TOTP 2FA.",
+    "bullets": ["Saldo per-toko realtime", "Mutasi dan history lengkap", "Top-up aman dengan TOTP", "Cocok untuk cabang dan franchise"],
+    "mock": [
+      { "name": "Toko Pusat - Bandung", "balance": "Rp 12.450.000", "change": "+12%" },
+      { "name": "Cabang - Jakarta", "balance": "Rp 8.200.000", "change": "+5%" },
+      { "name": "Cabang - Surabaya", "balance": "Rp 4.750.000", "change": "-2%" }
+    ]
+  },
+  "businessTypes": [
+    { "id": "retail", "label": "Retail & Konter", "desc": "Stok varian dan harga jual kelola dari satu layar. Untuk toko baju, konter HP, minimarket." },
+    { "id": "resto", "label": "F&B / Resto", "desc": "Pesanan meja, antrian dapur, dan kasir semua sinkron otomatis. Untuk kafe, resto, angkringan." },
+    { "id": "grosir", "label": "Grosir", "desc": "Harga bertingkat dan transaksi partai besar tetap rapi. Untuk grosir sembako dan distributor." }
+  ],
+  "ctaFinal": {
+    "badge": "SIAP JUALAN?",
+    "title": "Setup toko pertamamu hari ini",
+    "desc": "Gratis tanpa kartu kredit. Bisa langsung dipakai offline. Pindah dari buku ke KasirGO dalam 5 menit.",
+    "button": "Masuk Dashboard",
+    "href": "/login"
+  },
+  "footer": {
+    "brand": "KasirGO",
+    "tagline": "DIBUAT UNTUK UMKM INDONESIA",
+    "desc": "POS offline-first dengan wallet per-toko dan TOTP 2FA. Dibuat untuk UMKM yang serius jualan."
+  }
+}

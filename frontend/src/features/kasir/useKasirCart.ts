@@ -38,7 +38,9 @@ function loadCartFromStorage(): CartItem[] {
   try {
     const stored = localStorage.getItem("kasir-cart");
     if (stored) return JSON.parse(stored) as CartItem[];
-  } catch {}
+  } catch (err) {
+    console.warn("kasir-cart parse failed", err);
+  }
   return [];
 }
 

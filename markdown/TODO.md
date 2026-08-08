@@ -1,0 +1,129 @@
+# TODO.md
+> Checklist hidup — update tiap sesi. Sumber: AGENTS.md §3 (asli).
+> Format: `- [x]` selesai, `- [ ]` belum, `- [~]` sedang dikerjakan.
+> Urutkan dari yang paling dekat dieksekusi.
+
+```
+- [x] Repo migration: Codeberg primary (dev) + GitHub secondary (mirror/production)
+  - [x] Remote setup: origin=Codeberg (main), github=GitHub (mirror)
+  - [x] Rebase lokal main di atas origin/main (resolve README conflict → pakai versi lokal)
+  - [x] AGENTS.md + README update: repo URL, decisions, tea sebagai pengganti gh
+  - [x] tea login add (Codeberg) — done 2026-07-09
+  - [x] Script sync-gh.sh (build + push main + gh-pages ke GitHub saat release)
+  - [x] First push main → Codeberg + verify (commit c10ebef, GH Pages live: 200)
+- [x] Dokumentasi & aturan main (planning sesi 2026-07-07)
+  - [x] SECURITY.md — measures, threat model, disclosure policy
+  - [x] CONTRIBUTING.md — PR workflow, branch naming, commit convention, agent rule
+  - [x] Plan.md — arsitektur mode split, framework eval, roadmap A-Z
+  - [x] AGENTS.md — progress recalibrate, decisions, files status update
+- [x] Shared Core (Phase 1 — 2026-07-07)
+  - [x] shared/types.ts — Toko, Produk, Transaksi, User, AuditLog, WasmExports
+  - [x] shared/validation.ts — 8 validasi functions (signup, login, toko, produk, transaksi)
+  - [x] shared/db-schema.sql — 6 CREATE TABLE, source of truth untuk schema
+  - [x] shared/wasm-bridge.ts — loadWasm(), calculateTotal(), computeBenchmark(), jsFallback
+  - [x] Backend adapt: db.ts import schema, routes pakai shared validation
+- [x] Codebase Rewrite (SolidJS — El approved 2026-07-07, done 2026-07-07)
+  - [x] Framework decision final: SolidJS (signals, tiny bundle, POS-friendly)
+  - [x] Setup Vite + SolidJS scaffold in frontend/
+  - [x] Migrasi index.html → SolidJS landing (src/pages/Landing.tsx)
+  - [x] Migrasi login.html → SolidJS route (src/pages/Login.tsx + auth.ts + api.ts)
+  - [x] Migrasi dashboard.html → SolidJS SPA (src/pages/Dashboard.tsx, full CRUD)
+  - [x] Tailwind v4 via @tailwindcss/vite (JIT build, bukan CDN)
+  - [x] server.ts serve frontend/dist/ sebagai SPA (fallback ke legacy HTML)
+- [x] Phase 2.x.1 — UX/Security/Performance Polish (sesi 2026-07-08 lanjutan)
+  - [x] Foundation: AuthShell shared component (wrapper bg+logo+card+footer, eliminate duplikasi 200+ lines), useAutoFocus hook, PasswordField (show/hide eye toggle), ResendCooldown 60s, toast store (success/error/info/warning + auto-dismiss), calcPasswordStrength (4-level weak/fair/good/strong), UI primitives (Skeleton, SkeletonStatCard, EmptyState 5 type, SearchInput, PasswordStrengthMeter, FieldError, SessionTimeoutModal)
+  - [x] Auth UX: show/hide password, auto-focus first field per view, password strength meter di signup+reset, resend cooldown 60s, inline validation per field (FieldError + .field-error-state border merah), Enter key submit (native form behavior)
+  - [x] Dashboard polish: useSessionTimeout hook (idle 25 menit → warning 2 menit → auto-logout + /api/auth/me polling 60s untuk deteksi server-side expired), SkeletonStatCard loading state di overview, EmptyState di 5 tabel (toko/produk/transaksi/users/audit) dengan icon per type + description + CTA, SessionTimeoutModal mount dengan countdown real-time
+  - [x] Security: type-safe AuthErrorCode union (18 code) + errorResponse(code, message, status, extra) helper, password history anti-reuse (tabel password_history, check current + 3 hash terakhir, simpan + cleanup keep max 5 per user, code AUTH_PASSWORD_REUSE), hCaptcha infra (verifyHcaptcha function via api.hcaptcha.com/siteverify, config env HCAPTCHA_SECRET + HCAPTCHA_SITE_KEY, dev mode skip kalau kosong, fix bug remoteip invalid)
+  - [x] Performance (low-end PC): GPU accel translateZ(0) + will-change untuk 9 animasi (blob/aurora/liquid-glass/pulse-dot/scroll-bounce/marquee/toast/button/skeleton/password-strength/spinner/stat-card), content-visibility: auto + contain-intrinsic-size untuk feature-card, prefers-reduced-motion/data + pointer:coarse media queries, print-friendly media query, preload VerifyEmail + ResetPassword chunk via requestIdleCallback di Login onMount
+  - [x] hCaptcha UI integration: GET /api/auth/hcaptcha-sitekey endpoint (return enabled + site_key dari config), script hCaptcha API di index.html head (async defer), widget <div class="h-captcha"> di Login signup form (render kalau enabled), global callbacks onHcaptchaSuccess/Expired/Error set signal, verify di POST /api/auth/signup via verifyHcaptcha() (wajib kalau enabled, AUTH_HCAPTCHA_MISSING kalau token kosong, AUTH_HCAPTCHA_FAILED kalau verify gagal), reset widget via hcaptcha.reset() kalau signup gagal
+- [x] TOTP 2FA untuk top-up saldo (admin-only)
+  - [x] Backend: backend/lib/totp.ts — generate, verify, QR, AES-256-GCM encrypt/decrypt
+  - [x] Backend: backend/routes/totp.ts — /api/auth/totp/{status, setup, verify, disable}
+  - [x] Backend: backend/routes/wallet.ts — topup wajib admin + valid TOTP code
+  - [x] Backend: backend/db.ts — kolom totp_secret, totp_enabled di users
+  - [x] Frontend: components/TotpSetup.tsx — QR setup + verify + disable (admin-only)
+  - [x] Frontend: features/dashboard/tabs/SecurityTab.tsx — tab Keamanan
+  - [x] Frontend: Dashboard.tsx — wired SecurityTab (admin-only sidebar + tab switch)
+  - [x] Frontend: components/WalletCard.tsx — modal top-up + TOTP code input
+- [ ] Desktop App (Electrobun — ganti Tauri, keputusan El 2026-07-22)
+  - [ ] Init Electrobun scaffold (Bun main + BrowserWindow/webview shell, icon/window config)
+  - [ ] SQLite lokal via bun:sqlite — reuse shared/db-schema.sql (bukan Rust plugin)
+  - [ ] Typed RPC Bun main ↔ SolidJS webview (CRUD offline, ganti Tauri invoke)
+  - [ ] Offline CRUD: read/write SQLite lokal, UI update via SolidJS signals
+  - [ ] Rewrite frontend/src/lib/desktop.ts: isElectrobun + RPC bridge (hapus stub isTauri)
+  - [ ] WASM load di Electrobun webview (tes memory/table import kompatibel)
+  - [ ] Build target: Windows portable + Linux (macOS later); differential updates via Electrobun Updater
+- [x] Wallet per-toko (Phase 1-5 — 2026-07-21)
+  - [x] Schema migration: wallets table user_id → toko_id (recreate table)
+  - [x] helpers.ts: deductWallet + creditWallet pakai toko_id
+  - [x] POST /api/transaksi: creditWallet(toko_id, total) setelah COMMIT
+  - [x] POST /api/produk + restock: deductWallet(toko_id, cost)
+  - [x] Wallet routes: getMyWallet, getMyHistory, topupWallet, listWallets → toko_id
+  - [x] Frontend: WalletCard accepts tokoId prop, passes to API calls
+  - [x] OverviewTab + Dashboard: wire tokoId from selectedProdukTokoId
+  - [x] OverviewTab: 4-period pendapatan cards
+  - [x] RevenueChart: expense real dari API (mock seededRatio dihapus)
+  - [x] Build + e2e verification passed
+- [x] TOTP 2FA admin-only untuk top-up saldo
+  - [x] Backend: lib/totp.ts (generate, verify, QR, encrypt/decrypt)
+  - [x] Backend: routes/totp.ts (status, setup, verify, disable)
+  - [x] Backend: wallet.ts topup wajib admin + TOTP code
+  - [x] Frontend: TotpSetup.tsx (QR, verify, disable)
+  - [x] Frontend: SecurityTab.tsx (admin-only tab)
+  - [x] Frontend: WalletCard modal top-up + TOTP input
+- [ ] Sync Layer (opt-in, desktop → server)
+  - [ ] Sync queue + conflict resolution (last-write-wins)
+  - [ ] Backend: /api/sync/push + /api/sync/pull
+  - [ ] Auth desktop: device token (bukan session cookie)
+- [x] Backend features (RBAC, audit, alerts)
+  - [x] RBAC: requireRole() middleware dengan hierarchy (admin > manajer > kasir)
+  - [x] Audit logging: logAudit() helper + audit_logs table
+  - [x] Audit routes: GET /api/audit-logs (admin only)
+  - [x] Low stock alerts: GET /api/alerts/low-stock, GET /api/alerts/summary
+  - [x] WASM batch_check_low_stock() untuk bulk check produk
+  - [x] Schema migration: stock_threshold column di produk
+- [x] Fix loadWasm(): memory + table import untuk WASM Zig
+- [x] Security + Architecture rework (sebelum deploy)
+  - [x] Split server.ts → backend/db.ts, routes/auth.ts, routes/toko.ts, routes/produk.ts, routes/transaksi.ts, helpers.ts
+  - [x] Input validation: wajibkan field required, validasi tipe & range, reject invalid
+  - [x] Rate limiting: brute-force protection di /api/auth/login (max 5 attempt/menit/IP)
+  - [x] CSRF protection: token-based untuk state-changing endpoints
+  - [x] CORS hardening: restrict origin ke domain sendiri (env-based)
+  - [x] Cookie flags: tambah Secure + perbaiki SameSite untuk production
+  - [x] Session cleanup: hapus expired sessions (on-login atau periodic)
+  - [x] parseBody fix: return 400 kalau JSON invalid, bukan silent {}
+  - [x] Env config: .env support untuk port, DB path, cookie settings, CORS origin
+  - [x] SRI hashes: tambah integrity attribute ke semua CDN scripts
+- [x] Deploy / production setup
+  - [x] Git init + .gitignore (exclude .env, sqlite*, .reasonix/, dist/, zig artifacts)
+  - [x] GitHub repo: https://github.com/NitroCat29/kasirgo
+  - [x] Build script (bun run build → dist/)
+  - [x] GitHub Pages: https://nitrocat29.github.io/kasirgo/ (gh-pages branch)
+- [~] Backend hosting (Railway.app)
+  - [x] railway.json config (Bun builder, start command, healthcheck)
+  - [x] Frontend configurable API URL (window.API_BASE di config.js)
+  - [x] Frontend fetch() updated: API_BASE prefix + credentials: 'include'
+  - [ ] Deploy backend ke Railway (manual: sign up → connect repo → set env vars)
+  - [ ] Update config.js dengan Railway URL setelah deploy
+- [x] Dashboard UX overhaul (Phase 2.x.2)
+  - [x] Bento box grid layout: 4 stat cards (2x2/4x1), chart 2/3 + wallet 1/3
+  - [x] Revenue chart: uPlot bar chart, GET /api/stats/daily-revenue?days=N
+  - [x] Wallet/billing: wallets + wallet_transactions tables, GET /api/wallet, POST /api/wallet/topup, GET /api/wallet/history
+  - [x] WalletCard component: saldo, top-up modal (Rp 1k–10jt), riwayat tx
+  - [x] Dark/light mode toggle: data-theme attr, localStorage persist, CSS variables
+- [x] Integrasi frontend (HTMX) ke backend API
+- [x] Static file serving dari Bun :3456 + clean URLs (/login → /login.html)
+- [x] Custom 404.html dengan glassmorphism design
+- [x] Client-side SHA-256 hash password sebelum POST (login/signup)
+- [x] WASM conditional badge (hijau "ZIG WASM" / oranye "JS FALLBACK")
+- [x] Favicon kasirku_logo.svg di folder assets/ (semua HTML)
+- [x] Setup backend folder + Bun + SQLite schema
+- [x] Seed mockup data: 2 toko, 10 produk
+- [x] Route fix: paramKey p.length >= 3 untuk PATCH/DELETE
+- [x] CRUD backend API: endpoint toko, produk, transaksi (GET/POST/PATCH/DELETE) + fix routing
+- [x] Auth backend: tabel users + sessions, endpoint signup/login/logout/me/stats
+- [x] login.html: halaman login/signup dengan glassmorphism, Alpine.js
+- [x] dashboard.html: dashboard dengan stat cards, CRUD toko/produk/transaksi, sidebar
+- [x] README.md: dokumentasi lengkap stack, cara jalankan, API endpoint
+```

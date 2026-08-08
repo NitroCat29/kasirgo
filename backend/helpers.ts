@@ -1,4 +1,4 @@
-import { randomUUID, randomBytes } from "node:crypto";
+import { randomUUID, randomBytes, createHmac, createHash } from "node:crypto";
 import { db } from "./db";
 
 // ============================================================
@@ -40,6 +40,11 @@ export const config = {
   hcaptchaSiteKey: process.env.HCAPTCHA_SITE_KEY || "",
   // Dev mode: skip static file serving (frontend di-serve oleh Vite, port 5173)
   devEnv: process.env.DEV_ENV === "true",
+  // Audit integrity: HMAC secret for hash chain (tamper-proof audit_logs)
+  // Set via env AUDIT_HMAC_SECRET — if empty, audit hash is plain SHA-256 (no HMAC).
+  auditHmacSecret: process.env.AUDIT_HMAC_SECRET || "",
+  // Audit READ: log READ-like actions (GET detail/list). Default false.
+  auditLogReads: process.env.AUDIT_LOG_READS === "true",
 };
 
 // ============================================================
@@ -349,17 +354,28 @@ export function cleanupExpiredSessions() {
 }
 
 // ============================================================
+// Audit retention — delete audit_logs older than N days (default 90)
+// ============================================================
+export function cleanupOldAuditLogs(retentionDays = 90) {
+  const count = (db.query("SELECT COUNT(*) as c FROM audit_logs WHERE created_at < datetime('now', '-' || ? || ' days')").get(retentionDays) as any)?.c || 0;
+  if (count > 0) {
+    db.run("DELETE FROM audit_logs WHERE created_at < datetime('now', '-' || ? || ' days')", retentionDays);
+    console.log(`🗑️  Audit retention: ${count} rows deleted (>${retentionDays} days)`);
+  }
+}
+
+// ============================================================
 // Wallet deduction helper (used in inventory purchase / restock)
 // Must be called inside an active SQL transaction.
 // ============================================================
 export function deductWallet(
-  userId: string,
+  tokoId: string,
   amount: number,
   description: string,
 ): { ok: true; walletId: string; newBalance: number } | { ok: false; error: string } {
   if (amount <= 0) return { ok: true, walletId: "", newBalance: 0 };
-  const wallet = db.query("SELECT id, balance FROM wallets WHERE user_id = ?").get(userId) as any;
-  if (!wallet) return { ok: false, error: "Wallet tidak ditemukan" };
+  const wallet = db.query("SELECT id, balance FROM wallets WHERE toko_id = ?").get(tokoId) as any;
+  if (!wallet) return { ok: false, error: "Wallet tidak ditemukan untuk toko ini" };
   if (wallet.balance < amount) return { ok: false, error: "Saldo tidak mencukupi" };
   const newBalance = wallet.balance - amount;
   db.run("UPDATE wallets SET balance = ?, updated_at = datetime('now') WHERE id = ?", newBalance, wallet.id);
@@ -374,21 +390,89 @@ export function deductWallet(
 }
 
 // ============================================================
-// Audit Logging
+// Wallet credit helper (used after transaksi penjualan)
+// Auto-creates wallet for toko if missing.
+// ============================================================
+export function creditWallet(
+  tokoId: string,
+  amount: number,
+  description: string,
+): { ok: true; walletId: string; newBalance: number } | { ok: false; error: string } {
+  if (amount <= 0) return { ok: true, walletId: "", newBalance: 0 };
+  let wallet = db.query("SELECT id, balance FROM wallets WHERE toko_id = ?").get(tokoId) as any;
+  if (!wallet) {
+    // Auto-create wallet for this toko
+    const wid = randomUUID();
+    db.run("INSERT INTO wallets (id, toko_id, balance) VALUES (?, ?, 0)", wid, tokoId);
+    wallet = { id: wid, balance: 0 };
+  }
+  const newBalance = wallet.balance + amount;
+  db.run("UPDATE wallets SET balance = ?, updated_at = datetime('now') WHERE id = ?", newBalance, wallet.id);
+  db.run(
+    "INSERT INTO wallet_transactions (id, wallet_id, type, amount, description) VALUES (?, ?, 'topup', ?, ?)",
+    randomUUID(),
+    wallet.id,
+    amount,
+    description,
+  );
+  return { ok: true, walletId: wallet.id, newBalance };
+}
+
+// ============================================================
+// Audit Integrity — hash chain helper
+// ============================================================
+// Each audit row gets: hash = SHA-256(prev_hash + ":" + id + ":" + serialized_row)
+// If AUDIT_HMAC_SECRET is set, uses HMAC-SHA256 instead of plain SHA-256.
+function hashAuditRow(prevHash: string | null, id: string, data: string): string {
+  const payload = `${prevHash || ""}:${id}:${data}`;
+  if (config.auditHmacSecret) {
+    return createHmac("sha256", config.auditHmacSecret).update(payload).digest("hex");
+  }
+  return createHash("sha256").update(payload).digest("hex");
+}
+
+// ============================================================
+// Audit Logging — enhanced with integrity chain + old/new values
 // ============================================================
 export function logAudit(opts: {
   user_id?: string;
   username?: string;
-  action: string;       // "CREATE", "UPDATE", "DELETE", "LOGIN", "LOGOUT"
-  entity_type: string;  // "toko", "produk", "transaksi", "user", "auth"
+  action: string;       // "CREATE", "UPDATE", "DELETE", "LOGIN", "LOGOUT", "READ", ...
+  entity_type: string;  // "toko", "produk", "transaksi", "user", "auth", "wallet"
   entity_id?: string;
   details?: Record<string, unknown>;
+  old_values?: Record<string, unknown>;
+  new_values?: Record<string, unknown>;
   ip?: string;
 }) {
   const id = randomUUID();
+
+  // Get previous row's hash for integrity chain
+  const prev = db.query("SELECT hash FROM audit_logs ORDER BY rowid DESC LIMIT 1").get() as { hash: string } | undefined;
+  const prevHash = prev?.hash || null;
+
+  const details = opts.details ? JSON.stringify(opts.details) : null;
+  const oldVals = opts.old_values ? JSON.stringify(opts.old_values) : null;
+  const newVals = opts.new_values ? JSON.stringify(opts.new_values) : null;
+
+  // Build data payload for hash — covers every significant field
+  const data = JSON.stringify({
+    user_id: opts.user_id || null,
+    username: opts.username || null,
+    action: opts.action,
+    entity_type: opts.entity_type,
+    entity_id: opts.entity_id || null,
+    details,
+    old_values: oldVals,
+    new_values: newVals,
+    ip: opts.ip || null,
+  });
+
+  const hash = hashAuditRow(prevHash, id, data);
+
   db.run(
-    "INSERT INTO audit_logs (id, user_id, username, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    [id, opts.user_id || null, opts.username || null, opts.action, opts.entity_type, opts.entity_id || null, opts.details ? JSON.stringify(opts.details) : null, opts.ip || null]
+    "INSERT INTO audit_logs (id, user_id, username, action, entity_type, entity_id, details, old_values, new_values, ip_address, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [id, opts.user_id || null, opts.username || null, opts.action, opts.entity_type, opts.entity_id || null, details, oldVals, newVals, opts.ip || null, prevHash, hash],
   );
 }
 

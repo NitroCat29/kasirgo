@@ -398,15 +398,16 @@ export default function ProdukModal(props: ProdukModalProps) {
                 />
               </div>
 
-              {/* Toko — hidden in restock mode */}
+              {/* Toko — follows active filter; required for new product */}
               <Show when={props.produkMode() === "new"}>
                 <div>
                   <label class="text-xs font-medium text-zinc-400 mb-1 block">
-                    Toko <span class="text-zinc-600">(opsional)</span>
+                    Toko <span class="text-red-400">*</span>
                   </label>
                   <select
                     class="glass-input"
                     value={props.modalProduk()?.toko_id || ""}
+                    required
                     onChange={(e) =>
                       props.setModalProduk((prev) => ({
                         ...prev,
@@ -414,11 +415,16 @@ export default function ProdukModal(props: ProdukModalProps) {
                       }))
                     }
                   >
-                    <option value="">Pilih toko</option>
+                    <option value="" disabled>
+                      Pilih toko
+                    </option>
                     <For each={props.daftarToko()}>
                       {(t) => <option value={t.id}>{t.nama}</option>}
                     </For>
                   </select>
+                  <p class="text-[11px] text-zinc-500 mt-1">
+                    Default mengikuti filter toko di tab Produk.
+                  </p>
                 </div>
               </Show>
 

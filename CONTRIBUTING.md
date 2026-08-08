@@ -18,14 +18,14 @@ refactor/<deskripsi>   # rewrite tanpa fitur baru
 docs/<deskripsi>       # dokumentasi saja
 security/<deskripsi>   # patch keamanan
 ```
-Contoh: `feat/tauri-desktop`, `fix/csrf-token-expiry`, `chore/update-tailwind-cdn`
+Contoh: `feat/electrobun-desktop`, `fix/csrf-token-expiry`, `chore/update-tailwind-cdn`
 
 ### 3. Commit convention
 ```
 type: deskripsi imperatif (present tense)
 
 Contoh:
-feat: add Tauri scaffold with SQLite plugin
+feat: add Electrobun scaffold with bun:sqlite offline
 fix: reject expired CSRF tokens
 chore: update bun to 1.2.x
 docs: add CONTRIBUTING.md

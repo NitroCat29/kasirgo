@@ -3,10 +3,12 @@
 // ============================================================
 // db.ts auto-runs schema + seed on import
 import "./db";
-import { json, config, validateCsrf, corsHeaders } from "./helpers";
+import { json, config, validateCsrf, corsHeaders, cleanupExpiredSessions, cleanupOldAuditLogs } from "./helpers";
+import { resolve as resolvePath } from "node:path";
 import { resolveHandler } from "./router";
 
 const FRONTEND_DIST = import.meta.dir + "/../frontend/dist";
+const RESOLVED_DIST = resolvePath(FRONTEND_DIST);
 
 const MIME: Record<string, string> = {
   html: "text/html; charset=utf-8",
@@ -19,9 +21,67 @@ const MIME: Record<string, string> = {
   ico: "image/x-icon",
 };
 
-// Inject CORS headers into any Response (for endpoints yang build Response manual)
+// --- Path traversal protection ---
+// Decode URL-encoded traversal (%2e%2e, %2f, %5c) then resolve.
+// Returns null if path escapes FRONTEND_DIST.
+function safeStaticPath(urlPath: string): string | null {
+  // Decode percent-encoded chars first (prevents %2e%2e%2f bypass)
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(urlPath);
+  } catch {
+    return null; // malformed URI — reject instead of 500
+  }
+  // Reject absolute paths and backslash traversal (Windows)
+  if (decoded.startsWith("/") || decoded.includes("\\")) return null;
+  // Reject any segment that is or contains ".."
+  const segments = decoded.split("/");
+  if (segments.some(s => s === ".." || s === "")) return null;
+  // Resolve and verify still inside FRONTEND_DIST
+  const resolved = resolvePath(FRONTEND_DIST, decoded);
+  if (!resolved.startsWith(RESOLVED_DIST)) return null;
+  return resolved;
+}
+
+// --- Security headers ---
+function securityHeaders(): Record<string, string> {
+  return {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    // CSP: allow self + Google Fonts + hCaptcha; restrict everything else
+    "Content-Security-Policy": [
+      "default-src 'self'",
+      "script-src 'self' https://js.hcaptcha.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: https:",
+      "connect-src 'self'",
+      "frame-src https://hcaptcha.com https://*.hcaptcha.com",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; "),
+  };
+}
+
+// HSTS only in production (HTTPS)
+function hstsHeader(): Record<string, string> {
+  return config.cookieSecure
+    ? { "Strict-Transport-Security": "max-age=31536000; includeSubDomains" }
+    : {};
+}
+
+// Apply CORS + security headers to a Response
 function withCors(res: Response, req: Request): Response {
   for (const [k, v] of Object.entries(corsHeaders(req))) {
+    res.headers.set(k, v);
+  }
+  for (const [k, v] of Object.entries(securityHeaders())) {
+    res.headers.set(k, v);
+  }
+  for (const [k, v] of Object.entries(hstsHeader())) {
     res.headers.set(k, v);
   }
   return res;
@@ -76,20 +136,33 @@ Bun.serve({
     // Root
     if (url.pathname === "/") {
       const f = Bun.file(FRONTEND_DIST + "/index.html");
-      if (await f.exists()) return new Response(f, { headers: { "content-type": "text/html; charset=utf-8" } });
+      if (await f.exists()) {
+        const headers: Record<string, string> = { "content-type": "text/html; charset=utf-8" };
+        Object.assign(headers, securityHeaders(), hstsHeader());
+        return new Response(f, { headers });
+      }
     }
 
-    // Assets with extension
+    // Assets with extension — with path traversal protection
     const ext = url.pathname.match(/\.([a-z]+)$/)?.[1] || "";
     if (ext && MIME[ext]) {
-      const f = Bun.file(FRONTEND_DIST + url.pathname);
-      if (await f.exists()) return new Response(f, { headers: { "content-type": MIME[ext] } });
+      const safe = safeStaticPath(url.pathname);
+      if (safe) {
+        const f = Bun.file(safe);
+        if (await f.exists()) {
+          const headers: Record<string, string> = { "content-type": MIME[ext] };
+          Object.assign(headers, securityHeaders(), hstsHeader());
+          return new Response(f, { headers });
+        }
+      }
     }
 
     // SPA fallback: serve index.html for client-side routes
     const spa = Bun.file(FRONTEND_DIST + "/index.html");
     if (await spa.exists()) {
-      return new Response(spa, { headers: { "content-type": "text/html; charset=utf-8" } });
+      const headers: Record<string, string> = { "content-type": "text/html; charset=utf-8" };
+      Object.assign(headers, securityHeaders(), hstsHeader());
+      return new Response(spa, { headers });
     }
     } // end if (!config.devEnv)
 
@@ -98,3 +171,12 @@ Bun.serve({
 });
 
 console.log(`🚀 Backend KasirGo berjalan di http://localhost:${config.port}`);
+
+// Periodic cleanup: sessions + audit retention (setiap 1 jam)
+setInterval(() => {
+  cleanupExpiredSessions();
+  cleanupOldAuditLogs();
+}, 3_600_000);
+// Run once on startup
+cleanupExpiredSessions();
+cleanupOldAuditLogs();

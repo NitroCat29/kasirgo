@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "otplib": "^13.4.1",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.6"
+  }
+}
