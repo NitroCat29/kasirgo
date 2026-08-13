@@ -8,8 +8,9 @@ export default {
 	},
 	build: {
 		copy: {
-			"dist/index.html": "views/mainview/index.html",
-			"dist/assets": "views/mainview/assets",
+			"../frontend/dist/index.html": "views/mainview/index.html",
+			"../frontend/dist/assets": "views/mainview/assets",
+			"../frontend/dist/kasir.wasm": "views/mainview/assets/kasir.wasm",
 		},
 		watchIgnore: ["dist/**"],
 		mac: {
