@@ -45,6 +45,9 @@ export interface TransaksiRecord {
 // ============================================================
 // RPC Schema (consumed by electrobun/bun defineElectrobunRPC)
 // ============================================================
+// Type-only: dipakai frontend (lib/desktop.ts + api.ts) untuk typing method.
+export type RpcRequests = typeof rpcSchema["bun"]["requests"];
+
 export const rpcSchema = {
   bun: {
     requests: {

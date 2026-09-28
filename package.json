@@ -1,4 +1,16 @@
 {
+  "name": "kasirgo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run scripts/dev.ts",
+    "dev:web": "bun run scripts/dev.ts",
+    "dev:desktop": "bun run --cwd src-electrobun dev",
+    "build": "bun run --cwd frontend build",
+    "build:webview": "bun run --cwd frontend build:webview",
+    "test": "bun scripts/smoke-local.ts",
+    "typecheck": "tsc --noEmit --skipLibCheck -p frontend"
+  },
   "dependencies": {
     "otplib": "^13.4.1",
     "qrcode": "^1.5.4"

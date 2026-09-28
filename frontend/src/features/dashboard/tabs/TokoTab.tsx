@@ -46,7 +46,7 @@ export default function TokoTab(props: TokoTabProps) {
           </Show>
         </div>
       </div>
-      <div class="glass overflow-hidden">
+      <div class="glass overflow-x-auto -mx-1 px-1">
         <table class="data-table">
           <thead>
             <tr>

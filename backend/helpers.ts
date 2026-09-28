@@ -1,4 +1,5 @@
 import { randomUUID, randomBytes, createHmac, createHash } from "node:crypto";
+import { join, resolve } from "node:path";
 import { db } from "./db";
 
 // ============================================================
@@ -6,7 +7,10 @@ import { db } from "./db";
 // ============================================================
 export const config = {
   port: Number(process.env.PORT) || 3456,
-  dbPath: process.env.DB_PATH || "backend/db/kasirgo.sqlite",
+  // Absolut, sama dengan db.ts — path relative bikin backup/restore salah sasaran.
+  dbPath: process.env.DB_PATH
+    ? resolve(process.env.DB_PATH)
+    : join(import.meta.dir, "db", "kasirgo.sqlite"),
   corsOrigin: process.env.CORS_ORIGIN || "http://localhost:5173",
   sessionDays: Number(process.env.SESSION_DAYS) || 7,
   cookieSecure: process.env.COOKIE_SECURE === "true",

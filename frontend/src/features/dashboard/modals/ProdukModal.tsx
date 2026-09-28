@@ -1,5 +1,6 @@
 import { Show, For, createSignal } from "solid-js";
 import { formatRupiah } from "../../../lib/format";
+import CameraCapture from "../../../components/CameraCapture";
 import type { Toko, Produk } from "../../../components/dashboard/types";
 
 export interface ProdukModalProps {
@@ -34,6 +35,18 @@ export interface ProdukModalProps {
   handleBulkImport: (e: SubmitEvent) => void;
   resetProdukCombobox: () => void;
   submitting: () => boolean;
+  // AI vision (foto → auto-fill) + barcode 3 opsi
+  aiEnabled: () => boolean;
+  aiBusy: () => boolean;
+  aiMsg: () => { type: "ok" | "err"; text: string } | null;
+  cameraMode: () => "foto" | "barcode" | null;
+  onPickFotoAI: () => void;
+  onPickBarcodeFoto: () => void;
+  onOpenCamera: (mode: "foto" | "barcode") => void;
+  onCloseCamera: () => void;
+  onBarcodeInput: (v: string) => void;
+  onFotoProduk: (dataUrl: string) => void;
+  onScanBarcodeFromCamera: (dataUrl: string) => void;
 }
 
 export default function ProdukModal(props: ProdukModalProps) {
@@ -85,8 +98,8 @@ export default function ProdukModal(props: ProdukModalProps) {
           if (e.target === e.currentTarget) handleClose();
         }}
       >
-        <div class="modal-box">
-          <h3 class="text-lg font-bold text-white mb-5">
+        <div class="modal-box form-wide">
+          <h3 class="text-lg font-bold text-white mb-4 shrink-0">
             {props.bulkMode()
               ? "Bulk Import (TOML)"
               : props.produkMode() === "restock"
@@ -96,37 +109,37 @@ export default function ProdukModal(props: ProdukModalProps) {
                   : "Tambah Produk"}
           </h3>
 
-          {/* Mode Switch */}
-          <Show when={!props.modalProduk()?.id}>
-            <div class="flex gap-2 mb-4">
-              <button
-                type="button"
-                class={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors ${
-                  !props.bulkMode()
-                    ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/50"
-                    : "bg-white/5 text-zinc-400 border border-white/10"
-                }`}
-                onClick={() => props.setBulkMode(false)}
-              >
-                Single
-              </button>
-              <button
-                type="button"
-                class={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors ${
-                  props.bulkMode()
-                    ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/50"
-                    : "bg-white/5 text-zinc-400 border border-white/10"
-                }`}
-                onClick={() => props.setBulkMode(true)}
-              >
-                Bulk TOML
-              </button>
-            </div>
-          </Show>
-
           {/* Bulk TOML mode */}
           <Show when={props.bulkMode()}>
-            <form onSubmit={props.handleBulkImport} class="space-y-4">
+            <form onSubmit={props.handleBulkImport} class="modal-form">
+              <div class="modal-body">
+                {/* Mode Switch */}
+                <Show when={!props.modalProduk()?.id}>
+                  <div class="flex gap-2 mb-4">
+                    <button
+                      type="button"
+                      class={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors ${
+                        !props.bulkMode()
+                          ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/50"
+                          : "bg-white/5 text-zinc-400 border border-white/10"
+                      }`}
+                      onClick={() => props.setBulkMode(false)}
+                    >
+                      Single
+                    </button>
+                    <button
+                      type="button"
+                      class={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors ${
+                        props.bulkMode()
+                          ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/50"
+                          : "bg-white/5 text-zinc-400 border border-white/10"
+                      }`}
+                      onClick={() => props.setBulkMode(true)}
+                    >
+                      Bulk TOML
+                    </button>
+                  </div>
+                </Show>
               <div>
                 <label class="text-xs font-medium text-zinc-400 mb-1 block">
                   Data TOML
@@ -143,7 +156,8 @@ export default function ProdukModal(props: ProdukModalProps) {
                   Format: [[produk]] — field wajib: <code>nama</code>. Opsional: toko_id (nama/UUID), sku (auto-generated), merk, kategori, satuan, harga, harga_modal, stok, stock_threshold.
                 </p>
               </div>
-              <div class="flex gap-3 pt-2">
+              </div>
+              <div class="modal-footer flex gap-3">
                 <button
                   type="button"
                   class="btn-sm btn-ghost flex-1"
@@ -164,10 +178,39 @@ export default function ProdukModal(props: ProdukModalProps) {
 
           {/* Single / Restock mode */}
           <Show when={!props.bulkMode()}>
-            <form onSubmit={props.saveProduk} class="space-y-4">
+            <form onSubmit={props.saveProduk} class="modal-form">
+            <div class="modal-body">
+              {/* Mode Switch */}
+              <Show when={!props.modalProduk()?.id}>
+                <div class="flex gap-2 mb-4">
+                  <button
+                    type="button"
+                    class={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors ${
+                      !props.bulkMode()
+                        ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/50"
+                        : "bg-white/5 text-zinc-400 border border-white/10"
+                    }`}
+                    onClick={() => props.setBulkMode(false)}
+                  >
+                    Single
+                  </button>
+                  <button
+                    type="button"
+                    class={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors ${
+                      props.bulkMode()
+                        ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/50"
+                        : "bg-white/5 text-zinc-400 border border-white/10"
+                    }`}
+                    onClick={() => props.setBulkMode(true)}
+                  >
+                    Bulk TOML
+                  </button>
+                </div>
+              </Show>
+
               {/* Combobox: search existing produk for restock */}
               <Show when={props.produkMode() === "restock" && props.selectedExistingProduk()}>
-                <div class="glass p-3 rounded-lg border border-emerald-500/30 mb-2">
+                <div class="glass p-3 rounded-lg border border-emerald-500/30 mb-4">
                   <p class="text-sm text-emerald-300 font-medium">
                     Restock: {props.selectedExistingProduk()!.nama}
                   </p>
@@ -181,8 +224,10 @@ export default function ProdukModal(props: ProdukModalProps) {
                 </div>
               </Show>
 
+              {/* Grid: field dirapikan jadi 2 kolom → melebar horizontal */}
+              <div class="form-grid">
               {/* Nama produk with combobox */}
-              <div class="relative">
+              <div class="relative span-2">
                 <label class="text-xs font-medium text-zinc-400 mb-1 block">
                   Nama Produk
                 </label>
@@ -222,7 +267,7 @@ export default function ProdukModal(props: ProdukModalProps) {
 
               {/* SKU — hidden in restock mode */}
               <Show when={props.produkMode() === "new"}>
-                <div>
+                <div class="span-2">
                   <label class="text-xs font-medium text-zinc-400 mb-1 block">
                     SKU <span class="text-zinc-600">(otomatis dari nama)</span>
                   </label>
@@ -450,27 +495,117 @@ export default function ProdukModal(props: ProdukModalProps) {
                   />
                 </div>
               </Show>
+              </div>{/* /.form-grid */}
 
-              <div class="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  class="btn-sm btn-ghost flex-1"
-                  onClick={handleClose}
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  class="btn-sm btn-indigo flex-1"
-                  disabled={props.submitting()}
-                >
-                  {props.submitting()
-                    ? "Menyimpan..."
-                    : props.produkMode() === "restock"
-                      ? "Restock"
-                      : "Simpan"}
-                </button>
-              </div>
+              {/* ==== AI + Barcode (hanya mode "new", sebelum tombol submit) ==== */}
+              <Show when={props.produkMode() === "new"}>
+                {/* Foto → auto-input (AI vision) */}
+                <div class="border-t border-white/10 pt-4">
+                  <div class="flex items-center justify-between gap-2 mb-2">
+                    <label class="text-xs font-medium text-zinc-400">
+                      Foto Produk <span class="text-zinc-600">(auto-input via AI)</span>
+                    </label>
+                    <button
+                      type="button"
+                      class="btn-sm btn-ghost text-xs shrink-0"
+                      onClick={props.onPickFotoAI}
+                      disabled={!props.aiEnabled() || props.aiBusy()}
+                    >
+                      {props.aiBusy() ? "Menganalisis..." : "📷 Foto / Upload"}
+                    </button>
+                  </div>
+                  <Show when={!props.aiEnabled()}>
+                    <p class="text-[11px] text-amber-400/80 mb-1">
+                      AI belum aktif — atur endpoint & API key di menu <span class="font-semibold">Integrasi AI</span>.
+                    </p>
+                  </Show>
+                  <Show when={props.aiMsg()}>
+                    <p class={`text-[11px] ${props.aiMsg()!.type === "ok" ? "text-emerald-400" : "text-red-400"}`}>
+                      {props.aiMsg()!.text}
+                    </p>
+                  </Show>
+                </div>
+
+                {/* Barcode — 3 opsi: kamera / upload foto / manual */}
+                <div>
+                  <label class="text-xs font-medium text-zinc-400 mb-1 block">
+                    Barcode <span class="text-zinc-600">(opsional)</span>
+                  </label>
+                  <input
+                    id="produk-barcode-input"
+                    type="text"
+                    inputmode="text"
+                    autocomplete="off"
+                    class="glass-input font-mono text-sm"
+                    value={props.modalProduk()?.barcode || ""}
+                    onInput={(e) => props.onBarcodeInput(e.currentTarget.value)}
+                    placeholder="Ketik / tempel barcode…"
+                  />
+                  <div class="grid grid-cols-3 gap-2 mt-2">
+                    <button
+                      type="button"
+                      class="btn-sm btn-ghost text-xs"
+                      onClick={() => props.onOpenCamera("barcode")}
+                    >
+                      📷 Kamera
+                    </button>
+                    <button
+                      type="button"
+                      class="btn-sm btn-ghost text-xs"
+                      onClick={props.onPickBarcodeFoto}
+                      disabled={!props.aiEnabled() || props.aiBusy()}
+                    >
+                      🖼️ Foto
+                    </button>
+                    <button
+                      type="button"
+                      class="btn-sm btn-ghost text-xs"
+                      onClick={() => document.getElementById("produk-barcode-input")?.focus()}
+                    >
+                      ✏️ Manual
+                    </button>
+                  </div>
+                  <p class="text-[11px] text-zinc-500 mt-1">
+                    Foto barcode dibaca lewat AI. Kamera selalu minta izin dulu ke browser.
+                  </p>
+                </div>
+              </Show>
+
+            </div>
+
+            <Show when={props.cameraMode()}>
+              <CameraCapture
+                label={props.cameraMode() === "barcode" ? "Scan Barcode" : "Ambil Foto Produk"}
+                facingMode="environment"
+                onClose={props.onCloseCamera}
+                onCapture={(dataUrl) => {
+                  // Ditunggu parent: foto→vision, barcode→baca. Parent yang nutup kamera.
+                  if (props.cameraMode() === "barcode") props.onScanBarcodeFromCamera(dataUrl);
+                  else props.onFotoProduk(dataUrl);
+                }}
+              />
+            </Show>
+
+            <div class="modal-footer flex gap-3">
+              <button
+                type="button"
+                class="btn-sm btn-ghost flex-1"
+                onClick={handleClose}
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                class="btn-sm btn-indigo flex-1"
+                disabled={props.submitting()}
+              >
+                {props.submitting()
+                  ? "Menyimpan..."
+                  : props.produkMode() === "restock"
+                    ? "Restock"
+                    : "Simpan"}
+              </button>
+            </div>
             </form>
           </Show>
         </div>

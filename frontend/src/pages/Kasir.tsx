@@ -222,22 +222,22 @@ export default function Kasir() {
     <div class="h-screen bg-kasir-bg flex flex-col overflow-hidden">
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} items={cmdItems} />
       {/* Header */}
-      <header class="bg-kasir-card border-b border-kasir-border px-4 py-3 flex items-center justify-between">
-        <div class="flex items-center gap-4">
+      <header class="bg-kasir-card border-b border-kasir-border px-3 sm:px-4 py-3 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 sm:gap-4 min-w-0">
           <A href="/" class="flex items-center gap-2">
             <img src="/assets/kasirku_logo.svg" alt="KasirGo" class="w-8 h-8" />
             <span class="text-xl font-bold text-kasir-accent">KasirGo</span>
           </A>
-          <span class="text-sm text-kasir-muted">| POS</span>
+          <span class="text-sm text-kasir-muted hidden sm:inline">| POS</span>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 sm:gap-3 shrink-0">
           <TokoDropdown
             daftarToko={daftarToko}
             selectedTokoId={selectedTokoId}
             onSelect={selectToko}
           />
           <button
-            class="text-xs font-mono text-kasir-muted bg-white/5 px-2 py-1 rounded-lg border border-kasir-border hover:bg-white/10 transition-colors cursor-pointer"
+            class="text-xs font-mono text-kasir-muted bg-white/5 px-2 py-1 rounded-lg border border-kasir-border hover:bg-white/10 transition-colors cursor-pointer hidden sm:block"
             onClick={() => setCmdOpen(true)}
             title="Command Palette (F2)"
           >
@@ -261,7 +261,8 @@ export default function Kasir() {
               class="btn-sm btn-ghost text-kasir-muted hover:text-red-400"
               onClick={logout}
             >
-              Keluar
+              <span class="hidden sm:inline">Keluar</span>
+              <span class="sm:hidden">✕</span>
             </button>
           </div>
         </div>

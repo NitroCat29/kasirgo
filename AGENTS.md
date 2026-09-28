@@ -72,10 +72,10 @@ sync     : "Periodik (tag/release) → push ke GitHub mirror + GH Pages"
 ## 2. STATUS SEKARANG
 
 ```
-wip      : "Wallet per-toko + chart real data — DONE"
-progress : "~80% (Phase 1+2+2.x+wallet per-toko + TOTP 2FA + chart real data)"
+wip      : "Electrobun desktop core (webview + SQLite local + typed RPC) — DONE, uncommitted"
+progress : "~85% (Phase 1+2+2.x+wallet per-toko + TOTP 2FA + chart real data + electrobun core + bun dev launcher)"
 blocker  : "null"
-next     : "Phase 3: Electrobun desktop scaffold"
+next     : "Phase 3 lanjut: sync layer, WASM di webview, build target Windows/Linux"
 ```
 
 Detail checklist → lihat **TODO.md**

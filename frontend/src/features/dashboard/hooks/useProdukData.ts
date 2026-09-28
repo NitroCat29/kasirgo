@@ -452,6 +452,7 @@ async function saveProduk(e: Event) {
         merk: m.merk || "",
         kategori: m.kategori || "",
         satuan: normalizeSatuan(m.satuan),
+        barcode: String(m.barcode || "").trim(),
       }),
     });
     setShowProdukModal(false);

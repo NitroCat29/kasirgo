@@ -137,8 +137,8 @@ export const produkRoutes: Record<string, (req: Request, path: string[]) => Resp
     db.run("BEGIN");
     try {
       db.run(
-        "INSERT INTO produk (id, toko_id, sku, nama, merk, kategori, satuan, harga, harga_modal, stok, stock_threshold) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [id, tokoId, sku, v.data.nama, v.data.merk || "", v.data.kategori || "", normalizeSatuan(v.data.satuan), v.data.harga || 0, modal, qty, v.data.stock_threshold ?? 10]
+        "INSERT INTO produk (id, toko_id, sku, barcode, nama, merk, kategori, satuan, harga, harga_modal, stok, stock_threshold) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [id, tokoId, sku, String(v.data.barcode || "").trim(), v.data.nama, v.data.merk || "", v.data.kategori || "", normalizeSatuan(v.data.satuan), v.data.harga || 0, modal, qty, v.data.stock_threshold ?? 10]
       );
       if (totalCost > 0) {
         const deduction = deductWallet(tokoId, totalCost, `Pembelian stok awal: ${v.data.nama} (${qty} @ ${modal})`);
@@ -371,8 +371,8 @@ export const produkRoutes: Record<string, (req: Request, path: string[]) => Resp
     if (error) return error;
     const v = validateProdukUpdate(body);
     if (!v.ok) return json({ error: v.error }, 400);
-    db.run("UPDATE produk SET nama=?, sku=?, merk=?, kategori=?, satuan=?, harga=?, harga_modal=?, stok=?, stock_threshold=? WHERE id=?", [
-      v.data.nama ?? e.nama, v.data.sku ?? e.sku, v.data.merk ?? e.merk ?? "", v.data.kategori ?? e.kategori ?? "", v.data.satuan ?? e.satuan ?? "", v.data.harga ?? e.harga, v.data.harga_modal ?? e.harga_modal, v.data.stok ?? e.stok, v.data.stock_threshold ?? e.stock_threshold, id,
+    db.run("UPDATE produk SET nama=?, sku=?, barcode=?, merk=?, kategori=?, satuan=?, harga=?, harga_modal=?, stok=?, stock_threshold=? WHERE id=?", [
+      v.data.nama ?? e.nama, v.data.sku ?? e.sku, v.data.barcode !== undefined ? String(v.data.barcode).trim() : (e.barcode ?? ""), v.data.merk ?? e.merk ?? "", v.data.kategori ?? e.kategori ?? "", v.data.satuan ?? e.satuan ?? "", v.data.harga ?? e.harga, v.data.harga_modal ?? e.harga_modal, v.data.stok ?? e.stok, v.data.stock_threshold ?? e.stock_threshold, id,
     ]);
     logAudit({ user_id: user.id, username: user.username, action: "UPDATE", entity_type: "produk", entity_id: id, details: { nama: v.data.nama || e.nama, stok: v.data.stok ?? e.stok }, old_values: { nama: e.nama, sku: e.sku, merk: e.merk, kategori: e.kategori, satuan: e.satuan, harga: e.harga, harga_modal: e.harga_modal, stok: e.stok, stock_threshold: e.stock_threshold }, new_values: { nama: v.data.nama ?? e.nama, sku: v.data.sku ?? e.sku, merk: v.data.merk ?? e.merk ?? "", kategori: v.data.kategori ?? e.kategori ?? "", satuan: v.data.satuan ?? e.satuan ?? "", harga: v.data.harga ?? e.harga, harga_modal: v.data.harga_modal ?? e.harga_modal, stok: v.data.stok ?? e.stok, stock_threshold: v.data.stock_threshold ?? e.stock_threshold } });
     searchCacheInvalidateToko(e.toko_id);

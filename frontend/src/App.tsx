@@ -1,8 +1,10 @@
-import { Router, Route, A } from "@solidjs/router";
+import { Router, Route, A, useNavigate } from "@solidjs/router";
 import { lazy, Suspense, createEffect, ErrorBoundary } from "solid-js";
 import LoadingScreen from "./components/LoadingScreen";
 import { fetchMe } from "./lib/auth";
 import { ToastContainer } from "./components/ui";
+import { isElectrobun } from "./lib/desktop";
+import { onMount } from "solid-js";
 
 const Landing = lazy(() => import("./pages/Landing"));
 const Login = lazy(() => import("./pages/Login"));
@@ -13,13 +15,38 @@ const Kasir = lazy(() => import("./pages/Kasir"));
 const Fitur = lazy(() => import("./pages/Fitur"));
 const Tentang = lazy(() => import("./pages/Tentang"));
 const Demo = lazy(() => import("./pages/Demo"));
+const AiIntegration = lazy(() => import("./pages/AiIntegration"));
+
+// ============================================================
+// HOME — desktop langsung ke aplikasi, web ke landing
+// ============================================================
+// Produk jadi: aplikasi desktop (Electrobun) langsung masuk Kasir/Dashboard,
+// tanpa lewat landing. Landing tetap untuk website.
+function HomeRedirect() {
+  const nav = useNavigate();
+  onMount(() => {
+    let desktop = false;
+    try {
+      desktop = isElectrobun();
+    } catch {
+      desktop = false;
+    }
+    try {
+      nav(desktop ? "/kasir" : "/landing", { replace: true });
+    } catch {
+      // Gagal redirect (mis. hook router belum siap) → tampilkan landing.
+      nav("/landing", { replace: true });
+    }
+  });
+  return <LoadingScreen />;
+}
 
 function NotFound() {
   return (
     <div class="flex flex-col items-center justify-center min-h-screen gap-4">
       <h1 class="text-6xl font-bold text-kasir-accent">404</h1>
       <p class="text-kasir-muted">Halaman tidak ditemukan</p>
-      <A href="/" class="text-kasir-accent hover:underline">
+      <A href="/landing" class="text-kasir-accent hover:underline">
         Kembali ke beranda
       </A>
     </div>
@@ -48,6 +75,16 @@ function ErrorFallback(err: any, reset: () => void) {
 
 
 function Layout(props: { children?: any }) {
+  const nav = useNavigate();
+
+  // Desktop (Electrobun): buka langsung ke POS, lewati landing/login
+  onMount(() => {
+    if (isElectrobun()) {
+      const p = window.location.pathname;
+      if (p === "/" || p === "/login") nav("/kasir", { replace: true });
+    }
+  });
+
   return (
     <>
       <ToastContainer />
@@ -67,7 +104,8 @@ export default function App() {
 
   return (
     <Router root={Layout}>
-      <Route path="/" component={Landing} />
+      <Route path="/" component={HomeRedirect} />
+      <Route path="/landing" component={Landing} />
       <Route path="/login" component={Login} />
       <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/reset-password" component={ResetPassword} />
@@ -75,6 +113,7 @@ export default function App() {
       <Route path="/kasir" component={Kasir} />
       <Route path="/fitur" component={Fitur} />
       <Route path="/tentang" component={Tentang} />
+      <Route path="/ai-integration" component={AiIntegration} />
       <Route path="/demo" component={Demo} />
       <Route path="*" component={NotFound} />
     </Router>

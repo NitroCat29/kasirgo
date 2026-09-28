@@ -120,7 +120,7 @@ const EmptyIcon = (props: { type: string }) => (
 );
 
 export function EmptyState(props: {
-  type?: keyof typeof EMPTY_ICONS | "search";
+  type?: string;
   title?: string;
   description?: string;
   action?: { label: string; onClick: () => void };
@@ -128,7 +128,7 @@ export function EmptyState(props: {
   return (
     <div class="empty-state">
       <div class="empty-state-icon">
-        <EmptyIcon type={props.type ?? "search"} />
+        <EmptyIcon type={String(props.type ?? "search")} />
       </div>
       <Show when={props.title}>
         <div class="empty-state-title">{props.title}</div>

@@ -11,6 +11,7 @@ import { usersRoutes } from "./routes/users";
 import { walletRoutes } from "./routes/wallet";
 import { kertasRoutes } from "./routes/kertas";
 import { backupRoutes } from "./routes/backup";
+import { aiRoutes } from "./routes/ai";
 
 // ============================================================
 // Router — merge semua routes
@@ -19,7 +20,7 @@ export type Handler = (req: Request, path: string[]) => Response | Promise<Respo
 export const routes: Record<string, Handler> = {};
 
 // Merge semua route modules
-Object.assign(routes, authRoutes, totpRoutes, tokoRoutes, produkRoutes, transaksiRoutes, auditRoutes, alertsRoutes, usersRoutes, walletRoutes, kertasRoutes, backupRoutes);
+Object.assign(routes, authRoutes, totpRoutes, tokoRoutes, produkRoutes, transaksiRoutes, auditRoutes, alertsRoutes, usersRoutes, walletRoutes, kertasRoutes, backupRoutes, aiRoutes);
 
 // ---- STATS (dashboard) ----
 routes["GET /api/stats"] = (req) => {

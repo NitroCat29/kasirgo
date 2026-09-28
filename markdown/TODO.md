@@ -46,14 +46,31 @@
   - [x] Frontend: features/dashboard/tabs/SecurityTab.tsx — tab Keamanan
   - [x] Frontend: Dashboard.tsx — wired SecurityTab (admin-only sidebar + tab switch)
   - [x] Frontend: components/WalletCard.tsx — modal top-up + TOTP code input
-- [ ] Desktop App (Electrobun — ganti Tauri, keputusan El 2026-07-22)
-  - [ ] Init Electrobun scaffold (Bun main + BrowserWindow/webview shell, icon/window config)
-  - [ ] SQLite lokal via bun:sqlite — reuse shared/db-schema.sql (bukan Rust plugin)
-  - [ ] Typed RPC Bun main ↔ SolidJS webview (CRUD offline, ganti Tauri invoke)
-  - [ ] Offline CRUD: read/write SQLite lokal, UI update via SolidJS signals
-  - [ ] Rewrite frontend/src/lib/desktop.ts: isElectrobun + RPC bridge (hapus stub isTauri)
+- [~] Desktop App (Electrobun — ganti Tauri, keputusan El 2026-07-22)
+  - [x] Init Electrobun scaffold (Bun main + BrowserWindow/webview shell, icon/window config)
+  - [x] SQLite lokal via bun:sqlite — reuse shared/db-schema.sql (bukan Rust plugin)
+  - [x] Typed RPC Bun main ↔ SolidJS webview (CRUD offline, ganti Tauri invoke)
+  - [x] Offline CRUD: read/write SQLite lokal, UI update via SolidJS signals
+  - [x] Rewrite frontend/src/lib/desktop.ts: isElectrobun + RPC bridge (hapus stub isTauri)
+  - [x] Offline API layer: frontend/src/lib/api.ts localApi() → typed RPC (auth/toko/produk/transaksi/wallet/stats/audit)
+  - [x] Auto-repo-root finder di src-electrobun/src/bun/index.ts — spawn backend+vite kalau repo ketemu, fallback views:// kalau nggak
+  - [x] Smoke test: scripts/smoke-local.ts (14 pass — CRUD, stok, wallet, kertas_stock)
   - [ ] WASM load di Electrobun webview (tes memory/table import kompatibel)
+  - [ ] Sync Layer: /api/sync/push + pull, device token, conflict resolution (last-write-wins)
   - [ ] Build target: Windows portable + Linux (macOS later); differential updates via Electrobun Updater
+- [x] One-shot dev launcher (2026-09-27)
+  - [x] scripts/dev.ts — spawn backend (:3456) + Vite (:5173) bareng, log ber-label, Ctrl+C matiin dua-duanya
+  - [x] package.json root: bun run dev / build / build:webview / test / typecheck (README sebelumnya janji `bun run dev` tapi script-nya nggak ada)
+- [x] Audit & bersih-bersih (2026-09-27)
+  - [x] backend/db.ts + helpers.ts: path DB absolut (import.meta.dir) — fix DB nyasar ke backend/backend/db/ saat cwd ≠ repo root
+  - [x] .gitignore: frontend/dist-webview/, **/db/*.sqlite (jaring pengaman), server.json; reasonix.toml di-unignore (config project, harus track)
+  - [x] landing.json: buang klaim fiktif (12.500 bisnis, 340 kota, 99.9% uptime, Laporan AI, QRIS/printer/marketplace) → ganti dengan fitur yang benar-benar ada di kode
+  - [x] Landing.tsx: /register → /login (route /register nggak ada), hero "12rb+" + rating bintang dihapus, testimoni kosong → section Open Source, footer social dead-link → link repo asli
+  - [x] frontend/src/components/ui.tsx: fix tsc error pre-existing (EMPTY_ICONS tak terdefinisi)
+  - [x] UI fix (2026-09-27): landing dipaksa tema gelap — teks "Cara Kerja" jadi item karena override !important [data-theme="light"] .text-white
+  - [x] Routing home (2026-09-27): "/" → desktop langsung /kasir, web → /landing. Landing pindah route.
+  - [ ] Landing chunk 995 KB (gzip 288 KB) — code-split scene 3D
+  - [ ] Duplikasi SQL: query stats/wallet/search ada di api.ts DAN rpc-handlers.ts — kandidat pindah ke shared/
 - [x] Wallet per-toko (Phase 1-5 — 2026-07-21)
   - [x] Schema migration: wallets table user_id → toko_id (recreate table)
   - [x] helpers.ts: deductWallet + creditWallet pakai toko_id

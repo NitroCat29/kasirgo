@@ -247,22 +247,75 @@ const transaksiHandlers = {
     const id = randomUUID();
     const tax_rate = input.tax_rate ?? 11;
     const discount_rate = input.discount_rate ?? 0;
-    localDb.run(
-      `INSERT INTO transaksi
-        (id, toko_id, total, tax_rate, discount_rate, items_json, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
-      [id, input.toko_id, input.total, tax_rate, discount_rate, JSON.stringify(input.items)],
-    );
-    // Side effect: credit wallet
-    const walletId = getOrCreateWallet(input.toko_id);
-    localDb.run(
-      "INSERT INTO wallet_transactions (id, wallet_id, type, amount, description, created_at) VALUES (?, ?, 'purchase', ?, ?, datetime('now'))",
-      [randomUUID(), walletId, input.total, `Transaksi ${id}`],
-    );
-    localDb.run(
-      "UPDATE wallets SET balance = balance + ?, updated_at = datetime('now') WHERE id = ?",
-      [input.total, walletId],
-    );
+
+    // Wire items dari frontend: { produk_id?, nama, harga, qty, diskon? }
+    // (shared TransaksiItem masih shape lama name/price — cast ke wire shape)
+    const items = input.items as unknown as {
+      produk_id?: string;
+      nama: string;
+      harga: number;
+      qty: number;
+      diskon?: number;
+    }[];
+    if (!items.length) throw new Error("Minimal 1 item diperlukan");
+    for (const item of items) {
+      if (!item.nama || !item.harga || !item.qty) {
+        throw new Error("Setiap item wajib punya nama, harga, qty");
+      }
+      if (item.produk_id && !item.produk_id.startsWith("jasa-")) {
+        const produk = localDb
+          .query("SELECT id, nama, stok FROM produk WHERE id = ? AND toko_id = ?")
+          .get(item.produk_id, input.toko_id) as { id: string; nama: string; stok: number } | undefined;
+        if (!produk) throw new Error(`Produk '${item.nama}' tidak ditemukan di toko ini`);
+        if (produk.stok < item.qty) {
+          throw new Error(`Stok '${produk.nama}' tidak cukup (tersisa: ${produk.stok}, diminta: ${item.qty})`);
+        }
+      }
+    }
+
+    const kertasNeeded = items
+      .filter((i) => i.produk_id === "jasa-fotocopy")
+      .reduce((sum, i) => sum + i.qty, 0);
+    if (kertasNeeded > 0) {
+      const ks = localDb.query("SELECT stock FROM kertas_stock WHERE id = 1").get() as
+        | { stock: number }
+        | undefined;
+      const currentStock = ks?.stock ?? 0;
+      if (currentStock < kertasNeeded) {
+        throw new Error(`Stok kertas tidak cukup (tersisa: ${currentStock} lembar, butuh: ${kertasNeeded} lembar)`);
+      }
+    }
+
+    const txn = localDb.transaction(() => {
+      for (const item of items) {
+        if (item.produk_id && !item.produk_id.startsWith("jasa-")) {
+          localDb.run("UPDATE produk SET stok = stok - ? WHERE id = ?", [item.qty, item.produk_id]);
+        }
+      }
+      if (kertasNeeded > 0) {
+        localDb.run(
+          "UPDATE kertas_stock SET stock = stock - ?, updated_at = datetime('now') WHERE id = 1",
+          [kertasNeeded],
+        );
+      }
+      localDb.run(
+        `INSERT INTO transaksi
+          (id, toko_id, total, tax_rate, discount_rate, items_json, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
+        [id, input.toko_id, input.total, tax_rate, discount_rate, JSON.stringify(items)],
+      );
+      // Side effect: credit wallet (kas masuk)
+      const walletId = getOrCreateWallet(input.toko_id);
+      localDb.run(
+        "INSERT INTO wallet_transactions (id, wallet_id, type, amount, description, created_at) VALUES (?, ?, 'purchase', ?, ?, datetime('now'))",
+        [randomUUID(), walletId, input.total, `Penjualan #${id}`],
+      );
+      localDb.run(
+        "UPDATE wallets SET balance = balance + ?, updated_at = datetime('now') WHERE id = ?",
+        [input.total, walletId],
+      );
+    });
+    txn();
 
     const r = localDb.query("SELECT * FROM transaksi WHERE id = ?").get(id) as Record<string, unknown>;
     return mapTransaksi(r);

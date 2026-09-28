@@ -43,6 +43,8 @@ localDb.run("PRAGMA foreign_keys = ON");
 const CANDIDATE_SCHEMA_PATHS = [
   // Saat dev: path relatif ke CWD (= REPO_ROOT)
   join(process.cwd(), "shared", "db-schema.sql"),
+  // Saat packaged: relatif ke executable / bundle bun
+  join(import.meta.dir, "db-schema.sql"),
   // Saat packaged: relatif ke executable
   join(import.meta.dir, "..", "..", "shared", "db-schema.sql"),
   join(import.meta.dir, "..", "..", "..", "shared", "db-schema.sql"),
@@ -108,6 +110,19 @@ function runMigrations(): void {
   localDb.run("CREATE INDEX IF NOT EXISTS idx_produk_sku_toko ON produk(toko_id, sku)");
   localDb.run("CREATE INDEX IF NOT EXISTS idx_transaksi_toko ON transaksi(toko_id, created_at)");
   localDb.run("CREATE INDEX IF NOT EXISTS idx_wallet_toko ON wallets(toko_id)");
+
+  // kertas_stock — global paper stock untuk fotocopy (mirror backend/db.ts)
+  localDb.run(
+    `CREATE TABLE IF NOT EXISTS kertas_stock (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      stock INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT DEFAULT (datetime('now'))
+    )`,
+  );
+  const ksRow = localDb.query("SELECT stock FROM kertas_stock WHERE id = 1").get();
+  if (!ksRow) {
+    localDb.run("INSERT INTO kertas_stock (id, stock) VALUES (1, 0)");
+  }
 }
 
 // ---- Bootstrap ----

@@ -1,1286 +1,1330 @@
 /**
- * Landing.tsx — KasirGO v3.0
+ * Landing.tsx — KasirGO v4.0 "Momentum"
  * ------------------------------------------------------------------
- * Award-style rewrite:
- * • Lenis smooth scroll
- * • GSAP ScrollTrigger cinematic reveals
- * • Heavy interactive Three.js hero
- * • Parallax typography + layout
- * • Magnetic interactions + custom cursor glow
- * • Scroll-driven counters + marquee
- * • Premium micro-motion without layout jank
+ * Rombakan total:
+ * • Lenis smooth scroll + GSAP ScrollTrigger (dalam gsap.context)
+ * • Three.js: mesin kasir 3D custom (dibangun dari primitive) yang
+ *   FIXED/sticky di layar — berputar & pindah posisi mengikuti
+ *   section saat scroll (scrollytelling presets per-section)
+ * • Struk 3D yang "tercetak" mengikuti progres scroll (clipping plane)
+ * • HUD progres scroll 1–100% (bar tipis + readout) di atas layar
+ * • Counter, marquee, magnetic button, cursor glow, parallax chip
+ * • Avatar role via DiceBear (offline, tanpa API key)
  * ------------------------------------------------------------------
  */
 
-import { createSignal, onMount, onCleanup, For, Show, type JSX } from "solid-js";
+import { createSignal, createEffect, onMount, onCleanup, For, Show } from "solid-js";
+import { Dynamic } from "solid-js/web";
 import { A } from "@solidjs/router";
 import {
-  ArrowRight,
-  ShieldCheck,
-  Wallet,
-  BarChart3,
-  ScanLine,
-  Store,
-  UtensilsCrossed,
-  Package,
-  TrendingUp,
-  Users,
-  Zap,
-  Star,
-  ChevronRight,
-  Sparkles,
-  Home,
+  ArrowRight, ArrowUpRight, BarChart3, Check, ChevronRight, Menu, Package,
+  ScanLine, ShieldCheck, Sparkles, Store, TrendingUp, UtensilsCrossed,
+  Wallet, X, Zap,
 } from "lucide-solid";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Lenis from "lenis";
 import * as THREE from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { createAvatar } from "@dicebear/core";
+import { notionists } from "@dicebear/collection";
 import landingData from "../data/landing.json";
 
 gsap.registerPlugin(ScrollTrigger);
+ScrollTrigger.config({ ignoreMobileResize: true });
 
-// ------------------------------------------------------------------
-// Types
-// ------------------------------------------------------------------
-interface TiltCardProps {
-  children: JSX.Element;
-  class?: string;
-  intensity?: number;
+/* ---------------- Types & Data ---------------- */
+interface NavItem { label: string; id: string }
+interface Feature { id: string; icon: string; tag: string; title: string; desc: string }
+interface Stat { value: number; suffix?: string; decimals?: number; label: string }
+interface Solution { id: string; icon: string; title: string; desc: string; points: string[]; stat: string }
+interface Step { title: string; desc: string }
+interface LandingData {
+  nav: NavItem[];
+  hero: { badge: string; titleLines: string[]; subtitle: string; primaryCta: string; secondaryCta: string; trust: string };
+  marquee: string[];
+  features: Feature[];
+  stats: Stat[];
+  solutions: Solution[];
+  steps: Step[];
+  cta: { title: string; subtitle: string; button: string; note: string };
+  footer: { description: string; columns: { title: string; links: { label: string; href: string }[] }[]; copyright: string };
 }
 
-interface MagneticProps {
-  children: JSX.Element;
-  class?: string;
-  strength?: number;
-}
+const D = landingData as unknown as LandingData;
 
-// ------------------------------------------------------------------
-// Data
-// ------------------------------------------------------------------
-const BUSINESS_TYPE_ICONS: Record<string, typeof Store> = {
-  retail: Store,
-  resto: UtensilsCrossed,
-  grosir: Package,
+const ICON_MAP: Record<string, any> = {
+  ScanLine, Package, BarChart3, Store, Wallet, ShieldCheck, UtensilsCrossed, Zap,
 };
 
-const BUSINESS_TYPE_GRADIENTS: Record<string, string> = {
-  retail: "from-[#123832] to-[#081F1C]",
-  resto: "from-[#0F4A44] to-[#0A2E2A]",
-  grosir: "from-[#175B51] to-[#0C312C]",
+/* ---------------- Helpers ---------------- */
+const qa = <T extends Element = Element>(sel: string, root: ParentNode = document) =>
+  Array.from(root.querySelectorAll<T>(sel));
+
+const avatarCache = new Map<string, string>();
+const avatarUri = (seed: string) => {
+  if (!avatarCache.has(seed)) {
+    try {
+      avatarCache.set(seed, createAvatar(notionists, { seed, backgroundColor: ["111827"] }).toDataUri());
+    } catch {
+      avatarCache.set(seed, "");
+    }
+  }
+  return avatarCache.get(seed)!;
 };
 
-const BUSINESS_TYPES = landingData.businessTypes.map((t) => ({
-  ...t,
-  icon: BUSINESS_TYPE_ICONS[t.id] ?? Store,
-  gradient: BUSINESS_TYPE_GRADIENTS[t.id] ?? "from-[#123832] to-[#081F1C]",
-}));
-
-const STATS = [
-  { icon: Store, value: 12500, suffix: "+", label: "Toko Aktif" },
-  { icon: TrendingUp, value: 98, suffix: "%", label: "Uptime" },
-  { icon: Users, value: 50000, suffix: "+", label: "Pengguna" },
-  { icon: Zap, value: 2.5, suffix: "s", label: "Avg Response", decimals: 1 },
-];
-
-const MARQUEE_ITEMS = [
-  "Point of Sale Modern",
-  "Wallet Per-Toko",
-  "Analitik Real-Time",
-  "Scan Struk Otomatis",
-  "Multi-Cabang",
-  "Laporan Keuangan",
-  "Integrasi Payment",
-  "Cloud Backup",
-];
-
-// ------------------------------------------------------------------
-// Three.js — Cinematic Hero Scene
-// ------------------------------------------------------------------
-// Floating "warung" product cloud: barang ATK + elektronik.
-// Tiap produk drift pelan; saat scroll, semuanya ikut jatuh ke bawah
-// dengan lag + spin per-item (scroll-driven parallax).
-// ------------------------------------------------------------------
-
-type ProductItem = {
-  mesh: THREE.Object3D;
-  baseX: number;
-  baseY: number;
-  baseRotX: number;
-  baseRotY: number;
-  baseRotZ: number;
-  bobAmp: number;
-  bobSpeed: number;
-  bobPhase: number;
-  spinX: number;
-  spinY: number;
-  fallFactor: number; // seberapa kuat scroll narik barang ke bawah (depth)
+/* Preset posisi/skala model 3D per-section (desktop).
+   Model selalu fixed di layar — hanya "pindah panggung" saat scroll. */
+interface Preset { x: number; y: number; scale: number; rx: number }
+const PRESETS: Record<string, Preset> = {
+  hero: { x: 1.8, y: 0.05, scale: 0.95, rx: 0 },
+  fitur: { x: -1.8, y: 0.1, scale: 0.82, rx: 0.08 },
+  statistik: { x: 0, y: 1.5, scale: 0.55, rx: 0.35 },
+  solusi: { x: 1.8, y: 0, scale: 0.88, rx: -0.06 },
+  langkah: { x: -1.8, y: 0.1, scale: 0.78, rx: 0.12 },
+  testimoni: { x: 0, y: 1.3, scale: 0.5, rx: 0.3 },
+  cta: { x: 0, y: -0.35, scale: 0.9, rx: 0.15 },
 };
 
-function makePencil(): THREE.Group {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.07, 0.07, 0.9, 6),
-    new THREE.MeshStandardMaterial({ color: 0xF59E0B, roughness: 0.5, metalness: 0.1 })
-  );
-  const tip = new THREE.Mesh(
-    new THREE.ConeGeometry(0.07, 0.22, 6),
-    new THREE.MeshStandardMaterial({ color: 0xE7C08A, roughness: 0.6 })
-  );
-  tip.position.y = 0.56;
-  const lead = new THREE.Mesh(
-    new THREE.ConeGeometry(0.025, 0.08, 6),
-    new THREE.MeshStandardMaterial({ color: 0x1F2937, roughness: 0.4 })
-  );
-  lead.position.y = 0.71;
-  const eraser = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.07, 0.07, 0.08, 6),
-    new THREE.MeshStandardMaterial({ color: 0xFDA4AF, roughness: 0.7 })
-  );
-  eraser.position.y = -0.49;
-  g.add(body, tip, lead, eraser);
-  g.rotation.z = Math.PI / 5;
-  return g;
-}
+export default function Landing() {
+  /* ---- Refs ---- */
+  let canvas!: HTMLCanvasElement;
+  let progressBar!: HTMLDivElement;
+  let progressPct!: HTMLSpanElement;
+  let marqueeTrack!: HTMLDivElement;
+  let menuRef!: HTMLDivElement;
+  let solusiPanel!: HTMLDivElement;
+  let cursorRef!: HTMLDivElement;
 
-function makePen(color: number): THREE.Group {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.055, 0.055, 0.85, 16),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.35 })
-  );
-  const capMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.4, metalness: 0.5 });
-  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.28, 16), capMat);
-  cap.position.y = -0.55;
-  const nib = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.16, 16), capMat);
-  nib.position.y = 0.5;
-  g.add(body, cap, nib);
-  g.rotation.z = -Math.PI / 6;
-  return g;
-}
+  /* ---- Signals ---- */
+  const [scrolled, setScrolled] = createSignal(false);
+  const [menuOpen, setMenuOpen] = createSignal(false);
+  const [activeSol, setActiveSol] = createSignal(D.solutions[0].id);
+  const activeSolution = () => D.solutions.find((s) => s.id === activeSol())!;
 
-function makeNotebook(): THREE.Group {
-  const g = new THREE.Group();
-  const cover = new THREE.Mesh(
-    new THREE.BoxGeometry(0.62, 0.82, 0.09),
-    new THREE.MeshStandardMaterial({ color: 0x0F766E, roughness: 0.55, metalness: 0.05 })
-  );
-  const pages = new THREE.Mesh(
-    new THREE.BoxGeometry(0.56, 0.78, 0.07),
-    new THREE.MeshStandardMaterial({ color: 0xF3F1E7, roughness: 0.9 })
-  );
-  pages.position.z = 0.012;
-  const spine = new THREE.Mesh(
-    new THREE.BoxGeometry(0.05, 0.82, 0.1),
-    new THREE.MeshStandardMaterial({ color: 0x052E2B, roughness: 0.5 })
-  );
-  spine.position.x = -0.31;
-  g.add(cover, pages, spine);
-  return g;
-}
+  /* ---- Runtime state (non-reactive, mutasi langsung di rAF) ---- */
+  let lenis: Lenis | null = null;
+  let renderer: THREE.WebGLRenderer | null = null;
+  let scene: THREE.Scene;
+  let camera: THREE.PerspectiveCamera;
+  let rig: THREE.Group;      // posisi + skala (dikendalikan preset)
+  let spin: THREE.Group;     // rotasi (dikendalikan scroll)
+  let receiptMesh: THREE.Mesh;
+  let receiptPlane: THREE.Plane;
+  let screenTex: THREE.CanvasTexture;
+  let screenCanvas: HTMLCanvasElement;
+  let screenBase: HTMLCanvasElement;
+  let particles: THREE.Points;
+  let pSpeeds: number[] = [];
+  let orbiters: { mesh: THREE.Mesh; r: number; a: number; speed: number; y: number; bobS: number; bobA: number; rotS: number; ph: number }[] = [];
+  let cardGroup: THREE.Group;
 
-function makeStickyNotes(): THREE.Group {
-  const g = new THREE.Group();
-  const colors = [0xFDE68A, 0x86EFAC, 0xFCA5A5, 0x93C5FD];
-  colors.forEach((c, i) => {
-    const sheet = new THREE.Mesh(
-      new THREE.BoxGeometry(0.42, 0.42, 0.015),
-      new THREE.MeshStandardMaterial({ color: c, roughness: 0.85 })
+  const scrollState = { progress: 0 };
+  const modelState: Preset & { scale: number } = { x: PRESETS.hero.x, y: -1.4, scale: 0.001, rx: 0 };
+  const mouse = { tx: 0, ty: 0, x: 0, y: 0 };
+  let receiptPrinted = 0.14;
+  let currentSection = "hero";
+  let tickFn: ((t: number, dt: number) => void) | null = null;
+  let ctx: gsap.Context | null = null;
+  const listeners: Array<[EventTarget, string, any]> = [];
+  const disposables: Array<{ dispose(): void }> = [];
+  let fontLink: HTMLLinkElement | null = null;
+
+  const isNarrow = () => window.innerWidth < 1024;
+
+  const applyPreset = (id: string, immediate = false) => {
+    currentSection = id;
+    const base = PRESETS[id] ?? PRESETS.hero;
+    const p: Preset = { ...base };
+    if (isNarrow()) {
+      p.x = 0;
+      p.y = base.y * 0.5 + (id === "hero" ? 0.9 : 0.55);
+      p.scale = base.scale * 0.62;
+    }
+    if (immediate) gsap.set(modelState, p);
+    else gsap.to(modelState, { ...p, duration: 1.15, ease: "power2.inOut", overwrite: "auto" });
+  };
+
+  const goTo = (id: string) => (e: Event) => {
+    e.preventDefault();
+    setMenuOpen(false);
+    lenis?.scrollTo(`#${id}`, { offset: -76, duration: 1.5 });
+  };
+
+  /* ================================================================
+   * THREE.JS — MESIN KASIR 3D
+   * =============================================================== */
+  const roundedBoxGeo = (w: number, h: number, d: number, r: number) => {
+    const s = new THREE.Shape();
+    const x = -w / 2, y = -h / 2;
+    s.moveTo(x + r, y);
+    s.lineTo(x + w - r, y); s.quadraticCurveTo(x + w, y, x + w, y + r);
+    s.lineTo(x + w, y + h - r); s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    s.lineTo(x + r, y + h); s.quadraticCurveTo(x, y + h, x, y + h - r);
+    s.lineTo(x, y + r); s.quadraticCurveTo(x, y, x + r, y);
+    const g = new THREE.ExtrudeGeometry(s, {
+      depth: d, bevelEnabled: true, bevelSegments: 3, steps: 1,
+      bevelSize: r * 0.35, bevelThickness: r * 0.35,
+    });
+    g.center();
+    return g;
+  };
+
+  const rr = (c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  };
+
+  /* --- Layar POS: UI kasir digambar ke CanvasTexture --- */
+  const SW = 512, SH = 320;
+  const drawScreenBase = () => {
+    const c = screenBase.getContext("2d")!;
+    c.clearRect(0, 0, SW, SH);
+    c.fillStyle = "#0A1120"; rr(c, 0, 0, SW, SH, 14); c.fill();
+    c.strokeStyle = "#1C2A44"; c.lineWidth = 2; rr(c, 1, 1, SW - 2, SH - 2, 13); c.stroke();
+
+    // header
+    c.fillStyle = "#0E1930"; rr(c, 10, 10, SW - 20, 46, 10); c.fill();
+    c.fillStyle = "#34D399"; c.beginPath(); c.arc(36, 33, 6, 0, 7); c.fill();
+    c.textAlign = "left";
+    c.fillStyle = "#E7EEF9"; c.font = "700 17px 'Plus Jakarta Sans', sans-serif";
+    c.fillText("KasirGO — Kasir 01", 54, 39);
+    c.textAlign = "right"; c.fillStyle = "#5B6B85"; c.font = "500 15px 'Plus Jakarta Sans', sans-serif";
+    c.fillText("21:36", SW - 26, 38); c.textAlign = "left";
+
+    // grid produk
+    const tiles: [string, string, string][] = [
+      ["Kopi Susu", "Rp 18rb", "#34D399"], ["Nasi Goreng", "Rp 25rb", "#F59E0B"],
+      ["Teh Tarik", "Rp 12rb", "#38BDF8"], ["Ayam Geprek", "Rp 22rb", "#F472B6"],
+    ];
+    tiles.forEach((t, i) => {
+      const col = i % 2, row = (i / 2) | 0;
+      const x = 16 + col * 146, y = 70 + row * 118, w = 134, h = 106;
+      c.fillStyle = "#101B31"; rr(c, x, y, w, h, 12); c.fill();
+      c.strokeStyle = "#1D2B47"; rr(c, x + 0.5, y + 0.5, w - 1, h - 1, 12); c.stroke();
+      c.fillStyle = t[2]; c.beginPath(); c.arc(x + 26, y + 28, 9, 0, 7); c.fill();
+      c.fillStyle = "#DCE6F5"; c.font = "600 14px 'Plus Jakarta Sans', sans-serif"; c.fillText(t[0], x + 14, y + 62);
+      c.fillStyle = t[2]; c.font = "700 13px 'Plus Jakarta Sans', sans-serif"; c.fillText(t[1], x + 14, y + 84);
+    });
+
+    // panel pesanan
+    const px = 322;
+    c.fillStyle = "#5B6B85"; c.font = "600 11px 'Plus Jakarta Sans', sans-serif"; c.fillText("PESANAN", px, 84);
+    const items: [string, string][] = [
+      ["2× Kopi Susu", "36rb"], ["1× Nasi Goreng", "25rb"], ["1× Teh Tarik", "12rb"],
+      ["1× Ayam Geprek", "22rb"], ["2× Kerupuk", "7rb"],
+    ];
+    items.forEach((it, i) => {
+      c.fillStyle = "#C7D3E6"; c.font = "500 13px 'Plus Jakarta Sans', sans-serif";
+      c.fillText(it[0], px, 110 + i * 26);
+      c.textAlign = "right"; c.fillStyle = "#8FA0BA"; c.fillText(it[1], SW - 24, 110 + i * 26);
+      c.textAlign = "left";
+    });
+    c.strokeStyle = "#2A3A58"; c.setLineDash([5, 5]);
+    c.beginPath(); c.moveTo(px, 246); c.lineTo(SW - 24, 246); c.stroke(); c.setLineDash([]);
+    c.fillStyle = "#8FA0BA"; c.font = "600 13px 'Plus Jakarta Sans', sans-serif"; c.fillText("Total", px, 270);
+    c.textAlign = "right"; c.fillStyle = "#F8FAFC"; c.font = "800 21px 'Space Grotesk', sans-serif";
+    c.fillText("Rp 102rb", SW - 24, 271); c.textAlign = "left";
+    c.fillStyle = "#10B981"; rr(c, px, 284, SW - 24 - px, 26, 13); c.fill();
+    c.fillStyle = "#04120B"; c.font = "800 13px 'Plus Jakarta Sans', sans-serif"; c.textAlign = "center";
+    c.fillText("BAYAR — QRIS", (px + SW - 24) / 2, 302); c.textAlign = "left";
+  };
+
+  const updateScreen = (t: number) => {
+    const c = screenCanvas.getContext("2d")!;
+    c.drawImage(screenBase, 0, 0);
+    const y = ((t * 46) % (SH + 60)) - 30;
+    const g = c.createLinearGradient(0, y, 0, y + 36);
+    g.addColorStop(0, "rgba(110,231,183,0)");
+    g.addColorStop(0.5, "rgba(110,231,183,0.14)");
+    g.addColorStop(1, "rgba(110,231,183,0)");
+    c.fillStyle = g; c.fillRect(0, y, SW, 36);
+    screenTex.needsUpdate = true;
+  };
+
+  /* --- Tekstur struk thermal --- */
+  const RW = 256, RH = 800;
+  const drawReceiptTexture = () => {
+    const cv = document.createElement("canvas");
+    cv.width = RW; cv.height = RH;
+    const c = cv.getContext("2d")!;
+    const cx = RW / 2;
+    c.fillStyle = "#F7F5EF"; c.fillRect(0, 0, RW, RH);
+    c.textAlign = "center";
+    c.fillStyle = "#0F172A"; c.font = "800 30px 'Space Grotesk', sans-serif"; c.fillText("KASIRGO", cx, 64);
+    c.fillStyle = "#475569"; c.font = "500 15px 'Plus Jakarta Sans', sans-serif";
+    c.fillText("Jl. Merdeka No. 88, Bandung", cx, 96);
+    c.fillText("21:36 • Kasir 01 • Struk #0042", cx, 120);
+
+    c.strokeStyle = "#94A3B8"; c.setLineDash([4, 5]);
+    c.beginPath(); c.moveTo(28, 148); c.lineTo(RW - 28, 148); c.stroke();
+    c.beginPath(); c.moveTo(28, 350); c.lineTo(RW - 28, 350); c.stroke();
+    c.setLineDash([]);
+
+    const items: [string, string][] = [
+      ["2× Kopi Susu", "36.000"], ["1× Nasi Goreng", "25.000"], ["1× Teh Tarik", "12.000"],
+      ["1× Ayam Geprek", "22.000"], ["2× Kerupuk", "7.000"],
+    ];
+    c.textAlign = "left";
+    items.forEach((it, i) => {
+      c.fillStyle = "#334155"; c.font = "500 16px 'Plus Jakarta Sans', sans-serif";
+      c.fillText(it[0], 28, 186 + i * 34);
+      c.textAlign = "right"; c.fillText(it[1], RW - 28, 186 + i * 34); c.textAlign = "left";
+    });
+    c.fillStyle = "#0F172A"; c.font = "700 18px 'Plus Jakarta Sans', sans-serif";
+    c.fillText("TOTAL", 28, 392);
+    c.textAlign = "right"; c.font = "800 20px 'Space Grotesk', sans-serif";
+    c.fillText("Rp 102.000", RW - 28, 392); c.textAlign = "left";
+    c.fillStyle = "#475569"; c.font = "500 15px 'Plus Jakarta Sans', sans-serif";
+    c.fillText("Tunai", 28, 420);
+    c.textAlign = "right"; c.fillText("Rp 102.000", RW - 28, 420); c.textAlign = "center";
+    c.fillStyle = "#0F172A"; c.fillText("Terima kasih sudah belanja!", cx, 462);
+    c.fillStyle = "#64748B"; c.font = "500 13px 'Plus Jakarta Sans', sans-serif";
+    c.fillText("kasirgo.go/s/0042", cx, 488);
+
+    // barcode
+    c.fillStyle = "#0F172A";
+    let bx = 36, s = 7;
+    while (bx < RW - 40) {
+      const w = (s % 3) + 1.5;
+      c.fillRect(bx, 524, w, 96);
+      bx += w + ((s * 7) % 4) + 2;
+      s = (s * 31 + 17) % 97;
+    }
+
+    // mini QR
+    const qx = cx - 40, qy = 656;
+    c.strokeStyle = "#0F172A"; c.lineWidth = 2; c.strokeRect(qx, qy, 80, 80);
+    const finder = (fx: number, fy: number) => {
+      c.fillStyle = "#0F172A"; c.fillRect(fx, fy, 18, 18);
+      c.fillStyle = "#F7F5EF"; c.fillRect(fx + 4, fy + 4, 10, 10);
+      c.fillStyle = "#0F172A"; c.fillRect(fx + 7, fy + 7, 4, 4);
+    };
+    finder(qx + 8, qy + 8); finder(qx + 54, qy + 8); finder(qx + 8, qy + 54);
+    c.fillStyle = "#0F172A";
+    [[40, 44], [52, 38], [36, 58], [58, 56], [44, 50], [64, 44], [38, 36]]
+      .forEach(([dx, dy]) => c.fillRect(qx + dx, qy + dy, 5, 5));
+    c.fillStyle = "#64748B"; c.font = "500 12px 'Plus Jakarta Sans', sans-serif";
+    c.fillText("Scan untuk rating & struk digital", cx, qy + 104);
+
+    return new THREE.CanvasTexture(cv);
+  };
+
+  const initThree = () => {
+    renderer = new THREE.WebGLRenderer({
+      canvas, antialias: true, alpha: true, powerPreference: "high-performance",
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
+    renderer.localClippingEnabled = true; // untuk efek struk "tercetak"
+
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 60);
+    camera.position.set(0, 0.25, 6.4);
+
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.06).texture;
+    disposables.push(pmrem);
+
+    // Cahaya
+    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+    const key = new THREE.DirectionalLight(0xffffff, 1.6);
+    key.position.set(4, 7, 6); scene.add(key);
+    const rim = new THREE.PointLight(0x34d399, 40, 24); rim.position.set(-4.5, 2.5, -3); scene.add(rim);
+    const warm = new THREE.PointLight(0xf59e0b, 22, 18); warm.position.set(3.5, -2.5, 3.5); scene.add(warm);
+
+    rig = new THREE.Group();
+    spin = new THREE.Group();
+    rig.add(spin);
+    scene.add(rig);
+
+    /* ---- Badan mesin kasir ---- */
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x2a3344, metalness: 0.55, roughness: 0.35 });
+    const darkMat = new THREE.MeshStandardMaterial({ color: 0x0e1420, metalness: 0.4, roughness: 0.5 });
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0x34d399 }); glowMat.toneMapped = false;
+    const amberMat = new THREE.MeshBasicMaterial({ color: 0xfbbf24 }); amberMat.toneMapped = false;
+
+    const plinth = new THREE.Mesh(roundedBoxGeo(2.4, 0.12, 1.6, 0.05), darkMat);
+    plinth.position.y = -0.4;
+    const body = new THREE.Mesh(roundedBoxGeo(2.15, 0.52, 1.35, 0.1), bodyMat);
+    body.position.y = -0.08;
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.045, 0.02), glowMat);
+    strip.position.set(0, -0.08, 0.685);
+
+    // Layar miring
+    const slab = new THREE.Group();
+    slab.position.set(0, 0.62, -0.38);
+    slab.rotation.x = -0.18;
+    const slabMesh = new THREE.Mesh(
+      roundedBoxGeo(1.62, 1.02, 0.14, 0.08),
+      new THREE.MeshStandardMaterial({ color: 0x161d2b, metalness: 0.6, roughness: 0.3 })
     );
-    sheet.position.set(i * 0.012, i * 0.012, i * 0.02);
-    sheet.rotation.z = (i - 1.5) * 0.06;
-    g.add(sheet);
-  });
-  return g;
-}
+    screenCanvas = document.createElement("canvas");
+    screenCanvas.width = SW; screenCanvas.height = SH;
+    screenBase = document.createElement("canvas");
+    screenBase.width = SW; screenBase.height = SH;
+    drawScreenBase();
+    screenTex = new THREE.CanvasTexture(screenCanvas);
+    screenTex.colorSpace = THREE.SRGBColorSpace;
+    screenTex.anisotropy = 4;
+    const screenMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.42, 0.82),
+      new THREE.MeshBasicMaterial({ map: screenTex })
+    );
+    (screenMesh.material as THREE.MeshBasicMaterial).toneMapped = false;
+    screenMesh.position.z = 0.085;
+    slab.add(slabMesh, screenMesh);
 
-function makeRuler(): THREE.Group {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(1.1, 0.18, 0.02),
-    new THREE.MeshStandardMaterial({ color: 0x7DD3FC, roughness: 0.25, metalness: 0.1, transparent: true, opacity: 0.85 })
-  );
-  g.add(body);
-  const tickMat = new THREE.MeshBasicMaterial({ color: 0x0A2E2A });
-  for (let i = -5; i <= 5; i++) {
-    const tick = new THREE.Mesh(new THREE.BoxGeometry(0.008, i % 5 === 0 ? 0.09 : 0.05, 0.001), tickMat);
-    tick.position.set(i * 0.1, 0.045, 0.011);
-    g.add(tick);
-  }
-  g.rotation.z = Math.PI / 9;
-  return g;
-}
-
-function makeScissors(): THREE.Group {
-  const g = new THREE.Group();
-  const bladeMat = new THREE.MeshStandardMaterial({ color: 0xD1D5DB, roughness: 0.2, metalness: 0.9 });
-  const handleMat = new THREE.MeshStandardMaterial({ color: 0x059669, roughness: 0.5 });
-  [1, -1].forEach((dir) => {
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.55, 0.015), bladeMat);
-    blade.position.set(dir * 0.05, 0.28, 0);
-    blade.rotation.z = dir * 0.12;
-    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.025, 10, 24), handleMat);
-    handle.position.set(dir * 0.12, -0.16, 0);
-    g.add(blade, handle);
-  });
-  const pivot = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.05, 12), bladeMat);
-  pivot.rotation.x = Math.PI / 2;
-  g.add(pivot);
-  return g;
-}
-
-function makeCalculator(): THREE.Group {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(0.56, 0.78, 0.06),
-    new THREE.MeshStandardMaterial({ color: 0x1F2937, roughness: 0.45, metalness: 0.2 })
-  );
-  const screen = new THREE.Mesh(
-    new THREE.BoxGeometry(0.44, 0.16, 0.02),
-    new THREE.MeshStandardMaterial({ color: 0xA7F3D0, roughness: 0.2, emissive: 0x065F46, emissiveIntensity: 0.35 })
-  );
-  screen.position.set(0, 0.26, 0.035);
-  g.add(body, screen);
-  const btnMat = new THREE.MeshStandardMaterial({ color: 0x4B5563, roughness: 0.6 });
-  const btnAccent = new THREE.MeshStandardMaterial({ color: 0x5EEAD4, roughness: 0.5 });
-  for (let r = 0; r < 4; r++) {
-    for (let c = 0; c < 3; c++) {
-      const btn = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.09, 0.02), c === 2 && r === 3 ? btnAccent : btnMat);
-      btn.position.set((c - 1) * 0.15, 0.02 - r * 0.13, 0.035);
-      g.add(btn);
+    // Tombol keypad
+    const keyGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.03, 20);
+    for (let r = 0; r < 2; r++) {
+      for (let c = 0; c < 3; c++) {
+        const isGreen = r === 0 && c === 2;
+        const k = new THREE.Mesh(keyGeo, isGreen ? glowMat : darkMat);
+        k.position.set(-0.28 + c * 0.28, 0.2, 0.28 + r * 0.22);
+        spin.add(k);
+      }
     }
-  }
-  return g;
-}
 
-function makePhone(): THREE.Group {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(0.42, 0.84, 0.05),
-    new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.35, metalness: 0.6 })
-  );
-  const screen = new THREE.Mesh(
-    new THREE.BoxGeometry(0.37, 0.76, 0.01),
-    new THREE.MeshStandardMaterial({ color: 0x0A2E2A, roughness: 0.15, emissive: 0x5EEAD4, emissiveIntensity: 0.22 })
-  );
-  screen.position.z = 0.03;
-  const cam = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.03, 0.03, 0.012, 16),
-    new THREE.MeshStandardMaterial({ color: 0x052220, roughness: 0.2, metalness: 0.8 })
-  );
-  cam.rotation.x = Math.PI / 2;
-  cam.position.set(-0.12, 0.32, -0.031);
-  g.add(body, screen, cam);
-  return g;
-}
+    // Slot struk + struk yang menggantung
+    const slot = new THREE.Mesh(roundedBoxGeo(0.66, 0.07, 0.12, 0.03), darkMat);
+    slot.position.set(0, 0.235, 0.6);
+    const slit = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.014, 0.02), glowMat);
+    slit.position.set(0, 0.235, 0.665);
 
-function makeMonitor(): THREE.Group {
-  const g = new THREE.Group();
-  const frame = new THREE.Mesh(
-    new THREE.BoxGeometry(1.05, 0.66, 0.05),
-    new THREE.MeshStandardMaterial({ color: 0x1F2937, roughness: 0.4, metalness: 0.5 })
-  );
-  const screen = new THREE.Mesh(
-    new THREE.BoxGeometry(0.96, 0.57, 0.01),
-    new THREE.MeshStandardMaterial({ color: 0x082824, roughness: 0.15, emissive: 0x5EEAD4, emissiveIntensity: 0.3 })
-  );
-  screen.position.z = 0.03;
-  const standMat = new THREE.MeshStandardMaterial({ color: 0x374151, roughness: 0.5, metalness: 0.6 });
-  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.22, 0.06), standMat);
-  neck.position.y = -0.44;
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 0.03, 24), standMat);
-  base.position.y = -0.56;
-  g.add(frame, screen, neck, base);
-  return g;
-}
-
-function makeKeyboard(): THREE.Group {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(1.15, 0.38, 0.05),
-    new THREE.MeshStandardMaterial({ color: 0xE5E7EB, roughness: 0.6 })
-  );
-  g.add(body);
-  const keyMat = new THREE.MeshStandardMaterial({ color: 0x9CA3AF, roughness: 0.7 });
-  for (let r = 0; r < 3; r++) {
-    for (let c = 0; c < 10; c++) {
-      const key = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.085, 0.02), keyMat);
-      key.position.set((c - 4.5) * 0.105, (1 - r) * 0.105, 0.035);
-      g.add(key);
+    receiptPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.14);
+    const rGeo = new THREE.PlaneGeometry(0.58, 1.82, 6, 30);
+    const rPos = rGeo.attributes.position;
+    for (let i = 0; i < rPos.count; i++) {
+      const y = rPos.getY(i);
+      rPos.setZ(i, Math.sin(y * 4) * 0.015 + y * y * 0.008);
     }
-  }
-  g.rotation.x = -Math.PI / 14;
-  return g;
-}
-
-function makeHeadphones(): THREE.Group {
-  const g = new THREE.Group();
-  const band = new THREE.Mesh(
-    new THREE.TorusGeometry(0.3, 0.035, 12, 32, Math.PI),
-    new THREE.MeshStandardMaterial({ color: 0x0F766E, roughness: 0.4, metalness: 0.3 })
-  );
-  band.position.y = 0.05;
-  g.add(band);
-  const cupMat = new THREE.MeshStandardMaterial({ color: 0x052E2B, roughness: 0.5 });
-  [-1, 1].forEach((dir) => {
-    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.09, 20), cupMat);
-    cup.rotation.z = Math.PI / 2;
-    cup.position.set(dir * 0.3, -0.02, 0);
-    g.add(cup);
-  });
-  return g;
-}
-
-function makeBarcodeScanner(): THREE.Group {
-  const g = new THREE.Group();
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.4, metalness: 0.4 });
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.18, 0.16), bodyMat);
-  head.position.y = 0.22;
-  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.4, 16), bodyMat);
-  handle.position.y = -0.05;
-  handle.rotation.x = 0.25;
-  const lens = new THREE.Mesh(
-    new THREE.BoxGeometry(0.26, 0.02, 0.02),
-    new THREE.MeshStandardMaterial({ color: 0xEF4444, roughness: 0.1, emissive: 0xEF4444, emissiveIntensity: 0.9 })
-  );
-  lens.position.set(0, 0.22, 0.09);
-  g.add(head, handle, lens);
-  g.rotation.z = Math.PI / 7;
-  return g;
-}
-
-function makeCoin(): THREE.Group {
-  const g = new THREE.Group();
-  const coin = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.16, 0.16, 0.03, 28),
-    new THREE.MeshStandardMaterial({ color: 0xFCD34D, roughness: 0.25, metalness: 0.9, emissive: 0x3B2A04, emissiveIntensity: 0.25 })
-  );
-  coin.rotation.x = Math.PI / 2.4;
-  g.add(coin);
-  return g;
-}
-
-function initThreeScene(canvas: HTMLCanvasElement, mouseRef: { x: number; y: number }) {
-  const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x0A2E2A, 0.02);
-
-  const camera = new THREE.PerspectiveCamera(60, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
-  camera.position.set(0, 0, 9);
-
-  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-  renderer.setSize(canvas.clientWidth, canvas.clientHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.1;
-
-  const accent = 0x5EEAD4;
-  scene.add(new THREE.AmbientLight(0xffffff, 0.75));
-
-  const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
-  keyLight.position.set(4, 6, 8);
-  scene.add(keyLight);
-
-  const rimLight = new THREE.PointLight(accent, 60, 20, 1.4);
-  rimLight.position.set(-6, 3, 4);
-  scene.add(rimLight);
-
-  const fillLight = new THREE.PointLight(0xF3F1E7, 25, 18, 1.5);
-  fillLight.position.set(5, -4, 6);
-  scene.add(fillLight);
-
-  // Product cloud — barang ATK + elektronik
-  const cloud = new THREE.Group();
-  cloud.name = "product-cloud";
-  scene.add(cloud);
-
-  const factories: Array<() => THREE.Object3D> = [
-    makePencil,
-    () => makePen(0x2563EB),
-    () => makePen(0xDC2626),
-    makeNotebook,
-    makeStickyNotes,
-    makeRuler,
-    makeScissors,
-    makeCalculator,
-    makePhone,
-    makeMonitor,
-    makeKeyboard,
-    makeHeadphones,
-    makeBarcodeScanner,
-    makeCoin,
-  ];
-
-  const items: ProductItem[] = [];
-  const isMobile = window.innerWidth < 768;
-  const count = isMobile ? 10 : 18;
-
-  for (let i = 0; i < count; i++) {
-    const mesh = factories[i % factories.length]();
-    const angle = (i / count) * Math.PI * 2 + Math.random() * 0.6;
-    const radiusX = 2.6 + Math.random() * 3.4;
-    const x = Math.cos(angle) * radiusX;
-    const y = (Math.random() - 0.5) * 7.5;
-    const z = -1.5 + Math.random() * 4 - Math.abs(x) * 0.15;
-    mesh.position.set(x, y, z);
-    mesh.scale.setScalar(0.75 + Math.random() * 0.7);
-    const rx = Math.random() * Math.PI;
-    const ry = Math.random() * Math.PI;
-    const rz = Math.random() * Math.PI;
-    mesh.rotation.set(rx, ry, rz);
-    cloud.add(mesh);
-    items.push({
-      mesh,
-      baseX: x,
-      baseY: y,
-      baseRotX: rx,
-      baseRotY: ry,
-      baseRotZ: rz,
-      bobAmp: 0.12 + Math.random() * 0.22,
-      bobSpeed: 0.4 + Math.random() * 0.7,
-      bobPhase: Math.random() * Math.PI * 2,
-      spinX: (Math.random() - 0.5) * 0.5,
-      spinY: (Math.random() - 0.5) * 0.6,
-      fallFactor: 0.9 + Math.random() * 1.6,
+    rGeo.translate(0, -0.91, 0);
+    rGeo.computeVertexNormals();
+    const rMat = new THREE.MeshBasicMaterial({
+      map: drawReceiptTexture(), side: THREE.DoubleSide,
     });
-  }
+    rMat.toneMapped = false;
+    rMat.clippingPlanes = [receiptPlane];
+    receiptMesh = new THREE.Mesh(rGeo, rMat);
+    receiptMesh.position.set(0, 0.24, 0.66);
+    receiptMesh.rotation.x = -0.06;
 
-  // Particles — debu halus
-  const particlesCount = isMobile ? 120 : 240;
-  const positions = new Float32Array(particlesCount * 3);
-  for (let i = 0; i < particlesCount; i++) {
-    positions[i * 3] = (Math.random() - 0.5) * 18;
-    positions[i * 3 + 1] = (Math.random() - 0.5) * 12;
-    positions[i * 3 + 2] = (Math.random() - 0.5) * 8;
-  }
-  const particlesGeo = new THREE.BufferGeometry();
-  particlesGeo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  const particlesMat = new THREE.PointsMaterial({
-    size: 0.035,
-    color: accent,
-    transparent: true,
-    opacity: 0.5,
-    sizeAttenuation: true,
-  });
-  const particles = new THREE.Points(particlesGeo, particlesMat);
-  scene.add(particles);
+    // Card reader samping
+    const reader = new THREE.Mesh(roundedBoxGeo(0.14, 0.34, 0.55, 0.05), bodyMat);
+    reader.position.set(-1.16, 0.02, 0.15);
+    const rLight = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.05, 0.3), amberMat);
+    rLight.position.set(-1.235, 0.1, 0.15);
 
-  // Scroll tracking — barang ikut jatuh ngikutin scroll
-  let scrollY = window.scrollY;
-  let smoothScroll = scrollY;
-  const onScroll = () => {
-    scrollY = window.scrollY;
-  };
-  window.addEventListener("scroll", onScroll, { passive: true });
+    spin.add(plinth, body, strip, slab, slot, slit, receiptMesh, reader, rLight);
 
-  // Animation loop
-  let animationId: number;
-  const clock = new THREE.Clock();
-  const mouseTarget = { x: mouseRef.x, y: mouseRef.y };
-
-  const animate = () => {
-    animationId = requestAnimationFrame(animate);
-
-    // Hemat GPU: skip render kalau hero sudah lewat viewport
-    const rect = canvas.getBoundingClientRect();
-    if (rect.bottom < -50) return;
-
-    const elapsed = clock.getElapsedTime();
-    mouseTarget.x += (mouseRef.x - mouseTarget.x) * 0.06;
-    mouseTarget.y += (mouseRef.y - mouseTarget.y) * 0.06;
-    smoothScroll += (scrollY - smoothScroll) * 0.08;
-
-    const scrollUnits = smoothScroll / Math.max(window.innerHeight, 1);
-
-    items.forEach((it) => {
-      const bob = Math.sin(elapsed * it.bobSpeed + it.bobPhase) * it.bobAmp;
-      it.mesh.position.y = it.baseY + bob - scrollUnits * it.fallFactor * 2.4;
-      it.mesh.position.x = it.baseX + mouseTarget.x * 0.2 * it.fallFactor;
-      it.mesh.rotation.x = it.baseRotX + elapsed * it.spinX * 0.3 + scrollUnits * it.fallFactor * 0.9;
-      it.mesh.rotation.y = it.baseRotY + elapsed * it.spinY * 0.3;
-      it.mesh.rotation.z = it.baseRotZ + scrollUnits * it.fallFactor * 0.35;
-    });
-
-    particles.rotation.y = elapsed * 0.02 + mouseTarget.x * 0.1;
-    particles.position.y = -scrollUnits * 0.8;
-
-    cloud.rotation.y = mouseTarget.x * 0.12;
-    cloud.rotation.x = -mouseTarget.y * 0.08;
-
-    camera.position.y = -scrollUnits * 0.6;
-    camera.lookAt(0, camera.position.y * 0.5, 0);
-
-    renderer.render(scene, camera);
-  };
-  animate();
-
-  const handleResize = () => {
-    const w = canvas.clientWidth;
-    const h = canvas.clientHeight;
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
-    renderer.setSize(w, h);
-  };
-  window.addEventListener("resize", handleResize);
-
-  const dispose = (obj: THREE.Object3D | undefined) => {
-    if (!obj) return;
-    obj.traverse((child) => {
-      const c = child as any;
-      if (c.geometry) c.geometry.dispose();
-      if (c.material) {
-        const mats = Array.isArray(c.material) ? c.material : [c.material];
-        mats.forEach((m: any) => m.dispose());
-      }
-    });
-  };
-
-  return {
-    destroy: () => {
-      cancelAnimationFrame(animationId);
-      window.removeEventListener("resize", handleResize);
-      window.removeEventListener("scroll", onScroll);
-      dispose(cloud);
-      dispose(particles);
-      renderer.dispose();
-    },
-  };
-}
-
-// ------------------------------------------------------------------
-// UI Primitives
-// ------------------------------------------------------------------
-function TiltCard(props: TiltCardProps) {
-  let ref: HTMLDivElement | undefined;
-  const intensity = props.intensity ?? 10;
-
-  onMount(() => {
-    const el = ref;
-    if (!el) return;
-    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefersReduced) return;
-
-    const handleMove = (e: MouseEvent) => {
-      const rect = el.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width - 0.5;
-      const y = (e.clientY - rect.top) / rect.height - 0.5;
-      gsap.to(el, {
-        rotateY: x * intensity,
-        rotateX: -y * intensity,
-        duration: 0.4,
-        ease: "power2.out",
-        transformPerspective: 1000,
+    /* ---- Koin emas & kotak produk mengorbit ---- */
+    const coinGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.035, 40);
+    const coinMat = new THREE.MeshStandardMaterial({ color: 0xf7c948, metalness: 1, roughness: 0.18 });
+    const boxColors = [0x0d9488, 0xf59e0b, 0x334155];
+    for (let i = 0; i < 8; i++) {
+      const isBox = i >= 6;
+      const mesh = isBox
+        ? new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.3, 0.22),
+          new THREE.MeshStandardMaterial({ color: boxColors[i - 6], metalness: 0.3, roughness: 0.45 }))
+        : new THREE.Mesh(coinGeo, coinMat);
+      spin.add(mesh);
+      orbiters.push({
+        mesh, r: 1.5 + Math.random() * 0.55, a: (i / 8) * Math.PI * 2 + Math.random() * 0.5,
+        speed: 0.22 + Math.random() * 0.3, y: -0.7 + Math.random() * 1.7,
+        bobS: 0.7 + Math.random(), bobA: 0.08 + Math.random() * 0.16,
+        rotS: 0.8 + Math.random() * 1.4, ph: Math.random() * 6.28,
       });
-    };
+    }
 
-    const handleLeave = () => {
-      gsap.to(el, {
-        rotateY: 0,
-        rotateX: 0,
-        duration: 0.6,
-        ease: "elastic.out(1, 0.5)",
+    // Kartu debit melayang
+    cardGroup = new THREE.Group();
+    const cardBody = new THREE.Mesh(
+      roundedBoxGeo(0.55, 0.34, 0.025, 0.05),
+      new THREE.MeshStandardMaterial({ color: 0x0f766e, metalness: 0.35, roughness: 0.4 })
+    );
+    const cardStripe = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.06, 0.012), amberMat);
+    cardStripe.position.y = 0.1;
+    const cardChip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.07, 0.015), coinMat);
+    cardChip.position.set(-0.15, -0.03, 0.015);
+    cardGroup.add(cardBody, cardStripe, cardChip);
+    cardGroup.position.set(1.35, 0.95, -0.5);
+    spin.add(cardGroup);
+
+    // Cincin orbit (pandu mata)
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0x34d399, transparent: true, opacity: 0.13,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    ringMat.toneMapped = false;
+    const ring1 = new THREE.Mesh(new THREE.TorusGeometry(1.6, 0.005, 8, 128), ringMat);
+    ring1.rotation.x = Math.PI / 2; ring1.rotation.z = 0.1;
+    const ring2 = new THREE.Mesh(new THREE.TorusGeometry(2.05, 0.004, 8, 128), ringMat.clone());
+    (ring2.material as THREE.MeshBasicMaterial).opacity = 0.07;
+    ring2.rotation.x = Math.PI / 2; ring2.rotation.z = -0.06;
+    spin.add(ring1, ring2);
+
+    /* ---- Partikel debu atmosferik ---- */
+    const spriteCv = document.createElement("canvas");
+    spriteCv.width = spriteCv.height = 64;
+    const sc = spriteCv.getContext("2d")!;
+    const grad = sc.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, "rgba(255,255,255,1)");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+    sc.fillStyle = grad; sc.fillRect(0, 0, 64, 64);
+    const spriteTex = new THREE.CanvasTexture(spriteCv);
+
+    const pCount = 170;
+    const pos = new Float32Array(pCount * 3);
+    for (let i = 0; i < pCount; i++) {
+      pos[i * 3] = (Math.random() - 0.5) * 12;
+      pos[i * 3 + 1] = (Math.random() - 0.5) * 7;
+      pos[i * 3 + 2] = -3 + Math.random() * 5;
+      pSpeeds.push(0.08 + Math.random() * 0.22);
+    }
+    const pGeo = new THREE.BufferGeometry();
+    pGeo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    particles = new THREE.Points(pGeo, new THREE.PointsMaterial({
+      size: 0.055, map: spriteTex, transparent: true, opacity: 0.5,
+      color: 0x6ee7b7, blending: THREE.AdditiveBlending, depthWrite: false,
+    }));
+    scene.add(particles);
+
+    // Redraw tekstur setelah webfont siap
+    document.fonts?.ready.then(() => { drawScreenBase(); });
+  };
+
+  /* ================================================================
+   * MOUNT — Lenis, GSAP, interaksi
+   * =============================================================== */
+  onMount(() => {
+    /* Font display (Space Grotesk) + body (Plus Jakarta Sans — font karya desainer Indonesia) */
+    fontLink = document.createElement("link");
+    fontLink.rel = "stylesheet";
+    fontLink.href =
+      "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap";
+    document.head.appendChild(fontLink);
+
+    /* Lenis smooth scroll + sinkronisasi GSAP */
+    lenis = new Lenis({ lerp: 0.1, smoothWheel: true });
+    lenis.on("scroll", (e: any) => {
+      ScrollTrigger.update();
+      setScrolled((e.scroll ?? 0) > 40);
+    });
+    gsap.ticker.lagSmoothing(0);
+
+    initThree();
+
+    /* Render loop utama: Lenis + Three.js dalam satu ticker */
+    tickFn = (time: number, deltaMs: number) => {
+      lenis?.raf(time * 1000);
+      if (!renderer) return;
+      const t = time;
+      const dt = Math.min(deltaMs / 1000, 0.05);
+      const vel = lenis?.velocity ?? 0;
+
+      // Parallax kamera mengikuti mouse
+      mouse.x += (mouse.tx - mouse.x) * 0.05;
+      mouse.y += (mouse.ty - mouse.y) * 0.05;
+      camera.position.x = mouse.x * 0.45;
+      camera.position.y = 0.25 - mouse.y * 0.3;
+      camera.position.z = 6.4 + Math.sin(t * 0.2) * 0.07;
+      camera.lookAt(0, 0.15, 0);
+
+      // Rig: posisi & skala dari preset section (di-tween GSAP)
+      rig.position.set(modelState.x, modelState.y + Math.sin(t * 1.1) * 0.07, 0);
+      const s = modelState.scale;
+      rig.scale.set(s, s, s);
+
+      // Spin: rotasi kontinu + ekstra dari progres scroll ⭐
+      spin.rotation.y = t * 0.1 + scrollState.progress * Math.PI * 4.5;
+      spin.rotation.x = modelState.rx + Math.sin(t * 0.6) * 0.04;
+
+      // Orbiter (koin & kotak) — makin cepat saat scroll ngebut
+      const boost = 1 + Math.min(Math.abs(vel), 4) * 0.35;
+      orbiters.forEach((o, i) => {
+        o.a += o.speed * dt * boost;
+        o.mesh.position.set(
+          Math.cos(o.a) * o.r,
+          o.y + Math.sin(t * o.bobS + o.ph) * o.bobA,
+          Math.sin(o.a) * o.r
+        );
+        o.mesh.rotation.x = t * o.rotS + i;
+        o.mesh.rotation.y = t * (o.rotS * 0.7) + i * 0.7;
       });
-    };
 
-    el.addEventListener("mousemove", handleMove);
-    el.addEventListener("mouseleave", handleLeave);
-    onCleanup(() => {
-      el.removeEventListener("mousemove", handleMove);
-      el.removeEventListener("mouseleave", handleLeave);
-    });
-  });
+      // Kartu melayang
+      cardGroup.position.y = 0.95 + Math.sin(t * 0.9) * 0.1;
+      cardGroup.rotation.y = t * 0.45;
+      cardGroup.rotation.z = Math.sin(t * 0.6) * 0.15;
 
-  return (
-    <div
-      ref={ref}
-      class={`transform-gpu ${props.class ?? ""}`}
-      style={{ "transform-style": "preserve-3d" }}
-    >
-      {props.children}
-    </div>
-  );
-}
+      // Struk "tercetak" seiring progres scroll (clipping plane)
+      const target = THREE.MathUtils.clamp(0.14 + scrollState.progress * 2.6, 0.14, 1.82);
+      receiptPrinted += (target - receiptPrinted) * 0.06;
+      const top = modelState.y + 0.24 * modelState.scale;
+      receiptPlane.constant = receiptPrinted * modelState.scale - top;
+      receiptMesh.rotation.z = Math.sin(t * 1.4) * 0.05;
 
-function MagneticButton(props: MagneticProps) {
-  let ref: HTMLDivElement | undefined;
-  const strength = props.strength ?? 0.4;
+      // Scanline layar POS
+      updateScreen(t);
 
-  onMount(() => {
-    const el = ref;
-    if (!el) return;
-    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefersReduced) return;
-
-    const handleMove = (e: MouseEvent) => {
-      const rect = el.getBoundingClientRect();
-      const x = e.clientX - rect.left - rect.width / 2;
-      const y = e.clientY - rect.top - rect.height / 2;
-      gsap.to(el, { x: x * strength, y: y * strength, duration: 0.3, ease: "power2.out" });
-    };
-
-    const handleLeave = () => {
-      gsap.to(el, { x: 0, y: 0, duration: 0.5, ease: "elastic.out(1, 0.3)" });
-    };
-
-    el.addEventListener("mousemove", handleMove);
-    el.addEventListener("mouseleave", handleLeave);
-    onCleanup(() => {
-      el.removeEventListener("mousemove", handleMove);
-      el.removeEventListener("mouseleave", handleLeave);
-    });
-  });
-
-  return (
-    <div ref={ref} class={`inline-block ${props.class ?? ""}`} data-magnetic>
-      {props.children}
-    </div>
-  );
-}
-
-function StarRating(props: { rating: number }) {
-  return (
-    <div class="flex items-center gap-1">
-      <For each={Array.from({ length: 5 })}>{(_, i) => (
-        <Star
-          size={16}
-          class={i() < props.rating ? "fill-[#F3F1E7] text-[#F3F1E7]" : "text-[#B9CFC9]"}
-        />
-      )}</For>
-    </div>
-  );
-}
-
-// ------------------------------------------------------------------
-// Liquid Glass Navbar — gaya iOS, minimized saat scroll, reveal on hover
-// ------------------------------------------------------------------
-function LiquidGlassNav() {
-  const [minimized, setMinimized] = createSignal(false);
-  const [hovered, setHovered] = createSignal(false);
-  let hideTimer: ReturnType<typeof setTimeout> | undefined;
-
-  const links = (landingData.navbar?.links ?? []) as Array<{ label: string; href: string; active?: boolean }>;
-  const loginLabel = landingData.navbar?.loginLabel ?? "Masuk Toko";
-
-  onMount(() => {
-    const onScroll = () => {
-      const past = window.scrollY > 90;
-      if (past && !hovered()) setMinimized(true);
-      else if (!past) setMinimized(false);
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onCleanup(() => window.removeEventListener("scroll", onScroll));
-  });
-
-  const handleEnter = () => {
-    if (hideTimer) clearTimeout(hideTimer);
-    setHovered(true);
-    setMinimized(false);
-  };
-
-  const handleLeave = () => {
-    setHovered(false);
-    if (window.scrollY > 90) hideTimer = setTimeout(() => setMinimized(true), 250);
-  };
-
-  return (
-    <div
-      class="fixed left-1/2 top-4 z-[90] -translate-x-1/2"
-      onMouseEnter={handleEnter}
-      onMouseLeave={handleLeave}
-    >
-      {/* Padding transparan = hit area lebar walau lagi minimized */}
-      <div class="p-3">
-        <nav
-          class={`flex items-center overflow-hidden border backdrop-blur-2xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-            minimized()
-              ? "h-10 rounded-full border-white/10 bg-white/5 px-2 opacity-70 shadow-lg shadow-black/20"
-              : "h-12 gap-1 rounded-full border-white/15 bg-white/10 px-3 opacity-100 shadow-2xl shadow-black/30"
-          }`}
-          style={{ "backdrop-filter": "blur(24px) saturate(1.6)", "-webkit-backdrop-filter": "blur(24px) saturate(1.6)" }}
-        >
-          {/* Logo dot — selalu kelihatan, bahkan saat minimized */}
-          <A href="/" class="flex shrink-0 items-center gap-2 px-1.5">
-            <span class="grid h-6 w-6 place-items-center rounded-full bg-[#5EEAD4] text-[11px] font-black text-[#0A2E2A] shadow-[0_0_12px_#5EEAD4aa]">
-              K
-            </span>
-            <Show when={!minimized()}>
-              <span class="font-['Space_Grotesk'] text-sm font-bold tracking-wide text-[#F3F1E7]">KasirGO</span>
-            </Show>
-          </A>
-
-          <Show when={!minimized()}>
-            <span class="mx-1 h-5 w-px bg-white/10" />
-            <For each={links}>
-              {(link) => (
-                <A
-                  href={link.href}
-                  class={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    link.active
-                      ? "bg-white/10 text-[#5EEAD4]"
-                      : "text-[#B9CFC9] hover:bg-white/10 hover:text-[#F3F1E7]"
-                  }`}
-                >
-                  {link.label}
-                </A>
-              )}
-            </For>
-
-            <A
-              href="/login"
-              class="ml-1 shrink-0 rounded-full bg-[#5EEAD4] px-4 py-1.5 text-xs font-bold text-[#0A2E2A] transition hover:brightness-95 hover:shadow-[0_0_16px_#5EEAD4aa]"
-            >
-              {loginLabel}
-            </A>
-          </Show>
-
-          {/* Hint kecil saat minimized */}
-          <Show when={minimized()}>
-            <ChevronRight size={14} class="ml-0.5 text-[#5EEAD4]/70" />
-          </Show>
-        </nav>
-      </div>
-    </div>
-  );
-}
-
-// ------------------------------------------------------------------
-// Scroll Progress
-// ------------------------------------------------------------------
-function ScrollProgress() {
-  let progressRef: HTMLDivElement | undefined;
-
-  onMount(() => {
-    if (!progressRef) return;
-    gsap.to(progressRef, {
-      scaleX: 1,
-      ease: "none",
-      scrollTrigger: {
-        trigger: document.body,
-        start: "top top",
-        end: "bottom bottom",
-        scrub: 0.3,
-      },
-    });
-  });
-
-  return (
-    <div class="fixed top-0 left-0 z-[100] h-[2px] w-full bg-transparent">
-      <div
-        ref={progressRef}
-        class="h-full origin-left bg-[#5EEAD4] shadow-[0_0_10px_#5EEAD4]"
-        style={{ transform: "scaleX(0)" }}
-      />
-    </div>
-  );
-}
-
-// ------------------------------------------------------------------
-// Custom Cursor
-// ------------------------------------------------------------------
-function CustomCursor() {
-  let cursorRef: HTMLDivElement | undefined;
-  let glowRef: HTMLDivElement | undefined;
-
-  onMount(() => {
-    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefersReduced || window.innerWidth < 768) return;
-
-    const moveCursor = (e: MouseEvent) => {
-      if (cursorRef && glowRef) {
-        gsap.to(cursorRef, { x: e.clientX, y: e.clientY, duration: 0.08, ease: "power2.out" });
-        gsap.to(glowRef, { x: e.clientX, y: e.clientY, duration: 0.15, ease: "power2.out" });
+      // Partikel naik perlahan
+      const pp = particles.geometry.attributes.position as THREE.BufferAttribute;
+      for (let i = 0; i < pSpeeds.length; i++) {
+        let y = pp.getY(i) + pSpeeds[i] * dt;
+        if (y > 3.6) y = -3.6;
+        pp.setY(i, y);
       }
+      pp.needsUpdate = true;
+
+      renderer.render(scene, camera);
     };
+    gsap.ticker.add(tickFn);
 
-    const handleMouseOver = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.closest("a, button, [data-magnetic]")) {
-        gsap.to(cursorRef, { scale: 2.5, duration: 0.3 });
-        gsap.to(glowRef, { scale: 1.5, opacity: 0.6, duration: 0.3 });
-      }
-    };
-
-    const handleMouseOut = () => {
-      gsap.to(cursorRef, { scale: 1, duration: 0.3 });
-      gsap.to(glowRef, { scale: 1, opacity: 0.3, duration: 0.3 });
-    };
-
-    window.addEventListener("mousemove", moveCursor);
-    document.addEventListener("mouseover", handleMouseOver);
-    document.addEventListener("mouseout", handleMouseOut);
-
-    onCleanup(() => {
-      window.removeEventListener("mousemove", moveCursor);
-      document.removeEventListener("mouseover", handleMouseOver);
-      document.removeEventListener("mouseout", handleMouseOut);
-    });
-  });
-
-  return (
-    <>
-      <div
-        ref={cursorRef}
-        class="pointer-events-none fixed top-0 left-0 z-[9999] hidden h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#5EEAD4] mix-blend-difference md:block"
-        style={{ "will-change": "transform" }}
-      />
-      <div
-        ref={glowRef}
-        class="pointer-events-none fixed top-0 left-0 z-[9998] hidden h-32 w-32 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#5EEAD4] opacity-30 blur-3xl md:block"
-        style={{ "will-change": "transform" }}
-      />
-    </>
-  );
-}
-
-// ------------------------------------------------------------------
-// Animations registry for sections
-// ------------------------------------------------------------------
-function useScrollReveal() {
-  onMount(() => {
-    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefersReduced) return;
-
-    gsap.utils.toArray("[data-reveal]").forEach((el) => {
-      gsap.fromTo(
-        el,
-        { y: 40, opacity: 0 },
-        {
-          y: 0,
-          opacity: 1,
-          duration: 0.9,
-          ease: "power3.out",
-          scrollTrigger: {
-            trigger: el as any,
-            start: "top 88%",
-            toggleActions: "play none none reverse",
-          },
-        }
-      );
-    });
-
-    gsap.utils.toArray("[data-parallax]").forEach((el) => {
-      gsap.to(el, {
-        y: -40,
-        ease: "none",
-        scrollTrigger: {
-          trigger: el as any,
-          start: "top bottom",
-          end: "bottom top",
-          scrub: 0.6,
+    /* ---- GSAP: semua trigger dibungkus context agar aman saat unmount ---- */
+    ctx = gsap.context(() => {
+      // HUD progres scroll 1–100% (bar tipis di paling atas)
+      ScrollTrigger.create({
+        start: 0,
+        end: "max",
+        onUpdate: (self) => {
+          scrollState.progress = self.progress;
+          progressBar.style.transform = `scaleX(${self.progress})`;
+          progressPct.textContent = `${Math.round(self.progress * 100)}%`;
         },
       });
+
+      // Preset posisi model per-section (model fixed, "pindah panggung")
+      ["hero", "fitur", "statistik", "solusi", "langkah", "testimoni", "cta"].forEach((id) => {
+        ScrollTrigger.create({
+          trigger: `#${id}`,
+          start: "top 60%",
+          end: "bottom 40%",
+          onEnter: () => applyPreset(id),
+          onEnterBack: () => applyPreset(id),
+        });
+      });
+
+      // Intro hero: model muncul dari bawah + tipografi masuk baris demi baris
+      gsap.to(modelState, {
+        y: PRESETS.hero.y, scale: PRESETS.hero.scale,
+        duration: 1.9, ease: "expo.out", delay: 0.35,
+      });
+      gsap.timeline({ delay: 0.15 })
+        .from(".hero-line", { yPercent: 115, duration: 1.15, stagger: 0.1, ease: "power4.out" })
+        .from(".hero-fade", { y: 26, opacity: 0, duration: 0.9, stagger: 0.08, ease: "power3.out" }, "-=0.7")
+        .from(".nav-anim", { y: -16, opacity: 0, duration: 0.7, stagger: 0.05, ease: "power3.out" }, 0.2);
+
+      // Chip melayang di hero (yoyo loop)
+      qa(".float-chip").forEach((el, i) => {
+        gsap.to(el, { y: 10 + i * 5, duration: 2.4 + i * 0.5, yoyo: true, repeat: -1, ease: "sine.inOut" });
+      });
+
+      // Reveal generik
+      qa("[data-reveal]").forEach((el) => {
+        gsap.fromTo(el, { y: 44, opacity: 0 }, {
+          y: 0, opacity: 1, duration: 1, ease: "power3.out",
+          delay: parseFloat((el as HTMLElement).dataset.delay || "0"),
+          scrollTrigger: { trigger: el, start: "top 88%" },
+        });
+      });
+
+      // Counter statistik
+      qa<HTMLElement>("[data-count]").forEach((el) => {
+        const target = parseFloat(el.dataset.count!);
+        const suffix = el.dataset.suffix ?? "";
+        const decimals = parseInt(el.dataset.decimals ?? "0", 10);
+        const obj = { v: 0 };
+        ScrollTrigger.create({
+          trigger: el, start: "top 85%", once: true,
+          onEnter: () =>
+            gsap.to(obj, {
+              v: target, duration: 2.2, ease: "power2.out",
+              onUpdate: () => {
+                el.textContent =
+                  obj.v.toLocaleString("id-ID", {
+                    minimumFractionDigits: decimals, maximumFractionDigits: decimals,
+                  }) + suffix;
+              },
+            }),
+        });
+      });
+
+      // Marquee fitur
+      gsap.to(marqueeTrack, { xPercent: -50, ease: "none", duration: 26, repeat: -1 });
     });
+
+    /* ---- Interaksi mouse: parallax chip + cursor glow ---- */
+    const canHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+    if (canHover) {
+      const chipTos = qa<HTMLElement>("[data-parallax]").map((el) => ({
+        x: gsap.quickTo(el, "x", { duration: 0.9, ease: "power3" }),
+        y: gsap.quickTo(el, "y", { duration: 0.9, ease: "power3" }),
+        f: parseFloat(el.dataset.parallax || "14"),
+      }));
+      const cxTo = gsap.quickTo(cursorRef, "x", { duration: 0.5, ease: "power3" });
+      const cyTo = gsap.quickTo(cursorRef, "y", { duration: 0.5, ease: "power3" });
+
+      const onMove = (e: MouseEvent) => {
+        mouse.tx = (e.clientX / window.innerWidth - 0.5) * 2;
+        mouse.ty = (e.clientY / window.innerHeight - 0.5) * 2;
+        chipTos.forEach((c) => { c.x(mouse.tx * c.f); c.y(mouse.ty * c.f * 0.6); });
+        cxTo(e.clientX); cyTo(e.clientY);
+      };
+      const onOver = (e: MouseEvent) => {
+        const hit = (e.target as Element).closest?.("a,button");
+        gsap.to(cursorRef, { scale: hit ? 1.7 : 1, duration: 0.3, ease: "power2.out" });
+      };
+      window.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseover", onOver);
+      listeners.push([window, "mousemove", onMove], [document, "mouseover", onOver]);
+
+      // Magnetic buttons
+      qa<HTMLElement>(".magnetic").forEach((btn) => {
+        const xTo = gsap.quickTo(btn, "x", { duration: 0.4, ease: "power3" });
+        const yTo = gsap.quickTo(btn, "y", { duration: 0.4, ease: "power3" });
+        const mm = (e: MouseEvent) => {
+          const r = btn.getBoundingClientRect();
+          xTo(((e.clientX - r.left) / r.width - 0.5) * 22);
+          yTo(((e.clientY - r.top) / r.height - 0.5) * 22);
+        };
+        const ml = () => { xTo(0); yTo(0); };
+        btn.addEventListener("mousemove", mm);
+        btn.addEventListener("mouseleave", ml);
+        listeners.push([btn, "mousemove", mm], [btn, "mouseleave", ml]);
+      });
+    }
+
+    /* ---- Resize & misc ---- */
+    const onResize = () => {
+      if (!renderer) return;
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      applyPreset(currentSection, true);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuOpen(false); };
+    window.addEventListener("resize", onResize);
+    window.addEventListener("keydown", onKey);
+    listeners.push([window, "resize", onResize], [window, "keydown", onKey]);
+
+    const onLoad = () => ScrollTrigger.refresh();
+    window.addEventListener("load", onLoad);
+    listeners.push([window, "load", onLoad]);
+    ScrollTrigger.refresh();
   });
-}
 
-// ------------------------------------------------------------------
-// Landing Page
-// ------------------------------------------------------------------
-export default function Landing() {
-  let canvasRef: HTMLCanvasElement | undefined;
-  const mouseRef = { x: 0, y: 0 };
-  const [activeType, setActiveType] = createSignal("retail");
+  /* ---- Animasi panel Solusi saat tab diganti ---- */
+  createEffect(() => {
+    activeSol();
+    if (solusiPanel) {
+      gsap.fromTo(solusiPanel, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out", overwrite: true });
+    }
+  });
 
-  onMount(() => {
-    if (!canvasRef) return;
-    const scene = initThreeScene(canvasRef, mouseRef);
+  /* ---- Overlay menu mobile ---- */
+  createEffect(() => {
+    if (menuOpen()) {
+      lenis?.stop();
+      document.documentElement.style.overflow = "hidden";
+      if (menuRef) {
+        gsap.fromTo(menuRef, { opacity: 0 }, { opacity: 1, duration: 0.35 });
+        gsap.fromTo(qa(".menu-link", menuRef), { y: 40, opacity: 0 }, {
+          y: 0, opacity: 1, duration: 0.6, stagger: 0.07, ease: "power3.out", delay: 0.08,
+        });
+      }
+    } else {
+      lenis?.start();
+      document.documentElement.style.overflow = "";
+    }
+  });
 
-    const handleMouseMove = (e: MouseEvent) => {
-      mouseRef.x = (e.clientX / window.innerWidth) * 2 - 1;
-      mouseRef.y = -(e.clientY / window.innerHeight) * 2 + 1;
-    };
-
-    const lenis = new Lenis({ wrapper: window, content: document.documentElement, duration: 1.4, easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)) });
-
-    const raf = (time: number) => {
-      lenis.raf(time);
-      requestAnimationFrame(raf);
-    };
-    requestAnimationFrame(raf);
-
-    window.addEventListener("mousemove", handleMouseMove);
-
-    useScrollReveal();
-
-    onCleanup(() => {
-      scene.destroy();
-      window.removeEventListener("mousemove", handleMouseMove);
-      lenis.destroy();
+  onCleanup(() => {
+    listeners.forEach(([t, k, fn]) => t.removeEventListener(k, fn));
+    listeners.length = 0;
+    ctx?.revert();
+    ScrollTrigger.getAll().forEach((st) => st.kill());
+    if (tickFn) gsap.ticker.remove(tickFn);
+    lenis?.destroy();
+    // Dispose WebGL
+    scene?.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (mesh.geometry) mesh.geometry.dispose();
+      const m = mesh.material as THREE.Material | THREE.Material[] | undefined;
+      if (Array.isArray(m)) m.forEach((x) => x.dispose());
+      else m?.dispose();
     });
+    disposables.forEach((d) => d.dispose());
+    renderer?.dispose();
+    fontLink?.remove();
+    document.documentElement.style.overflow = "";
   });
 
+  const stars = () => null; /* belum ada rating nyata — disembunyikan */
+
+  /* ================================================================
+   * RENDER
+   * =============================================================== */
   return (
-    <div class="relative min-h-screen bg-[#081f1c] text-[#F3F1E7]">
-      <ScrollProgress />
-      <CustomCursor />
-      <LiquidGlassNav />
+    <div
+      class="kg relative min-h-screen bg-[#06070A] text-white antialiased"
+      style={{ "color-scheme": "dark" }}
+      data-page-theme="dark"
+    >
+      <style>{`
+        .kg { font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif; }
+        .font-display { font-family: 'Space Grotesk', 'Plus Jakarta Sans', sans-serif; }
+        html { background: #06070A; scroll-behavior: auto; }
+        html.lenis, html.lenis body { height: auto; }
+        .lenis.lenis-smooth { scroll-behavior: auto !important; }
+        ::selection { background: rgba(52,211,153,0.35); color: #fff; }
+        ::-webkit-scrollbar { width: 10px; }
+        ::-webkit-scrollbar-track { background: #06070A; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 8px; }
+        ::-webkit-scrollbar-thumb:hover { background: #10b981; }
+        .outline-text { -webkit-text-stroke: 1.5px rgba(226,232,240,0.9); color: transparent; }
+        @keyframes scrolldot { 0% { transform: translateY(-4px); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(34px); opacity: 0; } }
+        .scroll-dot { animation: scrolldot 1.8s ease-in-out infinite; }
+      `}</style>
 
-      {/* Hero */}
-      <section class="relative overflow-hidden">
-        <div class="absolute inset-0">
-          <canvas
-            ref={canvasRef}
-            class="h-[70vh] w-full md:h-[82vh]"
-            aria-hidden="true"
+      {/* ====== Latar: dot grid + aurora halus ====== */}
+      <div class="pointer-events-none fixed inset-0 z-0">
+        <div
+          class="absolute inset-0"
+          style="background-image: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px); background-size: 34px 34px;"
+        />
+        <div class="absolute -top-40 left-1/4 h-[480px] w-[480px] rounded-full opacity-[0.13] blur-[130px]" style="background:#10B981" />
+        <div class="absolute bottom-0 right-0 h-[420px] w-[520px] rounded-full opacity-[0.08] blur-[130px]" style="background:#F59E0B" />
+      </div>
+
+      {/* ====== Canvas 3D — STICKY/fixed, berputar saat scroll ====== */}
+      <div class="pointer-events-none fixed inset-0 z-[1] opacity-50 transition-opacity duration-700 lg:opacity-100">
+        <canvas ref={canvas} class="h-full w-full" />
+      </div>
+
+      {/* ====== HUD progres scroll (bar tipis 1–100%) ====== */}
+      <div class="pointer-events-none fixed inset-x-0 top-0 z-[80]">
+        <div class="relative h-[3px] w-full bg-white/[0.07]">
+          <div
+            ref={progressBar}
+            class="h-full w-full origin-left scale-x-0 bg-emerald-400"
+            style="box-shadow: 0 0 16px rgba(52,211,153,0.85);"
           />
-          <div class="absolute inset-0 bg-gradient-to-b from-[#081f1c]/0 via-[#081f1c]/40 to-[#081f1c]" />
+          <For each={[20, 40, 60, 80]}>
+            {(p) => <span class="absolute bottom-0 h-[5px] w-px bg-white/15" style={`left: ${p}%`} />}
+          </For>
         </div>
+        <div class="absolute left-1/2 top-[9px] flex -translate-x-1/2 items-center gap-2 font-mono text-[10px] uppercase tracking-[0.3em] text-white/35">
+          <span class="hidden sm:inline">Gulir</span>
+          <span ref={progressPct} class="font-semibold text-emerald-300">0%</span>
+        </div>
+      </div>
 
-        <div class="relative z-10 mx-auto flex max-w-6xl flex-col gap-6 px-6 pb-16 pt-28 md:pt-36">
-          <div data-reveal class="inline-flex w-fit items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold tracking-wider text-[#5EEAD4]">
-            <Sparkles size={14} />
-            {landingData.hero?.badge ?? "MENGENAL KASIRGO / KASIR DIGITAL UNTUK TOKO"}
+      {/* ====== Navbar (fitur tetap tersedia) ====== */}
+      <header
+        class={`fixed inset-x-0 top-0 z-[70] transition-all duration-500 ${scrolled() ? "border-b border-white/[0.06] bg-[#06070A]/75 backdrop-blur-xl" : ""
+          }`}
+      >
+        <nav class="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-6">
+          <A href="/" class="nav-anim flex items-center gap-2.5">
+            <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-400 text-[#04120B] shadow-[0_0_24px_rgba(52,211,153,0.35)]">
+              <ScanLine size={19} strokeWidth={2.4} />
+            </span>
+            <span class="font-display text-lg font-bold tracking-tight text-white">
+              Kasir<span class="text-emerald-300">GO</span>
+            </span>
+          </A>
+
+          <div class="hidden items-center gap-8 lg:flex">
+            <For each={D.nav}>
+              {(n) => (
+                <a
+                  href={`#${n.id}`}
+                  onClick={goTo(n.id)}
+                  class="nav-anim text-sm text-white/60 transition-colors hover:text-white"
+                >
+                  {n.label}
+                </a>
+              )}
+            </For>
           </div>
 
-          <h1 data-reveal class="font-['Space_Grotesk'] text-5xl font-bold tracking-tight sm:text-7xl lg:text-8xl">
-            {landingData.hero?.title ?? "KASIRGO"}
-            <span class="block text-[#5EEAD4]">{landingData.hero?.subtitle ?? "UNTUK TOKO KAMU"}</span>
-          </h1>
-
-          <p data-reveal class="max-w-xl text-sm leading-relaxed text-[#B9CFC9] sm:text-base">
-            {landingData.hero?.glassCard?.description ?? "Aplikasi kasir yang tetap jalan walau internet mati, catat tiap transaksi otomatis, dan aman lewat verifikasi dua langkah."}
-          </p>
-
-          <div class="flex flex-wrap items-center gap-3">
-            <MagneticButton strength={0.3}>
-              <A
-                href={landingData.hero?.ctaCard?.buttonHref ?? "/login"}
-                class="inline-flex items-center gap-2 rounded-full bg-[#5EEAD4] px-6 py-3 text-sm font-semibold text-[#0A2E2A] transition hover:brightness-95 hover:shadow-lg hover:shadow-[#5EEAD4]/30"
-              >
-                {landingData.hero?.ctaCard?.button ?? "Mulai Gratis"}
-                <ArrowRight size={16} />
-              </A>
-            </MagneticButton>
-
-            <MagneticButton strength={0.3}>
-              <button
-                type="button"
-                class="inline-flex items-center gap-2 rounded-full bg-white/10 px-6 py-3 text-sm font-semibold text-[#F3F1E7] transition hover:bg-white/20"
-              >
-                {landingData.hero?.bottomButtons?.demo ?? "LIVE DEMO"}
-              </button>
-            </MagneticButton>
-
-            <MagneticButton strength={0.3}>
-              <button
-                type="button"
-                class="inline-flex items-center gap-2 rounded-full bg-white/10 px-6 py-3 text-sm font-semibold text-[#F3F1E7] transition hover:bg-white/20"
-              >
-                {landingData.hero?.bottomButtons?.dashboard ?? "DASHBOARD"}
-              </button>
-            </MagneticButton>
-          </div>
-
-          {/* Glass card */}
-          <div data-reveal class="mt-2 w-full max-w-md rounded-[28px] border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/20 backdrop-blur-xl">
-            <p class="text-xs font-semibold tracking-wider text-[#5EEAD4]">{landingData.hero?.glassCard?.title ?? "Apa itu KasirGO?"}</p>
-            <p class="mt-2 text-xs leading-relaxed text-[#D9E7E3]">
-              {landingData.hero?.glassCard?.description ?? "Dibuat untuk pemilik toko yang mau fokus jualan, bukan pusing input data."}
-            </p>
-            <button
-              type="button"
-              aria-label={landingData.hero?.glassCard?.buttonAriaLabel ?? "Pelajari lebih lanjut"}
-              class="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-[#F3F1E7] transition hover:text-[#5EEAD4]"
+          <div class="hidden items-center gap-3 lg:flex">
+            <A href="/login" class="nav-anim rounded-full px-4 py-2 text-sm text-white/70 transition-colors hover:text-white">
+              Masuk
+            </A>
+            <A
+              href="/login"
+              class="nav-anim magnetic group flex items-center gap-1.5 rounded-full bg-emerald-400 px-5 py-2.5 text-sm font-semibold text-[#04120B] transition-colors hover:bg-emerald-300"
             >
-              {landingData.hero?.glassCard?.buttonAriaLabel ?? "Pelajari lebih lanjut"}
-              <ArrowRight size={14} />
-            </button>
+              Daftar Gratis
+              <ArrowRight size={15} class="transition-transform group-hover:translate-x-0.5" />
+            </A>
+          </div>
+
+          <button
+            class="text-white lg:hidden"
+            onClick={() => setMenuOpen(!menuOpen())}
+            aria-label="Buka menu"
+          >
+            <Show when={menuOpen()} fallback={<Menu size={24} />}>
+              <X size={24} />
+            </Show>
+          </button>
+        </nav>
+      </header>
+
+      {/* ====== Overlay menu mobile ====== */}
+      <Show when={menuOpen()}>
+        <div ref={menuRef} class="fixed inset-0 z-[65] flex flex-col justify-center bg-[#06070A]/95 px-8 backdrop-blur-2xl">
+          <For each={D.nav}>
+            {(n, i) => (
+              <a
+                href={`#${n.id}`}
+                onClick={goTo(n.id)}
+                class="menu-link flex items-center justify-between border-b border-white/5 py-5 font-display text-3xl font-semibold text-white/85 transition-colors hover:text-emerald-300"
+              >
+                {n.label}
+                <span class="font-mono text-xs text-white/25">0{i() + 1}</span>
+              </a>
+            )}
+          </For>
+          <div class="mt-10 flex gap-3">
+            <A href="/login" class="flex-1 rounded-full border border-white/15 py-3 text-center text-sm font-semibold text-white/80">
+              Masuk
+            </A>
+            <A href="/login" class="flex-1 rounded-full bg-emerald-400 py-3 text-center text-sm font-semibold text-[#04120B]">
+              Daftar Gratis
+            </A>
           </div>
         </div>
-      </section>
+      </Show>
 
-      {/* Marquee */}
-      <section class="border-y border-white/5 bg-[#0A2E2A]/60 py-4">
-        <div class="overflow-hidden">
-          <div class="flex w-[200%] animate-marquee items-center gap-6 text-xs font-semibold tracking-wider text-[#B9CFC9]">
-            <For each={[...MARQUEE_ITEMS, ...MARQUEE_ITEMS]}>{(item) => (
-              <span class="whitespace-nowrap">{item}</span>
-            )}</For>
-          </div>
-        </div>
-      </section>
+      {/* ====== KONTEN ====== */}
+      <main class="relative z-10 overflow-x-clip">
 
-      {/* Stats */}
-      <section class="mx-auto max-w-6xl px-6 py-16">
-        <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <For each={STATS}>{(stat) => (
-            <div data-reveal class="rounded-[24px] border border-white/5 bg-white/5 p-5 shadow-sm shadow-black/10">
-              <stat.icon size={18} class="text-[#5EEAD4]" />
-              <p class="mt-3 font-['Space_Grotesk'] text-2xl font-bold text-[#F3F1E7]">
-                {stat.value.toLocaleString()}{stat.suffix}
+        {/* ---------- HERO ---------- */}
+        <section id="hero" class="relative flex min-h-screen items-center">
+          <div class="mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-10 px-6 pb-16 pt-[52vh] lg:grid-cols-12 lg:pt-24">
+            <div class="lg:col-span-6">
+              <div class="hero-fade inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/[0.07] px-4 py-1.5 text-xs font-medium text-emerald-200">
+                <Sparkles size={13} class="text-emerald-300" />
+                {D.hero.badge}
+              </div>
+
+              <h1 class="mt-6 font-display text-[clamp(2.75rem,6.5vw,5.25rem)] font-bold leading-[1.02] tracking-tight">
+                <For each={D.hero.titleLines}>
+                  {(line, i) => (
+                    <span class="block overflow-hidden pb-1">
+                      <span
+                        class="hero-line block"
+                        classList={{ "text-emerald-300": i() === 1, "outline-text": i() === 2 }}
+                      >
+                        {line}
+                      </span>
+                    </span>
+                  )}
+                </For>
+              </h1>
+
+              <p class="hero-fade mt-6 max-w-lg text-base leading-relaxed text-white/55 lg:text-lg">
+                {D.hero.subtitle}
               </p>
-              <p class="text-xs text-[#B9CFC9]">{stat.label}</p>
-            </div>
-          )}</For>
-        </div>
-      </section>
 
-      {/* Compare */}
-      <section class="mx-auto max-w-6xl px-6 py-12">
-        <div data-reveal class="mb-6 text-center">
-          <span class="inline-block rounded-full bg-[#0A2E2A] px-4 py-1.5 text-[11px] font-semibold tracking-wider text-[#5EEAD4]">
-            {landingData.compareSection?.badge ?? "PERBEDAAN"}
-          </span>
-          <h2 class="mt-3 font-['Space_Grotesk'] text-2xl font-bold sm:text-3xl">Manual vs KasirGO</h2>
-        </div>
-
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <TiltCard intensity={7}>
-            <div data-reveal class="rounded-[28px] border border-white/5 bg-white/5 p-6 shadow-lg shadow-black/15">
-              <p class="text-sm font-semibold text-[#B9CFC9]">Manual</p>
-              <p class="mt-2 text-xs leading-relaxed text-[#9FB5AF]">
-                Buku catatan, kalkulator, danPotongan waktu yang habis untuk rekap akhir bulan.
-              </p>
-            </div>
-          </TiltCard>
-
-          <TiltCard intensity={7}>
-            <div data-reveal class="rounded-[28px] bg-gradient-to-br from-[#123832] to-[#06201D] p-6 shadow-xl shadow-black/20">
-              <p class="text-sm font-semibold text-[#5EEAD4]">KasirGO</p>
-              <p class="mt-2 text-xs leading-relaxed text-[#D9E7E3]">
-                {landingData.compareSection?.description ?? "KasirGO mencatat tiap transaksi otomatis, stok berkurang sendiri, dan laporan langsung jadi tanpa direkap ulang."}
-              </p>
-            </div>
-          </TiltCard>
-        </div>
-      </section>
-
-      {/* Features preview */}
-      <section class="mx-auto max-w-6xl px-6 py-12">
-        <div data-reveal class="mb-6 text-center">
-          <span class="inline-block rounded-full bg-[#0A2E2A] px-4 py-1.5 text-[11px] font-semibold tracking-wider text-[#5EEAD4]">
-            FITUR
-          </span>
-          <h2 class="mt-3 font-['Space_Grotesk'] text-2xl font-bold sm:text-3xl">Yang Kamu Butuhkan, Bukan yang Flavorless</h2>
-        </div>
-
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <TiltCard intensity={7}>
-            <div data-reveal class="group relative overflow-hidden rounded-[24px] bg-gradient-to-br from-[#123832] to-[#06201D] p-5 shadow-lg shadow-black/15 transition hover:shadow-xl hover:shadow-[#5EEAD4]/10">
-              <BarChart3 size={20} class="text-[#5EEAD4]" />
-              <p class="mt-8 font-['Space_Grotesk'] text-base font-semibold text-[#F3F1E7]">
-                {landingData.previewSection?.analytics?.title ?? "Analitik"}
-              </p>
-              <p class="mt-1 text-xs text-[#B9CFC9]">
-                {landingData.previewSection?.analytics?.description ?? "Pantau performa bisnis real-time."}
-              </p>
-              <MagneticButton strength={0.5}>
-                <button
-                  type="button"
-                  aria-label={landingData.previewSection?.analytics?.buttonAriaLabel ?? "Lihat analitik"}
-                  class="absolute bottom-4 right-4 grid h-10 w-10 place-items-center rounded-full bg-white text-[#0A2E2A] transition group-hover:scale-110 group-hover:bg-[#5EEAD4]"
+              <div class="hero-fade mt-9 flex flex-wrap items-center gap-4">
+                <A
+                  href="/login"
+                  class="magnetic group flex items-center gap-2 rounded-full bg-emerald-400 px-7 py-3.5 text-sm font-bold text-[#04120B] transition-colors hover:bg-emerald-300"
                 >
-                  <ArrowRight size={16} />
-                </button>
-              </MagneticButton>
-            </div>
-          </TiltCard>
-
-          <TiltCard intensity={7}>
-            <div data-reveal class="group relative overflow-hidden rounded-[24px] bg-gradient-to-br from-[#175B51] to-[#0A2E2A] p-5 shadow-lg shadow-black/15 transition hover:shadow-xl hover:shadow-[#5EEAD4]/10">
-              <ScanLine size={20} class="text-[#5EEAD4]" />
-              <p class="mt-8 font-['Space_Grotesk'] text-base font-semibold text-[#F3F1E7]">
-                {landingData.previewSection?.scan?.title ?? "Scan Struk"}
-              </p>
-              <p class="mt-1 text-xs text-[#B9CFC9]">
-                {landingData.previewSection?.scan?.description ?? "Scan dan simpan struk otomatis."}
-              </p>
-              <MagneticButton strength={0.5}>
-                <button
-                  type="button"
-                  aria-label={landingData.previewSection?.scan?.buttonAriaLabel ?? "Lihat scan"}
-                  class="absolute bottom-4 right-4 grid h-10 w-10 place-items-center rounded-full bg-white text-[#0A2E2A] transition group-hover:scale-110 group-hover:bg-[#5EEAD4]"
+                  {D.hero.primaryCta}
+                  <ArrowRight size={16} class="transition-transform group-hover:translate-x-1" />
+                </A>
+                <a
+                  href="#fitur"
+                  onClick={goTo("fitur")}
+                  class="rounded-full border border-white/15 px-7 py-3.5 text-sm font-semibold text-white/80 transition-colors hover:border-emerald-400/50 hover:text-white"
                 >
-                  <ArrowRight size={16} />
-                </button>
-              </MagneticButton>
+                  {D.hero.secondaryCta}
+                </a>
+              </div>
+
+              <div class="hero-fade mt-10 flex flex-wrap items-center gap-4">
+                <div class="flex -space-x-2.5">
+                  <For each={["Admin", "Kasir", "Manajer"]}>
+                    {(s) => (
+                      <img src={avatarUri(s)} alt="" class="h-9 w-9 rounded-full border-2 border-[#06070A] bg-[#111827]" />
+                    )}
+                  </For>
+                </div>
+                <div>
+                  <p class="text-xs text-white/45">{D.hero.trust}</p>
+                </div>
+              </div>
             </div>
-          </TiltCard>
 
-          <div class="flex flex-row gap-2 sm:flex-col">
-            <span data-reveal class="rounded-full bg-white px-4 py-2.5 text-center text-[11px] font-bold tracking-[0.15em] text-[#0C1615] shadow-sm shadow-black/10 transition hover:shadow-md">
-              {landingData.previewSection?.badges?.fitur ?? "FITUR"}
-            </span>
-            <span data-reveal class="rounded-full bg-white px-4 py-2.5 text-center text-[11px] font-bold tracking-[0.15em] text-[#0C1615] shadow-sm shadow-black/10 transition hover:shadow-md">
-              {landingData.previewSection?.badges?.galeri ?? "GALERI"}
-            </span>
+            <div class="hidden lg:col-span-6 lg:block" />
           </div>
-        </div>
-      </section>
 
-      {/* Wallet per toko */}
-      <section class="mx-auto max-w-6xl px-6 py-12">
-        <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
-          <div class="md:col-span-2">
-            <div data-reveal class="mb-4">
-              <span class="inline-block rounded-full bg-[#0A2E2A] px-4 py-1.5 text-[11px] font-semibold tracking-wider text-[#5EEAD4]">
-                {landingData.walletSection?.badge ?? "WALLET PER-TOKO"}
-              </span>
-              <h2 class="mt-3 font-['Space_Grotesk'] text-2xl font-bold sm:text-3xl">
-                {landingData.walletSection?.title ?? "Punya banyak cabang? Kas tetap kepisah rapi."}
+          {/* Chip UI melayang di area model */}
+          <div class="pointer-events-none absolute right-[5%] top-[16%] hidden xl:block" data-parallax="20">
+            <div class="float-chip rounded-2xl border border-white/10 bg-[#0B0E14]/85 px-5 py-4 shadow-2xl backdrop-blur-md">
+              <div class="flex items-center gap-3">
+                <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-400/15 text-emerald-300">
+                  <TrendingUp size={18} />
+                </span>
+                <div>
+                  <div class="text-[10px] uppercase tracking-wider text-white/40">Penjualan hari ini</div>
+                  <div class="font-display text-lg font-semibold text-white">
+                    Rp 4.280.000 <span class="text-xs text-emerald-300">+12,4%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="pointer-events-none absolute right-[13%] top-[56%] hidden xl:block" data-parallax="-14">
+            <div class="float-chip rounded-2xl border border-white/10 bg-[#0B0E14]/85 px-5 py-4 shadow-2xl backdrop-blur-md">
+              <div class="flex items-center gap-3">
+                <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-400/15 text-amber-300">
+                  <Package size={18} />
+                </span>
+                <div>
+                  <div class="text-[10px] uppercase tracking-wider text-white/40">Stok menipis</div>
+                  <div class="text-sm font-semibold text-white">Kopi Susu — sisa 8</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Petunjuk gulir */}
+          <div class="hero-fade absolute bottom-7 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2.5">
+            <span class="font-mono text-[10px] uppercase tracking-[0.35em] text-white/35">Gulir</span>
+            <div class="relative h-10 w-px overflow-hidden bg-white/10">
+              <span class="scroll-dot absolute left-0 top-0 h-3 w-px bg-emerald-300" />
+            </div>
+          </div>
+        </section>
+
+        {/* ---------- MARQUEE ---------- */}
+        <section class="relative overflow-hidden border-y border-white/10 bg-white/[0.02] py-5">
+          <div ref={marqueeTrack} class="flex w-max items-center gap-10 whitespace-nowrap">
+            <For each={[...D.marquee, ...D.marquee]}>
+              {(m) => (
+                <span class="flex items-center gap-10 font-mono text-xs uppercase tracking-[0.3em] text-white/45">
+                  {m}
+                  <Sparkles size={12} class="text-emerald-400/70" />
+                </span>
+              )}
+            </For>
+          </div>
+        </section>
+
+        {/* ---------- FITUR (model 3D di kiri) ---------- */}
+        <section id="fitur" class="relative py-28 lg:py-36">
+          <div class="mx-auto grid max-w-7xl gap-12 px-6 lg:grid-cols-12">
+            <div class="hidden lg:col-span-5 lg:block" />
+            <div class="lg:col-span-7">
+              <div data-reveal class="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.3em] text-emerald-300/90">
+                <span class="h-px w-8 bg-emerald-300/60" /> 02 — Fitur
+              </div>
+              <h2 data-reveal class="mt-5 font-display text-[clamp(1.9rem,4vw,3.2rem)] font-bold leading-[1.08] tracking-tight">
+                Semua yang Kasir Anda Butuhkan.{" "}
+                <span class="text-white/35">Tanpa Kompleksitas.</span>
               </h2>
-              <p class="mt-2 max-w-xl text-sm leading-relaxed text-[#B9CFC9]">
-                {landingData.walletSection?.description ?? "Tiap toko punya wallet sendiri — uang cabang A nggak kecampur sama cabang B."}
-              </p>
+
+              <div class="mt-10">
+                <For each={D.features}>
+                  {(f, i) => (
+                    <div
+                      data-reveal data-delay={i() * 0.06}
+                      class="group border-t border-white/10 py-7 transition-colors last:border-b hover:border-emerald-400/40"
+                    >
+                      <div class="flex items-start gap-5">
+                        <span class="pt-1 font-mono text-xs text-white/30">0{i() + 1}</span>
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-emerald-300 transition-all group-hover:border-emerald-400/50 group-hover:bg-emerald-400/10">
+                          <Dynamic component={ICON_MAP[f.icon] ?? Sparkles} size={20} />
+                        </span>
+                        <div>
+                          <div class="flex flex-wrap items-center gap-3">
+                            <h3 class="font-display text-lg font-semibold">{f.title}</h3>
+                            <span class="rounded-full border border-white/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-white/40">
+                              {f.tag}
+                            </span>
+                          </div>
+                          <p class="mt-1.5 max-w-md text-sm leading-relaxed text-white/55">{f.desc}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </For>
+              </div>
             </div>
+          </div>
+        </section>
 
-            <TiltCard intensity={6}>
-              <div data-reveal class="rounded-[28px] bg-gradient-to-br from-[#0E3F3A] to-[#06201D] p-6 shadow-xl shadow-black/20">
-                <div class="flex items-center gap-3">
-                  <Wallet size={22} class="text-[#5EEAD4]" />
-                  <div>
-                    <p class="text-sm font-semibold text-[#F3F1E7]">Multi-Wallet</p>
-                    <p class="text-xs text-[#B9CFC9]">Pantau saldo & arus kas per toko dari satu akun.</p>
+        {/* ---------- STATISTIK (model mengecil di atas band) ---------- */}
+        <section id="statistik" class="relative border-y border-white/10 bg-black/40 py-24 backdrop-blur-sm lg:py-28">
+          <div class="mx-auto grid max-w-6xl grid-cols-2 gap-x-6 gap-y-12 px-6 lg:grid-cols-4">
+            <For each={D.stats}>
+              {(s) => (
+                <div data-reveal class="text-center">
+                  <div
+                    class="font-display text-4xl font-bold lg:text-5xl"
+                    data-count={String(s.value)}
+                    data-suffix={s.suffix ?? ""}
+                    data-decimals={String(s.decimals ?? 0)}
+                  >
+                    0
                   </div>
+                  <div class="mt-2.5 font-mono text-[11px] uppercase tracking-[0.25em] text-white/40">{s.label}</div>
                 </div>
-              </div>
-            </TiltCard>
+              )}
+            </For>
           </div>
+        </section>
 
-          <div class="flex flex-col gap-4">
-            <TiltCard intensity={7}>
-              <div data-reveal class="rounded-[24px] bg-white/5 p-5 shadow-lg shadow-black/15">
-                <ShieldCheck size={20} class="text-[#5EEAD4]" />
-                <p class="mt-3 text-sm font-semibold text-[#F3F1E7]">TOTP 2FA</p>
-                <p class="mt-1 text-xs text-[#B9CFC9]">Login lebih aman dengan verifikasi dua langkah.</p>
+        {/* ---------- SOLUSI (model 3D di kanan) ---------- */}
+        <section id="solusi" class="relative py-28 lg:py-36">
+          <div class="mx-auto grid max-w-7xl items-center gap-12 px-6 lg:grid-cols-12">
+            <div class="lg:col-span-6">
+              <div data-reveal class="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.3em] text-emerald-300/90">
+                <span class="h-px w-8 bg-emerald-300/60" /> 03 — Solusi
               </div>
-            </TiltCard>
-            <TiltCard intensity={7}>
-              <div data-reveal class="rounded-[24px] bg-white/5 p-5 shadow-lg shadow-black/15">
-                <Zap size={20} class="text-[#5EEAD4]" />
-                <p class="mt-3 text-sm font-semibold text-[#F3F1E7]">Offline Ready</p>
-                <p class="mt-1 text-xs text-[#B9CFC9]">Tetap jalan walau koneksi sedang nggak menentu.</p>
+              <h2 data-reveal class="mt-5 font-display text-[clamp(1.9rem,4vw,3.2rem)] font-bold leading-[1.08] tracking-tight">
+                Satu Aplikasi, <span class="text-emerald-300">Sesuai Bidang Usaha Anda.</span>
+              </h2>
+
+              <div class="mt-10 space-y-3">
+                <For each={D.solutions}>
+                  {(s) => (
+                    <button
+                      data-reveal
+                      onClick={() => setActiveSol(s.id)}
+                      class={`flex w-full items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition-all duration-300 ${activeSol() === s.id
+                          ? "border-emerald-400/50 bg-emerald-400/[0.08] text-white"
+                          : "border-white/10 bg-white/[0.02] text-white/60 hover:border-white/25 hover:text-white"
+                        }`}
+                    >
+                      <span
+                        class={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${activeSol() === s.id ? "bg-emerald-400/20 text-emerald-300" : "bg-white/5 text-white/40"
+                          }`}
+                      >
+                        <Dynamic component={ICON_MAP[s.icon] ?? Store} size={16} />
+                      </span>
+                      <span class="text-sm font-semibold">{s.title}</span>
+                      <ChevronRight
+                        size={15}
+                        class={`ml-auto transition-all duration-300 ${activeSol() === s.id ? "text-emerald-300 opacity-100" : "opacity-25"
+                          }`}
+                      />
+                    </button>
+                  )}
+                </For>
               </div>
-            </TiltCard>
-          </div>
-        </div>
-      </section>
 
-      {/* Testimonials */}
-      <section class="mx-auto max-w-6xl px-6 py-12">
-        <div data-reveal class="mb-6 text-center">
-          <span class="inline-block rounded-full bg-[#0A2E2A] px-4 py-1.5 text-[11px] font-semibold tracking-wider text-[#5EEAD4]">
-            TESTIMONI
-          </span>
-          <h2 class="mt-3 font-['Space_Grotesk'] text-2xl font-bold sm:text-3xl">Apa Kata Mereka?</h2>
-        </div>
-
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <For each={[
-            { name: "Budi Santoso", role: "Pemilik Toko Kelontong", text: "KasirGO bener-bener ngebantu usaha saya. Laporan keuangan jadi lebih rapi dan gampang dipahami.", rating: 5 },
-            { name: "Ani Wijaya", role: "Manager Restoran", text: "Fitur wallet per-toko itu game changer. Bisa pantau cabang satu per satu tanpa ribet.", rating: 5 },
-            { name: "Rudi Hartono", role: "Distributor Grosir", text: "Scan struk otomatis hemat waktu banget. Stok barang juga selalu update real-time.", rating: 4 },
-          ]}>
-            {(item) => (
-              <TiltCard intensity={5}>
-                <div data-reveal class="rounded-[24px] bg-white p-6 shadow-sm shadow-black/5 transition hover:shadow-lg">
-                  <StarRating rating={item.rating} />
-                  <p class="mt-3 text-sm leading-relaxed text-[#3E4C48]">"{item.text}"</p>
-                  <div class="mt-4 flex items-center gap-3">
-                    <div class="grid h-10 w-10 place-items-center rounded-full bg-[#0A2E2A] font-['Space_Grotesk'] text-xs font-bold text-[#5EEAD4]">
-                      {item.name.split(" ").map((n) => n[0]).join("")}
-                    </div>
+              <div ref={solusiPanel} class="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-6 lg:p-7">
+                <Show when={activeSolution()} keyed>
+                  {(s) => (
                     <div>
-                      <p class="text-sm font-semibold text-[#0C1615]">{item.name}</p>
-                      <p class="text-xs text-[#6C7B77]">{item.role}</p>
+                      <h3 class="font-display text-xl font-semibold lg:text-2xl">{s.title}</h3>
+                      <p class="mt-2.5 text-sm leading-relaxed text-white/55">{s.desc}</p>
+                      <ul class="mt-5 space-y-2.5">
+                        <For each={s.points}>
+                          {(p) => (
+                            <li class="flex items-start gap-2.5 text-sm text-white/70">
+                              <Check size={15} class="mt-0.5 shrink-0 text-emerald-300" /> {p}
+                            </li>
+                          )}
+                        </For>
+                      </ul>
+                      <div class="mt-6 inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-1.5 text-xs font-semibold text-emerald-300">
+                        <TrendingUp size={13} /> {s.stat}
+                      </div>
                     </div>
-                  </div>
-                </div>
-              </TiltCard>
-            )}
-          </For>
-        </div>
-      </section>
-
-      {/* Business types */}
-      <section class="mx-auto max-w-6xl px-6 py-12">
-        <div data-reveal class="mb-6 text-center">
-          <span class="inline-block rounded-full bg-[#0A2E2A] px-4 py-1.5 text-[11px] font-semibold tracking-wider text-[#5EEAD4]">USAHA</span>
-          <h2 class="mt-3 font-['Space_Grotesk'] text-2xl font-bold sm:text-3xl">Cocok Untuk Semua Jenis Usaha</h2>
-        </div>
-
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <For each={BUSINESS_TYPES}>
-            {(type) => (
-              <TiltCard intensity={8}>
-                <div
-                  class={`rounded-[24px] bg-gradient-to-br ${type.gradient} p-5 shadow-lg shadow-black/20 ring-1 ring-white/5 transition ${
-                    activeType() === type.id ? "ring-[#5EEAD4]/60" : ""
-                  }`}
-                >
-                  <type.icon size={20} class="text-[#5EEAD4]" />
-                  <p class="mt-4 font-['Space_Grotesk'] text-sm font-semibold text-[#F3F1E7]">{type.label}</p>
-                  <p class="mt-1 text-xs leading-relaxed text-[#B9CFC9]">{type.desc}</p>
-                </div>
-              </TiltCard>
-            )}
-          </For>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section class="mx-auto max-w-6xl px-6 py-12">
-        <div data-reveal class="relative overflow-hidden rounded-[28px] bg-gradient-to-r from-[#0A2E2A] via-[#0E3F3A] to-[#0A2E2A] p-8 text-center shadow-xl shadow-black/25 sm:p-12">
-          <div data-parallax class="absolute inset-0 opacity-10">
-            <div class="absolute top-0 left-1/4 h-64 w-64 rounded-full bg-[#5EEAD4] blur-3xl" />
-            <div class="absolute bottom-0 right-1/4 h-64 w-64 rounded-full bg-[#5EEAD4] blur-3xl" />
+                  )}
+                </Show>
+              </div>
+            </div>
+            <div class="hidden lg:col-span-6 lg:block" />
           </div>
-          <h2 class="relative font-['Space_Grotesk'] text-2xl font-bold sm:text-3xl lg:text-4xl">Siap Transformasi Bisnismu?</h2>
-          <p class="relative mx-auto mt-3 max-w-md text-sm text-[#B9CFC9]">Gratis coba 14 hari, tanpa kartu kredit.</p>
-          <div class="relative mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <MagneticButton strength={0.3}>
+        </section>
+
+        {/* ---------- CARA KERJA (model 3D di kiri) ---------- */}
+        <section id="langkah" class="relative py-28 lg:py-36">
+          <div class="mx-auto grid max-w-7xl gap-12 px-6 lg:grid-cols-12">
+            <div class="hidden lg:col-span-5 lg:block" />
+            <div class="lg:col-span-7">
+              <div data-reveal class="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.3em] text-emerald-300/90">
+                <span class="h-px w-8 bg-emerald-300/60" /> 04 — Cara Kerja
+              </div>
+              <h2 data-reveal class="mt-5 font-display text-[clamp(1.9rem,4vw,3.2rem)] font-bold leading-[1.08] tracking-tight">
+                Mulai Jualan dalam <span class="text-emerald-300">3 Langkah.</span>
+              </h2>
+
+              <div class="mt-12 space-y-12">
+                <For each={D.steps}>
+                  {(s, i) => (
+                    <div data-reveal data-delay={i() * 0.08} class="flex gap-6">
+                      <span
+                        class="font-display text-5xl font-bold leading-none text-transparent lg:text-6xl"
+                        style="-webkit-text-stroke: 1px rgba(255,255,255,0.28);"
+                      >
+                        0{i() + 1}
+                      </span>
+                      <div class="border-l border-white/10 pl-6">
+                        <h3 class="font-display text-lg font-semibold lg:text-xl">{s.title}</h3>
+                        <p class="mt-2 max-w-md text-sm leading-relaxed text-white/55">{s.desc}</p>
+                      </div>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ---------- OPEN SOURCE (pengganti testimoni — belum ada testimoni nyata) ---------- */}
+        <section id="testimoni" class="relative py-28 lg:py-36">
+          <div class="mx-auto max-w-3xl px-6 text-center">
+            <div data-reveal class="flex items-center justify-center gap-3 font-mono text-[11px] uppercase tracking-[0.3em] text-emerald-300/90">
+              <span class="h-px w-8 bg-emerald-300/60" /> 05 — Open Source <span class="h-px w-8 bg-emerald-300/60" />
+            </div>
+            <h2 data-reveal class="mt-5 font-display text-[clamp(1.9rem,4vw,3.2rem)] font-bold leading-[1.08] tracking-tight">
+              Kode yang Bisa Kamu <span class="text-emerald-300">Baca Sendiri.</span>
+            </h2>
+            <p data-reveal class="mx-auto mt-6 max-w-xl text-base leading-relaxed text-white/55">
+              KasirGO open source. Tidak ada biaya tersembunyi, tidak ada data yang dikirim ke server kami —
+              database disimpan di perangkat atau server kamu sendiri.
+            </p>
+          </div>
+
+          <div class="mx-auto mt-14 grid max-w-5xl gap-6 px-6 sm:grid-cols-3">
+            {[
+              { k: "Tanpa langganan", v: "Tidak ada paket berbayar. Semua fitur terbuka untuk semua orang." },
+              { k: "Data milik kamu", v: "SQLite lokal / server sendiri. Tidak ada telemetri." },
+              { k: "Kontribusi terbuka", v: "Bug report dan pull request diterima lewat repo Codeberg/GitHub." },
+            ].map((f) => (
+              <div data-reveal class="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-left backdrop-blur-sm">
+                <h3 class="font-display text-lg font-semibold">{f.k}</h3>
+                <p class="mt-2 text-sm leading-relaxed text-white/55">{f.v}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ---------- CTA (model kembali ke tengah, besar) ---------- */}
+        <section id="cta" class="relative flex min-h-screen items-center py-32">
+          <div class="mx-auto max-w-3xl px-6 text-center">
+            <div data-reveal class="flex items-center justify-center gap-3 font-mono text-[11px] uppercase tracking-[0.3em] text-emerald-300/90">
+              <span class="h-px w-8 bg-emerald-300/60" /> 06 — Mulai
+            </div>
+            <h2 data-reveal class="mt-6 font-display text-[clamp(2.4rem,6vw,4.6rem)] font-bold leading-[1.03] tracking-tight">
+              {D.cta.title}
+              <br />
+              <span class="text-emerald-300">Hari Ini Juga.</span>
+            </h2>
+            <p data-reveal class="mx-auto mt-6 max-w-xl text-base leading-relaxed text-white/55">
+              {D.cta.subtitle}
+            </p>
+            <div data-reveal class="mt-10 flex justify-center">
               <A
                 href="/login"
-                class="flex items-center gap-2 rounded-full bg-[#5EEAD4] px-6 py-3 text-sm font-semibold text-[#0A2E2A] transition hover:brightness-95 hover:shadow-lg hover:shadow-[#5EEAD4]/30"
+                class="magnetic group flex items-center gap-2 rounded-full bg-emerald-400 px-9 py-4 text-base font-bold text-[#04120B] transition-colors hover:bg-emerald-300"
               >
-                Mulai Gratis
-                <ChevronRight size={16} />
+                {D.cta.button}
+                <ArrowRight size={18} class="transition-transform group-hover:translate-x-1" />
               </A>
-            </MagneticButton>
-            <MagneticButton strength={0.3}>
-              <A
-                href="/demo"
-                class="flex items-center gap-2 rounded-full bg-white/10 px-6 py-3 text-sm font-semibold text-[#F3F1E7] transition hover:bg-white/20"
-              >
-                Lihat Demo
-              </A>
-            </MagneticButton>
+            </div>
+            <div data-reveal class="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+              <For each={D.cta.note.split("•")}>
+                {(n) => (
+                  <span class="flex items-center gap-1.5 text-xs text-white/45">
+                    <Check size={13} class="text-emerald-300" /> {n.trim()}
+                  </span>
+                )}
+              </For>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Footer */}
-      <footer class="mx-auto max-w-6xl mb-8 flex items-center justify-between gap-3 rounded-full bg-[#0A2E2A] px-4 py-3 text-[#F3F1E7] sm:px-6">
-        <span class="hidden items-center gap-2 text-[11px] font-bold tracking-[0.15em] sm:flex">
-          <ShieldCheck size={14} class="text-[#5EEAD4]" />
-          {landingData.footer?.tagline ?? "AMAN & CEPAT"}
-        </span>
-        <MagneticButton strength={0.4}>
-          <A
-            href="/"
-            aria-label={landingData.footer?.homeAriaLabel ?? "Beranda"}
-            class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#5EEAD4] text-[#0A2E2A] transition hover:brightness-95 hover:scale-110"
-          >
-            <Home size={18} />
-          </A>
-        </MagneticButton>
-        <MagneticButton strength={0.3}>
-          <A
-            href="/tentang"
-            class="rounded-full bg-white/10 px-4 py-2 text-[11px] font-bold tracking-[0.15em] transition hover:bg-white/20"
-          >
-            {landingData.footer?.aboutButton ?? "TENTANG"}
-          </A>
-        </MagneticButton>
-      </footer>
+        {/* ---------- FOOTER ---------- */}
+        <footer class="relative border-t border-white/10 bg-[#050609]">
+          <div class="mx-auto max-w-7xl px-6 py-16">
+            <div class="grid gap-12 lg:grid-cols-12">
+              <div class="lg:col-span-6">
+                <div class="flex items-center gap-2.5">
+                  <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-400 text-[#04120B]">
+                    <ScanLine size={19} strokeWidth={2.4} />
+                  </span>
+                  <span class="font-display text-lg font-bold tracking-tight">
+                    Kasir<span class="text-emerald-300">GO</span>
+                  </span>
+                </div>
+                <p class="mt-4 max-w-sm text-sm leading-relaxed text-white/45">{D.footer.description}</p>
+                <div class="mt-6 flex flex-wrap gap-5">
+                  <a href="https://codeberg.org/ElCastra/KasirGO" target="_blank" rel="noreferrer" class="group flex items-center gap-1 text-xs font-medium text-white/45 transition-colors hover:text-emerald-300">
+                    Codeberg
+                    <ArrowUpRight size={12} class="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                  </a>
+                  <a href="https://github.com/NitroCat29/kasirgo" target="_blank" rel="noreferrer" class="group flex items-center gap-1 text-xs font-medium text-white/45 transition-colors hover:text-emerald-300">
+                    GitHub
+                    <ArrowUpRight size={12} class="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                  </a>
+                </div>
+              </div>
+              <For each={D.footer.columns}>
+                {(c) => (
+                  <div class="lg:col-span-2">
+                    <h4 class="font-mono text-[11px] uppercase tracking-[0.25em] text-white/35">{c.title}</h4>
+                    <ul class="mt-5 space-y-3">
+                      <For each={c.links}>
+                        {(l) => (
+                          <li>
+                            <a
+                              href={l.href}
+                              target={l.href.startsWith("http") ? "_blank" : undefined}
+                              rel={l.href.startsWith("http") ? "noreferrer" : undefined}
+                              class="text-sm text-white/55 transition-colors hover:text-emerald-300"
+                            >
+                              {l.label}
+                            </a>
+                          </li>
+                        )}
+                      </For>
+                    </ul>
+                  </div>
+                )}
+              </For>
+            </div>
+            <div class="mt-14 flex flex-col items-center justify-between gap-4 border-t border-white/5 pt-8 sm:flex-row">
+              <p class="text-xs text-white/35">{D.footer.copyright}</p>
+              <button
+                onClick={() => lenis?.scrollTo(0, { duration: 1.6 })}
+                class="group flex items-center gap-2 text-xs text-white/45 transition-colors hover:text-emerald-300"
+              >
+                Kembali ke atas
+                <ArrowUpRight size={13} class="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+              </button>
+            </div>
+          </div>
+        </footer>
+      </main>
 
-      <style>{`
-        @keyframes marquee {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        .animate-marquee {
-          animation: marquee 22s linear infinite;
-        }
-      `}</style>
+      {/* Grain overlay + cursor glow */}
+      <div
+        class="pointer-events-none fixed inset-0 z-[90] opacity-[0.04] mix-blend-overlay"
+        style={`background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch"/></filter><rect width="100%25" height="100%25" filter="url(%23n)"/></svg>');`}
+      />
+      <div
+        ref={cursorRef}
+        class="pointer-events-none fixed left-0 top-0 z-[95] hidden h-72 w-72 rounded-full lg:block"
+        style="background: radial-gradient(circle, rgba(52,211,153,0.09), transparent 60%);"
+      />
     </div>
   );
 }

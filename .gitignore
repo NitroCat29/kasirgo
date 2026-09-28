@@ -2,10 +2,14 @@
 .env
 .env.local
 
-# Database
+# Database (db.ts resolve relatif ke folder backend/, aman dari cwd apa pun)
 backend/db/*.sqlite
 backend/db/*.sqlite-shm
 backend/db/*.sqlite-wal
+# Jaring pengaman kalau ada yang bikin DB nested (pernah kejadian: backend/backend/db/)
+**/db/*.sqlite
+**/db/*.sqlite-shm
+**/db/*.sqlite-wal
 
 # Backups
 backups/
@@ -16,6 +20,8 @@ node_modules/
 # Build output
 dist/
 frontend/dist/
+frontend/dist-webview/
+src-electrobun/dist/
 
 # Trash (deprecated files)
 .trash/
@@ -40,9 +46,12 @@ src-tauri/gen/
 *.d
 *.pdb
 
-# Tooling config
+# Tooling config (config agent — tetap track, tidak perlu di-ignore)
 .reasonix/
-reasonix.toml
+# reasonix.toml
+
+# Server manifest MCP lokal
+server.json
 
 # Skill repo (jangan commit)
 .ponytail-repo/

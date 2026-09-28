@@ -1,67 +1,70 @@
 {
-  "navbar": {
-    "links": [
-      { "label": "Beranda", "href": "/", "active": true },
-      { "label": "Fitur", "href": "/fitur" },
-      { "label": "Tentang", "href": "/tentang" }
-    ],
-    "loginLabel": "Masuk Toko"
-  },
+  "brand": { "name": "KasirGO", "tagline": "Aplikasi kasir & POS untuk bisnis Indonesia" },
+  "nav": [
+    { "label": "Fitur", "id": "fitur" },
+    { "label": "Solusi", "id": "solusi" },
+    { "label": "Cara Kerja", "id": "langkah" },
+    { "label": "Open Source", "id": "testimoni" }
+  ],
   "hero": {
-    "badge": "KASIR DIGITAL UNTUK UMKM INDONESIA",
-    "title": "KASIRGO",
-    "subtitle": "UNTUK TOKO KAMU",
-    "description": "Aplikasi kasir offline-first yang tetap jalan walau internet mati. Catat transaksi otomatis, kelola stok realtime, laporan langsung jadi, dan aman dengan TOTP 2FA.",
-    "ctaPrimary": { "label": "Mulai Gratis", "href": "/login" },
-    "ctaSecondary": { "label": "Lihat Demo", "href": "/demo" },
-    "trust": ["Offline-first", "Wallet per-toko", "TOTP 2FA", "Multi-cabang"]
+    "badge": "Open source • Jalan offline • Data disimpan lokal",
+    "titleLines": ["Setiap Transaksi,", "Lebih Cepat.", "Lebih Pintar."],
+    "subtitle": "Kelola transaksi, stok, dan wallet dari satu aplikasi. Ringan, jalan walau internet mati, dan tetap bisa dipakai lebih dari satu toko.",
+    "primaryCta": "Mulai Gratis",
+    "secondaryCta": "Lihat Fiturnya",
+    "trust": "Offline-first • Multi-toko • TOTP 2FA"
   },
-  "stats": [
-    { "value": "5 menit", "label": "Setup toko baru" },
-    { "value": "100%", "label": "Tetap jalan offline" },
-    { "value": "Per-toko", "label": "Wallet kepisah rapi" }
-  ],
+  "marquee": ["Kasir Offline", "Manajemen Stok", "Wallet Per-toko", "Multi Toko", "Laporan Harian", "Mode Gelap", "Audit Log", "Notifikasi Stok Menipis"],
   "features": [
-    { "id": "offline", "title": "Offline First", "desc": "Transaksi tetap jalan tanpa internet. Sinkron otomatis saat online lagi. Nol drama putus koneksi.", "icon": "wifi-off" },
-    { "id": "wallet", "title": "Wallet Per-Toko", "desc": "Tiap cabang punya kas sendiri. Saldo tidak tercampur, arus kas jelas per toko.", "icon": "wallet" },
-    { "id": "security", "title": "TOTP 2FA", "desc": "Top-up saldo wajib verifikasi TOTP. Admin-only dengan audit trail lengkap.", "icon": "shield" },
-    { "id": "analytics", "title": "Analitik Realtime", "desc": "Grafik penjualan harian, jam ramai, produk terlaris langsung dari data toko.", "icon": "chart" },
-    { "id": "pos", "title": "POS Super Cepat", "desc": "Scan barcode, tambah keranjang, bayar, cetak struk. Selesai under 10 detik.", "icon": "zap" },
-    { "id": "multi", "title": "Multi Toko RBAC", "desc": "Kelola banyak cabang dari 1 akun. Role owner, admin, kasir dengan akses terpisah.", "icon": "layers" }
+    { "id": "kasir", "icon": "ScanLine", "tag": "Core", "title": "Kasir Ringan", "desc": "Cari produk pakai keyboard, atur qty inline, toggle PPN/diskon per transaksi. Panel bayar selalu kelihatan, tanpa scroll bolak-balik." },
+    { "id": "stok", "icon": "Package", "tag": "Inventory", "title": "Stok Real-time", "desc": "Stok terpotong otomatis tiap transaksi. Set batas minimum per produk, dapat peringatan saat stok mulai menipis." },
+    { "id": "laporan", "icon": "BarChart3", "tag": "Analytics", "title": "Laporan Harian", "desc": "Grafik pendapatan dan pengeluaran harian, ringkasan transaksi 1/7/30 hari, semuanya dihitung dari data asli — bukan angka simulasi." },
+    { "id": "outlet", "icon": "Store", "tag": "Multi-toko", "title": "Banyak Toko", "desc": "Buat beberapa toko dalam satu akun. Produk, transaksi, dan saldo wallet terpisah rapi per toko." },
+    { "id": "bayar", "icon": "Wallet", "tag": "Wallet", "title": "Wallet Per-toko", "desc": "Tiap toko punya saldo sendiri. Pembelian produk dan restock memotong saldo, penjualan menambahnya — arus kas langsung kelihatan." },
+    { "id": "aman", "icon": "ShieldCheck", "tag": "Security", "title": "Keamanan & Audit", "desc": "Login wajib verifikasi email, top-up saldo dilindungi TOTP 2FA, hak akses admin/manajer/kasir, dan semua aksi tercatat di audit log." }
   ],
-  "compare": {
-    "badge": "KENAPA PINDAH?",
-    "title": "Dari buku tulis ke kasir otomatis",
-    "desc": "Kasir manual pakai buku catatan atau kalkulator rawan selisih dan rekap berjam-jam. KasirGO mencatat otomatis, stok berkurang sendiri, laporan jadi seketika.",
-    "manual": ["Hitung manual rawan selisih", "Stok dicatat terpisah", "Rekap akhir bulan berjam-jam", "Uang cabang kecampur"],
-    "kasirgo": ["Hitung otomatis via WASM", "Stok sinkron realtime", "Laporan jadi seketika", "Wallet per-toko terpisah"]
-  },
-  "wallet": {
-    "badge": "WALLET PER-TOKO",
-    "title": "Punya banyak cabang? Kas tetap kepisah rapi.",
-    "desc": "Tiap toko punya wallet sendiri. Pantau saldo dan arus kas per toko dari satu akun, dilindungi TOTP 2FA.",
-    "bullets": ["Saldo per-toko realtime", "Mutasi dan history lengkap", "Top-up aman dengan TOTP", "Cocok untuk cabang dan franchise"],
-    "mock": [
-      { "name": "Toko Pusat - Bandung", "balance": "Rp 12.450.000", "change": "+12%" },
-      { "name": "Cabang - Jakarta", "balance": "Rp 8.200.000", "change": "+5%" },
-      { "name": "Cabang - Surabaya", "balance": "Rp 4.750.000", "change": "-2%" }
-    ]
-  },
-  "businessTypes": [
-    { "id": "retail", "label": "Retail & Konter", "desc": "Stok varian dan harga jual kelola dari satu layar. Untuk toko baju, konter HP, minimarket." },
-    { "id": "resto", "label": "F&B / Resto", "desc": "Pesanan meja, antrian dapur, dan kasir semua sinkron otomatis. Untuk kafe, resto, angkringan." },
-    { "id": "grosir", "label": "Grosir", "desc": "Harga bertingkat dan transaksi partai besar tetap rapi. Untuk grosir sembako dan distributor." }
+  "stats": [
+    { "value": 1, "suffix": "", "label": "Perintah untuk mulai: bun run dev" },
+    { "value": 0, "suffix": " biaya", "label": "Gratis & open source" },
+    { "value": 100, "suffix": "%", "label": "Jalan tanpa internet" },
+    { "value": 3, "suffix": " level", "label": "Hak akses: admin, manajer, kasir" }
   ],
-  "ctaFinal": {
-    "badge": "SIAP JUALAN?",
-    "title": "Setup toko pertamamu hari ini",
-    "desc": "Gratis tanpa kartu kredit. Bisa langsung dipakai offline. Pindah dari buku ke KasirGO dalam 5 menit.",
-    "button": "Masuk Dashboard",
-    "href": "/login"
+  "solutions": [
+    { "id": "umkm", "icon": "Store", "title": "UMKM & Warung", "desc": "Satu perangkat cukup untuk kasir harian: catat transaksi, pantau stok, dan lihat untung rugi tanpa hitung manual.", "points": ["Kasir jalan offline, tetap bisa transaksi", "Stok & wallet terpantau otomatis", "Riwayat transaksi bisa dicari kapan saja"], "stat": "Tutup buku tanpa kalkulator" },
+    { "id": "resto", "icon": "UtensilsCrossed", "title": "Kafe & Tempat Fotocopy", "desc": "Stok kertas global untuk layanan fotocopy, jasa diinput sebagai produk, dan qty diatur langsung dari panel kasir.", "points": ["Stok kertas terkurangi otomatis per layanan", "Jasa dicatat sebagai produk biasa", "PPN & diskon bisa diaktifkan per transaksi"], "stat": "Satu layar untuk semua layanan" },
+    { "id": "retail", "icon": "Package", "title": "Retail & Toko Kelontong", "desc": "Cari produk dalam sekejap, restock satu per satu atau sekaligus, dan langsung tahu barang mana yang harus dibeli lagi.", "points": ["Pencarian produk cepat dengan cache", "Restock massal dalam satu modal", "Peringatan stok menipis per toko"], "stat": "Restock tidak ada yang terlewat" },
+    { "id": "jasa", "icon": "Zap", "title": "Bisnis Multi-cabang", "desc": "Punya lebih dari satu cabang? Pisahkan data per toko dan pantau performa masing-masing dari dashboard yang sama.", "points": ["Wallet terpisah tiap toko", "Grafik pendapatan per periode", "Audit log siap diperiksa kapan saja"], "stat": "Satu dashboard, semua cabang" }
+  ],
+  "steps": [
+    { "title": "Jalankan sekali", "desc": "Ketik bun run dev di folder project. Backend dan frontend langsung nyala berdua, gak perlu buka dua terminal." },
+    { "title": "Buat toko & produk", "desc": "Daftar akun, buat toko, lalu input produk lengkap dengan harga modal dan batas stok minimum." },
+    { "title": "Mulai transaksi", "desc": "Cari produk, atur jumlah, pilih tunai atau non-tunai. Stok terpotong dan wallet toko bertambah otomatis." }
+  ],
+  "cta": {
+    "title": "Siap Rapikan Kasir Anda",
+    "subtitle": "Gratis dan open source. Tanpa kartu kredit, tanpa langganan — clone repo, jalankan, langsung pakai.",
+    "button": "Coba KasirGO Sekarang",
+    "note": "Setup 1 menit • Jalan offline • Data tersimpan di perangkat sendiri"
   },
   "footer": {
-    "brand": "KasirGO",
-    "tagline": "DIBUAT UNTUK UMKM INDONESIA",
-    "desc": "POS offline-first dengan wallet per-toko dan TOTP 2FA. Dibuat untuk UMKM yang serius jualan."
+    "description": "Aplikasi kasir & POS open source untuk UMKM, kafe, dan retail di Indonesia. Jalan offline, data disimpan di perangkat Anda sendiri.",
+    "columns": [
+      { "title": "Produk", "links": [
+        { "label": "Fitur", "href": "#fitur" },
+        { "label": "Cara Kerja", "href": "#langkah" },
+        { "label": "Keamanan", "href": "#fitur" }
+      ] },
+      { "title": "Pengembang", "links": [
+        { "label": "README", "href": "https://codeberg.org/ElCastra/KasirGO/src/branch/main/README.md" },
+        { "label": "Kontribusi", "href": "https://codeberg.org/ElCastra/KasirGO/src/branch/main/CONTRIBUTING.md" },
+        { "label": "Arsitektur", "href": "https://codeberg.org/ElCastra/KasirGO/src/branch/main/markdown/ARCHITECTURE.md" }
+      ] },
+      { "title": "Proyek", "links": [
+        { "label": "Repo Codeberg", "href": "https://codeberg.org/ElCastra/KasirGO" },
+        { "label": "Mirror GitHub", "href": "https://github.com/NitroCat29/kasirgo" },
+        { "label": "License", "href": "https://codeberg.org/ElCastra/KasirGO/src/branch/main/LICENSE" }
+      ] }
+    ],
+    "copyright": "© 2026 KasirGO — proyek open source."
   }
 }

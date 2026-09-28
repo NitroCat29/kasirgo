@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS produk (
   id TEXT PRIMARY KEY,
   toko_id TEXT NOT NULL,
   sku TEXT UNIQUE,
+  barcode TEXT DEFAULT '',
   nama TEXT NOT NULL,
   merk TEXT DEFAULT '',
   kategori TEXT DEFAULT '',
@@ -32,6 +33,23 @@ CREATE TABLE IF NOT EXISTS produk (
 CREATE INDEX IF NOT EXISTS idx_produk_sku ON produk(sku) WHERE sku IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_produk_nama_toko ON produk(toko_id, nama);
 CREATE INDEX IF NOT EXISTS idx_produk_sku_toko ON produk(toko_id, sku);
+-- idx_produk_barcode dibuat di backend/db.ts SETELAH kolom barcode dimigrasi
+
+
+-- ============================================================
+-- AI Integration — simpan konfigurasi vision endpoint (per instance)
+-- api_key disimpan plaintext di SQLite lokal; proteksi: file DB lokal,
+-- endpoint + key juga bisa dikirim lewat env AI_API_KEY (override).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS ai_settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  base_url TEXT DEFAULT '',
+  api_key TEXT DEFAULT '',
+  model TEXT DEFAULT '',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+INSERT OR IGNORE INTO ai_settings (id) VALUES (1);
 
 CREATE TABLE IF NOT EXISTS transaksi (
   id TEXT PRIMARY KEY,

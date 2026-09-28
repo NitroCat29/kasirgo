@@ -197,6 +197,7 @@ export function validateProdukCreate(body: Record<string, unknown>) {
     merk: ["Merk", optional(str({ allowEmpty: true }))],
     kategori: ["Kategori", optional(str({ allowEmpty: true }))],
     satuan: ["Satuan", optional(str({ allowEmpty: true }))],
+    barcode: ["Barcode", optional(str({ allowEmpty: true, max: 64 }))],
   });
   if (!res.ok) return res;
   // toko_id selalu string (default "") sesuai kontrak lama, walau tidak dikirim
@@ -214,6 +215,7 @@ export function validateProdukUpdate(body: Record<string, unknown>) {
     merk: ["Merk", optional(str({ allowEmpty: true }))],
     kategori: ["Kategori", optional(str({ allowEmpty: true }))],
     satuan: ["Satuan", optional(str({ allowEmpty: true }))],
+    barcode: ["Barcode", optional(str({ allowEmpty: true, max: 64 }))],
   });
 }
 

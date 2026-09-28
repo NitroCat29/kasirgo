@@ -15,7 +15,27 @@ const DEV_VITE_PORT = 5173;
 const DEV_BACKEND_PORT = 3456;
 const DEV_VITE_URL = `http://localhost:${DEV_VITE_PORT}`;
 const DEV_BACKEND_URL = `http://localhost:${DEV_BACKEND_PORT}`;
-const REPO_ROOT = new URL("../..", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
+
+// Repo root tempat backend/server.ts + frontend/ hidup. Saat di-source, ../..
+// dari src/bun = repo root. Saat dev-build ter-packaging, ../.. = Resources/
+// (backend/vite tidak ada) → naik terus sampai ketemu, kalau nggak ketemu
+// (app dipasang di mesin user tanpa repo) → spawn di-skip, pakai views://.
+import { existsSync } from "node:fs";
+import { resolve, sep } from "node:path";
+
+function findRepoRoot(): string {
+  let dir = new URL("../..", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
+  for (;;) {
+    if (existsSync(resolve(dir, "backend", "server.ts")) && existsSync(resolve(dir, "frontend", "package.json"))) {
+      return dir;
+    }
+    const parent = resolve(dir, "..");
+    if (parent === dir) return dir; // sampai drive root — biarkan coba (spawn bakal gagal wajar)
+    dir = parent;
+  }
+}
+const REPO_ROOT = findRepoRoot();
+console.log(`[electrobun] REPO_ROOT=${REPO_ROOT}${sep}`);
 
 // ============================================================
 // Managed child processes (auto-spawn backend + frontend dev)
@@ -79,9 +99,10 @@ async function waitForUrl(url: string, label: string, timeoutMs = 15_000): Promi
 
 async function getMainViewUrl(): Promise<string> {
   const channel = await Updater.localInfo.channel();
+  const spawnEnabled = !process.env.ELECTROBUN_SKIP_SPAWN;
   if (channel === "dev") {
-    // Dev: spawn backend + Vite, point BrowserWindow at Vite
-    if (!process.env.ELECTROBUN_SKIP_SPAWN) {
+    // Dev: spawn backend + Vite (kalau repo root ketemu), point ke Vite (HMR)
+    if (spawnEnabled) {
       spawnManaged("backend", ["bun", "run", "backend/server.ts"], REPO_ROOT);
       spawnManaged(
         "vite",
@@ -89,16 +110,19 @@ async function getMainViewUrl(): Promise<string> {
         REPO_ROOT,
       );
     }
-    const ok = await waitForUrl(DEV_VITE_URL, "vite");
-    if (!ok) {
-      console.warn("Falling back to backend SPA at " + DEV_BACKEND_URL);
+    if (await waitForUrl(DEV_VITE_URL, "vite")) {
+      console.log(`HMR enabled: ${DEV_VITE_URL}`);
+      return DEV_VITE_URL;
+    }
+    if (await waitForUrl(DEV_BACKEND_URL, "backend")) {
+      console.log("Falling back to backend SPA at " + DEV_BACKEND_URL);
       return DEV_BACKEND_URL;
     }
-    console.log(`HMR enabled: ${DEV_VITE_URL}`);
-    return DEV_VITE_URL;
+    console.warn("Backend + Vite tidak tersedia; fallback ke views:// (offline lokal)");
+    return "views://mainview/index.html";
   }
   // Prod: spawn backend only, point BrowserWindow at backend SPA
-  if (!process.env.ELECTROBUN_SKIP_SPAWN) {
+  if (spawnEnabled) {
     spawnManaged("backend", ["bun", "run", "backend/server.ts"], REPO_ROOT);
   }
   const ok = await waitForUrl(DEV_BACKEND_URL, "backend");

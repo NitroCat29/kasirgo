@@ -1302,6 +1302,10 @@ input[type="range"]::-moz-range-thumb {
 
 /* Data table */
 .data-table { width: 100%; border-collapse: collapse; }
+/* HP: tabel tetap lebar & bisa di-scroll, jangan dipaksa squeeze sampai kolom numpuk */
+@media (max-width: 640px) {
+  .data-table { min-width: 640px; }
+}
 .data-table th {
   text-align: left;
   font-size: 11px;
@@ -1405,6 +1409,9 @@ input[type="range"]::-moz-range-thumb {
   backdrop-filter: blur(4px);
   z-index: 50;
   display: flex; align-items: center; justify-content: center;
+  /* padding biar modal-box bisa tinggi tanpa nempel ke tepi layar */
+  padding: 16px;
+  overflow-y: auto;
 }
 
 .modal-box {
@@ -1414,8 +1421,54 @@ input[type="range"]::-moz-range-thumb {
   padding: 28px;
   width: 100%;
   max-width: 440px;
-  margin: 16px;
+  margin: auto;
   animation: modal-in 0.25s ease-out;
+}
+
+/* Form panjang (mis. Tambah Produk): lebar horizontal + tinggi terbatas,
+   konten di dalam body bisa di-scroll, footer selalu kelihatan di bawah. */
+.modal-box.form-wide {
+  max-width: min(94vw, 920px);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 32px);
+  overflow: hidden;
+}
+.form-wide .modal-form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.form-wide .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  /* scroll di dalam body, bukan di modal-box → suggestion dropdown
+     tetap menempel di field-nya, keluar dari area scroll kalau perlu */
+  padding-right: 6px;
+  margin-right: -6px;
+}
+.form-wide .modal-footer {
+  flex: 0 0 auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 14px;
+  margin-top: 14px;
+}
+
+/* Form panjang: layout horizontal (kolom) supaya ringkas & melebar */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 20px;
+}
+.span-2 { grid-column: 1 / -1; }
+
+@media (max-width: 767px) {
+  .form-wide { max-width: calc(100vw - 32px); padding: 18px; }
+  .form-wide .modal-body { padding-right: 0; margin-right: 0; overflow-y: visible; }
+  .form-grid { grid-template-columns: 1fr; gap: 14px; }
 }
 
 @keyframes modal-in {

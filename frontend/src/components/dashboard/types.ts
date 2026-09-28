@@ -23,6 +23,7 @@ export interface Produk {
   merk?: string;
   kategori?: string;
   satuan?: string;
+  barcode?: string;
   harga: number;
   harga_modal?: number;
   stok: number;
@@ -82,7 +83,7 @@ export interface DailyRevenue {
   expense?: number;
 }
 
-export type DashboardTab = "overview" | "toko" | "produk" | "transaksi" | "users" | "audit" | "security";
+export type DashboardTab = "overview" | "toko" | "produk" | "transaksi" | "users" | "audit" | "security" | "ai-integration";
 
 export const ROLE_LEVEL: Record<string, number> = {
   kasir: 1,

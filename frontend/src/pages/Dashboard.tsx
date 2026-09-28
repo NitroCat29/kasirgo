@@ -11,6 +11,7 @@ import { api } from "../lib/api";
 import { formatRupiah, formatWIB } from "../lib/format";
 
 import { useDashboardData } from "../features/dashboard/useDashboardData";
+import { useProdukAI } from "../features/dashboard/hooks/useProdukAI";
 import OverviewTab from "../features/dashboard/tabs/OverviewTab";
 import TokoTab from "../features/dashboard/tabs/TokoTab";
 import ProdukTab from "../features/dashboard/tabs/ProdukTab";
@@ -81,6 +82,7 @@ export default function Dashboard() {
       { id: "users", label: "Users", icon: "👥", description: "Kelola pengguna", action: () => setTab("users") },
       { id: "audit", label: "Audit Logs", icon: "📋", description: "Log aktivitas", action: () => setTab("audit") },
       { id: "security", label: "Keamanan", icon: "🔐", description: "Pengaturan keamanan", action: () => setTab("security") },
+      { id: "ai-integration", label: "Integrasi AI", icon: "🤖", description: "Endpoint vision & API key", action: () => nav("/ai-integration") },
       // Quick actions
       { id: "kasir", label: "Buka POS", icon: "⚡", description: "Buka halaman kasir", action: () => nav("/kasir") },
       { id: "add-toko", label: "Tambah Toko", icon: "➕", description: "Buat toko baru", action: () => { d.setModalToko({}); d.setShowTokoModal(true); } },
@@ -101,6 +103,7 @@ export default function Dashboard() {
         { id: "users", label: "Users", icon: <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.885-2.001-1.938-2.001-.18 0-.358.025-.532.073m-3.593.65a9.337 9.337 0 00-4.121.952 4.125 4.125 0 007.533 2.493M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M9.038 17.595a9.337 9.337 0 00-4.121.952 4.125 4.125 0 007.533 2.493M9.038 17.595a9.337 9.337 0 00-4.121-.952 4.125 4.125 0 017.533 2.493M15 19.128v-.003c0-1.113-.885-2.001-1.938-2.001-.18 0-.358.025-.532.073m-3.593.65a9.337 9.337 0 00-4.121.952 4.125 4.125 0 007.533 2.493M9.038 17.595a4.125 4.125 0 00-7.533-2.493M9.038 17.595a9.337 9.337 0 00-4.121.952 4.125 4.125 0 007.533 2.493" /> },
         { id: "audit", label: "Audit Logs", icon: <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-2.25-2.126H4.5c0 3.106.003 5.935.007 7.037.004.885-.674 1.65-1.567 1.724a18.07 18.07 0 01-2.162.076 17.97 17.97 0 01-1.658-.112 17.97 17.97 0 01-1.658-.112 17.97 17.97 0 01-1.658-.112H3.75" /> },
         { id: "security", label: "Keamanan", icon: <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /> },
+        { id: "ai-integration", label: "Integrasi AI", icon: <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" /> },
       );
     }
     return items as { id: DashboardTab; label: string; icon: JSX.Element }[];
@@ -108,6 +111,12 @@ export default function Dashboard() {
 
   // Tab change handler — load data for tab
   function handleTabClick(id: string) {
+    // Route non-tab (Navigasi ke halaman terpisah)
+    if (id === "ai-integration") {
+      setSidebarOpen(false);
+      nav("/ai-integration");
+      return;
+    }
     setTab(id as DashboardTab);
     setSidebarOpen(false);
     d.setActiveTabRealtime(id);
@@ -165,6 +174,13 @@ export default function Dashboard() {
     d.setBulkToml("");
     d.setShowProdukModal(true);
   };
+  // AI vision + barcode (foto → auto-input, scan via kamera/upload)
+  const produkAi = useProdukAI({
+    modalProduk: d.modalProduk,
+    setModalProduk: d.setModalProduk,
+    satuanWhitelist: () => d.SATUAN_WHITELIST,
+  });
+
   const produkModalProps = {
     modalProduk: d.modalProduk,
     setModalProduk: d.setModalProduk,
@@ -189,6 +205,7 @@ export default function Dashboard() {
     handleBulkImport: d.handleBulkImport,
     resetProdukCombobox: d.resetProdukCombobox,
     submitting: () => d.submitting(),
+    ...produkAi,
   };
 
   return (

@@ -20,7 +20,7 @@ export default function UsersTab(props: UsersTabProps) {
           + Tambah User
         </button>
       </div>
-      <div class="glass overflow-hidden">
+      <div class="glass overflow-x-auto -mx-1 px-1">
         <table class="data-table">
           <thead>
             <tr>

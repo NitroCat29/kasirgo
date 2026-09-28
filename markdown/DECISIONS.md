@@ -43,6 +43,16 @@
 - "CLI: tea (Gitea CLI) ganti gh — hanya untuk Codeberg entity management (issues/pr/release)"
 - "Sync model: periodik (tag/release) → push main + gh-pages ke GitHub; dev harian hanya ke Codeberg"
 - "PR Workflow: semua perubahan via branch+PR (Codeberg), JANGAN push langsung ke main — lihat CONTRIBUTING.md"
+- "Landing metrics + one-shot dev (2026-09-27)"
+  - landing.json HANYA memuat fitur yang benar-benar ada di kode. Klaim fiktif yang sudah dihapus: 12.500+ bisnis, 340+ kota, 2.4jt transaksi/bulan, uptime 99.9%, laporan AI, QRIS/printer thermal/integrasi marketplace/ekspor Excel/backup harian/enkripsi e2e. Jangan tambah angka atau fitur tanpa verifikasi kode.
+  - CTA diarahkan ke /login karena route /register tidak ada di App.tsx.
+  - Testimoni = [] (belum ada testimonial asli) → section Testimoni diganti jadi "Open Source". Jangan isi testimoni buatan sendiri.
+  - bun run dev dari root repo: scripts/dev.ts spawn backend (:3456) + Vite (:5173) sekaligus. Jangan suruh user aktifkan dua terminal terpisah.
+  - DB backend path absolut (import.meta.dir / DB_PATH env absolut). Relative path bikin DB nyasar ke backend/backend/db/ kalau cwd ≠ repo root.
+- "Routing home + tema landing (2026-09-27)"
+  - "/" = HomeRedirect: desktop (isElectrobun) → langsung /kasir, web → /landing. Landing hanya di /landing.
+  - Landing dipaksa tema gelap (color-scheme:dark + data-page-theme) — di index.css ada override [data-theme="light"] .text-white !important, jadi kalau user simpan light mode teks landing jadi item di atas bg gelap.
+  - CTA Landing diarahkan /login karena route /register tidak ada.
 - "Electrobun = full mode desktop (offline-first, Bun main process + system webview, bun:sqlite lokal, typed RPC, no server dependency)"
 - "Desktop runtime: Electrobun (https://blackboard.sh/electrobun/ / docs: https://framework.blackboard.sh/electrobun/) — Bun+Zig native, tiny bundle, cross-platform"
 - "Desktop data path: reuse shared/db-schema.sql + bun:sqlite di main process (bukan tauri-plugin-sql / rusqlite)"

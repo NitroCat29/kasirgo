@@ -1,12 +1,16 @@
 import { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
 import { readFileSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve } from "node:path";
 
 // ============================================================
 // SQLite Database Setup
 // ============================================================
-const dbPath = "backend/db/kasirgo.sqlite";
+// Path absolut — jangan relative ke cwd. Dulu "backend/db/..." bikin DB ikut
+// pindah kalau server dijalankan bukan dari repo root (nongol backend/backend/db/).
+const dbPath = process.env.DB_PATH
+  ? resolve(process.env.DB_PATH)
+  : join(import.meta.dir, "db", "kasirgo.sqlite");
 mkdirSync(dirname(dbPath), { recursive: true });
 const db = new Database(dbPath);
 db.run("PRAGMA journal_mode = WAL");
@@ -61,6 +65,12 @@ if (!cols.find((c) => c.name === "satuan")) {
 if (!cols.find((c) => c.name === "sku")) {
   db.run("ALTER TABLE produk ADD COLUMN sku TEXT");
 }
+
+// Migration: add barcode column if missing (scanner HP + AI input)
+if (!cols.find((c) => c.name === "barcode")) {
+  db.run("ALTER TABLE produk ADD COLUMN barcode TEXT DEFAULT ''");
+}
+db.run("CREATE INDEX IF NOT EXISTS idx_produk_barcode ON produk(barcode) WHERE barcode != ''");
 
 // Backfill sku for products that don't have one
 const skulessProduk = db.query("SELECT id FROM produk WHERE sku IS NULL").all() as { id: string }[];

@@ -40,7 +40,7 @@ export function AuthShell(props: AuthShellProps) {
         <div class="w-full max-w-md mx-auto">
           {/* Logo + tagline */}
           <div class="text-center mb-7 entrance entrance-1">
-            <A href="/" class="inline-flex items-center gap-3 no-underline group">
+            <A href="/landing" class="inline-flex items-center gap-3 no-underline group">
               <div class="relative">
                 <div class="absolute inset-0 rounded-xl bg-kasir-accent/40 blur-lg group-hover:bg-kasir-accent/60 transition-colors" />
                 <img src="/assets/kasirku_logo.svg" alt="KasirGo" class="relative w-11 h-11 rounded-xl transition-transform group-hover:scale-105" />
